@@ -27,7 +27,7 @@
 
 namespace android {
 
-DrmCompositor::DrmCompositor(DrmResources *drm) : drm_(drm) {
+DrmCompositor::DrmCompositor(DrmResources *drm) : drm_(drm), frame_no_(0) {
 }
 
 DrmCompositor::~DrmCompositor() {
@@ -47,13 +47,13 @@ int DrmCompositor::Init() {
   return 0;
 }
 
-Composition *DrmCompositor::CreateComposition(Importer *importer) {
+DrmComposition *DrmCompositor::CreateComposition(Importer *importer) {
   DrmComposition *composition = new DrmComposition(drm_, importer);
   if (!composition) {
     ALOGE("Failed to allocate drm composition");
     return NULL;
   }
-  int ret = composition->Init();
+  int ret = composition->Init(++frame_no_);
   if (ret) {
     ALOGE("Failed to initialize drm composition %d", ret);
     delete composition;
@@ -62,16 +62,21 @@ Composition *DrmCompositor::CreateComposition(Importer *importer) {
   return composition;
 }
 
-int DrmCompositor::QueueComposition(Composition *composition) {
-  DrmComposition *drm_composition = (DrmComposition *)composition;
+int DrmCompositor::QueueComposition(
+    std::unique_ptr<DrmComposition> composition) {
+  int ret = composition->DisableUnusedPlanes();
+  if (ret) {
+    ALOGE("Failed to disable unused planes %d", ret);
+    return ret;
+  }
+
   for (DrmResources::ConnectorIter iter = drm_->begin_connectors();
        iter != drm_->end_connectors(); ++iter) {
     int display = (*iter)->display();
     int ret = compositor_map_[display].QueueComposition(
-        drm_composition->TakeDisplayComposition(display));
+        composition->TakeDisplayComposition(display));
     if (ret) {
       ALOGE("Failed to queue composition for display %d", display);
-      delete composition;
       return ret;
     }
   }

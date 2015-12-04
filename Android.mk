@@ -37,7 +37,6 @@ LOCAL_C_INCLUDES := \
 	system/core/libsync/include \
 
 LOCAL_SRC_FILES := \
-	compositor.cpp \
 	drmresources.cpp \
         drmcomposition.cpp \
         drmcompositor.cpp \
@@ -50,10 +49,10 @@ LOCAL_SRC_FILES := \
 	drmmode.cpp \
 	drmplane.cpp \
 	drmproperty.cpp \
-	gl_compositor.cpp \
 	glworker.cpp \
 	hwcomposer.cpp \
 	seperate_rects.cpp \
+	virtualcompositorworker.cpp \
 	vsyncworker.cpp \
 	worker.cpp
 

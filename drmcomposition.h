@@ -17,13 +17,11 @@
 #ifndef ANDROID_DRM_COMPOSITION_H_
 #define ANDROID_DRM_COMPOSITION_H_
 
-#include "compositor.h"
 #include "drm_hwcomposer.h"
 #include "drmdisplaycomposition.h"
 #include "drmplane.h"
 #include "importer.h"
 
-#include <deque>
 #include <map>
 #include <vector>
 
@@ -32,18 +30,28 @@
 
 namespace android {
 
-class DrmComposition : public Composition {
+struct DrmCompositionDisplayLayersMap {
+  int display;
+  std::vector<DrmHwcLayer> layers;
+
+  DrmCompositionDisplayLayersMap() = default;
+  DrmCompositionDisplayLayersMap(DrmCompositionDisplayLayersMap &&rhs) =
+      default;
+};
+
+class DrmComposition {
  public:
   DrmComposition(DrmResources *drm, Importer *importer);
-  ~DrmComposition();
 
-  virtual int Init();
+  int Init(uint64_t frame_no);
 
-  virtual unsigned GetRemainingLayers(int display, unsigned num_needed) const;
-  virtual int AddLayer(int display, hwc_layer_1_t *layer, hwc_drm_bo_t *bo);
-  int AddDpmsMode(int display, uint32_t dpms_mode);
+  int SetLayers(size_t num_displays, DrmCompositionDisplayLayersMap *maps);
+  int SetDpmsMode(int display, uint32_t dpms_mode);
+  int SetDisplayMode(int display, const DrmMode &display_mode);
 
   std::unique_ptr<DrmDisplayComposition> TakeDisplayComposition(int display);
+  DrmDisplayComposition *GetDisplayComposition(int display);
+  int DisableUnusedPlanes();
 
  private:
   DrmComposition(const DrmComposition &) = delete;
@@ -52,7 +60,7 @@ class DrmComposition : public Composition {
   Importer *importer_;
 
   std::vector<DrmPlane *> primary_planes_;
-  std::deque<DrmPlane *> overlay_planes_;
+  std::vector<DrmPlane *> overlay_planes_;
 
   /*
    * This _must_ be read-only after it's passed to QueueComposition. Otherwise
@@ -60,7 +68,6 @@ class DrmComposition : public Composition {
    */
   std::map<int, std::unique_ptr<DrmDisplayComposition>> composition_map_;
 };
-
 }
 
 #endif  // ANDROID_DRM_COMPOSITION_H_

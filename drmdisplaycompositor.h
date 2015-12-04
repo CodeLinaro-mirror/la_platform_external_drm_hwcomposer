@@ -20,6 +20,7 @@
 #include "drm_hwcomposer.h"
 #include "drmcomposition.h"
 #include "drmcompositorworker.h"
+#include "drmframebuffer.h"
 
 #include <pthread.h>
 #include <queue>
@@ -28,7 +29,11 @@
 #include <hardware/hardware.h>
 #include <hardware/hwcomposer.h>
 
+#define DRM_DISPLAY_BUFFERS 2
+
 namespace android {
+
+class GLWorkerCompositor;
 
 class DrmDisplayCompositor {
  public:
@@ -46,6 +51,11 @@ class DrmDisplayCompositor {
  private:
   DrmDisplayCompositor(const DrmDisplayCompositor &) = delete;
 
+  // Set to 83ms (~12fps) which is somewhere between a reasonable amount of
+  // time to wait for a long render and a small enough delay to limit jank.
+  static const int kAcquireWaitTimeoutMs = 83;
+
+  int ApplyPreComposite(DrmDisplayComposition *display_comp);
   int ApplyFrame(DrmDisplayComposition *display_comp);
   int ApplyDpms(DrmDisplayComposition *display_comp);
 
@@ -57,10 +67,15 @@ class DrmDisplayCompositor {
   std::queue<std::unique_ptr<DrmDisplayComposition>> composite_queue_;
   std::unique_ptr<DrmDisplayComposition> active_composition_;
 
-  uint64_t frame_no_;
-
   bool initialized_;
   bool active_;
+
+  DrmMode next_mode_;
+  bool needs_modeset_;
+
+  int framebuffer_index_;
+  DrmFramebuffer framebuffers_[DRM_DISPLAY_BUFFERS];
+  std::unique_ptr<GLWorkerCompositor> pre_compositor_;
 
   // mutable since we need to acquire in HaveQueuedComposites
   mutable pthread_mutex_t lock_;
