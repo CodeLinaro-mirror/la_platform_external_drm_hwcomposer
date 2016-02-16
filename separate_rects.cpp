@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "seperate_rects.h"
+#include "separate_rects.h"
 #include <algorithm>
 #include <assert.h>
 #include <iostream>
@@ -23,7 +23,7 @@
 #include <utility>
 #include <vector>
 
-namespace seperate_rects {
+namespace separate_rects {
 
 enum EventType { START, END };
 
@@ -71,7 +71,7 @@ std::ostream &operator<<(std::ostream &os, const IdSet<TUInt> &obj) {
 }
 
 template <typename TNum, typename TId>
-void seperate_rects(const std::vector<Rect<TNum>> &in,
+void separate_rects(const std::vector<Rect<TNum>> &in,
                     std::vector<RectSet<TId, TNum>> *out) {
   // Overview:
   // This algorithm is a line sweep algorithm that travels from left to right.
@@ -108,6 +108,11 @@ void seperate_rects(const std::vector<Rect<TNum>> &in,
   // algorithm sweeps from left to right.
   for (TId i = 0; i < in.size(); i++) {
     const Rect<TNum> &rect = in[i];
+
+    // Filter out empty or invalid rects.
+    if (rect.left >= rect.right || rect.top >= rect.bottom)
+      continue;
+
     SweepEvent<TId, TNum> evt;
     evt.rect_id = i;
 
@@ -299,21 +304,21 @@ void seperate_rects(const std::vector<Rect<TNum>> &in,
   }
 }
 
-void seperate_frects_64(const std::vector<Rect<float>> &in,
+void separate_frects_64(const std::vector<Rect<float>> &in,
                         std::vector<RectSet<uint64_t, float>> *out) {
-  seperate_rects(in, out);
+  separate_rects(in, out);
 }
 
-void seperate_rects_64(const std::vector<Rect<int>> &in,
+void separate_rects_64(const std::vector<Rect<int>> &in,
                        std::vector<RectSet<uint64_t, int>> *out) {
-  seperate_rects(in, out);
+  separate_rects(in, out);
 }
 
-}  // namespace seperate_rects
+}  // namespace separate_rects
 
 #ifdef RECTS_TEST
 
-using namespace seperate_rects;
+using namespace separate_rects;
 
 int main(int argc, char **argv) {
 #define RectSet RectSet<TId, TNum>
@@ -346,9 +351,14 @@ int main(int argc, char **argv) {
   in.push_back({50, 51, 52, 53});
   in.push_back({50, 51, 52, 53});
 
+  in.push_back({0, 0, 0, 10});
+  in.push_back({0, 0, 10, 0});
+  in.push_back({10, 0, 0, 10});
+  in.push_back({0, 10, 10, 0});
+
   for (int i = 0; i < 100000; i++) {
     out.clear();
-    seperate_rects(in, &out);
+    separate_rects(in, &out);
   }
 
   for (int i = 0; i < out.size(); i++) {

@@ -18,22 +18,24 @@
 #define LOG_TAG "hwc-drm-display-compositor"
 
 #include "drmdisplaycompositor.h"
+
+#include <pthread.h>
+#include <sched.h>
+#include <stdlib.h>
+#include <time.h>
+#include <sstream>
+#include <vector>
+
+#include <cutils/log.h>
+#include <drm/drm_mode.h>
+#include <sync/sync.h>
+#include <utils/Trace.h>
+
+#include "autolock.h"
 #include "drmcrtc.h"
 #include "drmplane.h"
 #include "drmresources.h"
 #include "glworker.h"
-
-#include <pthread.h>
-#include <sched.h>
-#include <sstream>
-#include <stdlib.h>
-#include <time.h>
-#include <vector>
-
-#include <drm/drm_mode.h>
-#include <cutils/log.h>
-#include <sync/sync.h>
-#include <utils/Trace.h>
 
 #define DRM_DISPLAY_COMPOSITOR_MAX_QUEUE_DEPTH 2
 
@@ -52,10 +54,10 @@ void SquashState::Init(DrmHwcLayer *layers, size_t num_layers) {
     last_handles_.push_back(layer->sf_handle);
   }
 
-  std::vector<seperate_rects::RectSet<uint64_t, int>> out_regions;
-  seperate_rects::seperate_rects_64(in_rects, &out_regions);
+  std::vector<separate_rects::RectSet<uint64_t, int>> out_regions;
+  separate_rects::separate_rects_64(in_rects, &out_regions);
 
-  for (const seperate_rects::RectSet<uint64_t, int> &out_region : out_regions) {
+  for (const separate_rects::RectSet<uint64_t, int> &out_region : out_regions) {
     regions_.emplace_back();
     Region &region = regions_.back();
     region.rect = out_region.rect;
@@ -74,9 +76,10 @@ void SquashState::GenerateHistory(DrmHwcLayer *layers, size_t num_layers,
   std::bitset<kMaxLayers> changed_layers;
   for (size_t i = 0; i < last_handles_.size(); i++) {
     DrmHwcLayer *layer = &layers[i];
-    if (last_handles_[i] != layer->sf_handle) {
+    // Protected layers can't be squashed so we treat them as constantly
+    // changing.
+    if (layer->protected_usage() || last_handles_[i] != layer->sf_handle)
       changed_layers.set(i);
-    }
   }
 
   for (size_t i = 0; i < regions_.size(); i++) {
@@ -238,7 +241,7 @@ DrmDisplayCompositor::DrmDisplayCompositor()
       frame_worker_(this),
       initialized_(false),
       active_(false),
-      needs_modeset_(false),
+      use_hw_overlays_(true),
       framebuffer_index_(0),
       squash_framebuffer_index_(0),
       dump_frames_composited_(0),
@@ -259,6 +262,11 @@ DrmDisplayCompositor::~DrmDisplayCompositor() {
   int ret = pthread_mutex_lock(&lock_);
   if (ret)
     ALOGE("Failed to acquire compositor lock %d", ret);
+
+  if (mode_.blob_id)
+    drm_->DestroyPropertyBlob(mode_.blob_id);
+  if (mode_.old_blob_id)
+    drm_->DestroyPropertyBlob(mode_.old_blob_id);
 
   while (!composite_queue_.empty()) {
     composite_queue_.front().reset();
@@ -392,6 +400,7 @@ int DrmDisplayCompositor::PrepareFramebuffer(
   display_comp->layers().emplace_back();
   DrmHwcLayer &pre_comp_layer = display_comp->layers().back();
   pre_comp_layer.sf_handle = fb.buffer()->handle;
+  pre_comp_layer.blending = DrmHwcBlending::kPreMult;
   pre_comp_layer.source_crop = DrmHwcRect<float>(0, 0, width, height);
   pre_comp_layer.display_frame = DrmHwcRect<int>(0, 0, width, height);
   ret = pre_comp_layer.buffer.ImportBuffer(fb.buffer()->handle,
@@ -535,6 +544,7 @@ int DrmDisplayCompositor::PrepareFrame(DrmDisplayComposition *display_comp) {
         return ret;
       }
       squash_layer.sf_handle = fb.buffer()->handle;
+      squash_layer.blending = DrmHwcBlending::kPreMult;
       squash_layer.source_crop = DrmHwcRect<float>(
           0, 0, squash_layer.buffer->width, squash_layer.buffer->height);
       squash_layer.display_frame = DrmHwcRect<int>(
@@ -584,7 +594,10 @@ int DrmDisplayCompositor::PrepareFrame(DrmDisplayComposition *display_comp) {
   return ret;
 }
 
-int DrmDisplayCompositor::CommitFrame(DrmDisplayComposition *display_comp) {
+int DrmDisplayCompositor::CommitFrame(DrmDisplayComposition *display_comp,
+                                      bool test_only) {
+  ATRACE_CALL();
+
   int ret = 0;
 
   std::vector<DrmHwcLayer> &layers = display_comp->layers();
@@ -612,44 +625,14 @@ int DrmDisplayCompositor::CommitFrame(DrmDisplayComposition *display_comp) {
     return -ENOMEM;
   }
 
-  uint32_t blob_id = 0;
-  uint64_t old_blob_id;
-  if (needs_modeset_) {
-    DrmProperty old_mode;
-    ret = drm_->GetCrtcProperty(*crtc, crtc->mode_property().name().c_str(),
-                                &old_mode);
-    if (ret) {
-      ALOGE("Failed to get old mode property from crtc %d", crtc->id());
-      drmModePropertySetFree(pset);
-      return ret;
-    }
-    ret = old_mode.value(&old_blob_id);
-    if (ret) {
-      ALOGE("Could not get old blob id value %d", ret);
-      drmModePropertySetFree(pset);
-      return ret;
-    }
-
-    struct drm_mode_modeinfo drm_mode;
-    memset(&drm_mode, 0, sizeof(drm_mode));
-    next_mode_.ToDrmModeModeInfo(&drm_mode);
-
-    ret = drm_->CreatePropertyBlob(&drm_mode, sizeof(struct drm_mode_modeinfo),
-                                   &blob_id);
-    if (ret) {
-      ALOGE("Failed to create mode property blob %d", ret);
-      drmModePropertySetFree(pset);
-      return ret;
-    }
-
+  if (mode_.needs_modeset) {
     ret = drmModePropertySetAdd(pset, crtc->id(), crtc->mode_property().id(),
-                                blob_id) ||
+                                mode_.blob_id) ||
           drmModePropertySetAdd(pset, connector->id(),
                                 connector->crtc_id_property().id(), crtc->id());
     if (ret) {
-      ALOGE("Failed to add blob %d to pset", blob_id);
+      ALOGE("Failed to add blob %d to pset", mode_.blob_id);
       drmModePropertySetFree(pset);
-      drm_->DestroyPropertyBlob(blob_id);
       return ret;
     }
   }
@@ -679,7 +662,7 @@ int DrmDisplayCompositor::CommitFrame(DrmDisplayComposition *display_comp) {
           break;
         }
         DrmHwcLayer &layer = layers[comp_plane.source_layer];
-        if (layer.acquire_fence.get() >= 0) {
+        if (!test_only && layer.acquire_fence.get() >= 0) {
           int acquire_fence = layer.acquire_fence.get();
           for (int i = 0; i < kAcquireWaitTries; ++i) {
             ret = sync_wait(acquire_fence, kAcquireWaitTimeoutMs);
@@ -702,30 +685,18 @@ int DrmDisplayCompositor::CommitFrame(DrmDisplayComposition *display_comp) {
         source_crop = layer.source_crop;
         if (layer.blending == DrmHwcBlending::kPreMult)
           alpha = layer.alpha;
-        switch (layer.transform) {
-          case DrmHwcTransform::kFlipH:
-            rotation = 1 << DRM_REFLECT_X;
-            break;
-          case DrmHwcTransform::kFlipV:
-            rotation = 1 << DRM_REFLECT_Y;
-            break;
-          case DrmHwcTransform::kRotate90:
-            rotation = 1 << DRM_ROTATE_90;
-            break;
-          case DrmHwcTransform::kRotate180:
-            rotation = 1 << DRM_ROTATE_180;
-            break;
-          case DrmHwcTransform::kRotate270:
-            rotation = 1 << DRM_ROTATE_270;
-            break;
-          case DrmHwcTransform::kIdentity:
-            rotation = 0;
-            break;
-          default:
-            ALOGE("Invalid transform value 0x%x given", layer.transform);
-            break;
-        }
-        break;
+
+        rotation = 0;
+        if (layer.transform & DrmHwcTransform::kFlipH)
+          rotation |= 1 << DRM_REFLECT_X;
+        if (layer.transform & DrmHwcTransform::kFlipV)
+          rotation |= 1 << DRM_REFLECT_Y;
+        if (layer.transform & DrmHwcTransform::kRotate90)
+          rotation |= 1 << DRM_ROTATE_90;
+        else if (layer.transform & DrmHwcTransform::kRotate180)
+          rotation |= 1 << DRM_ROTATE_180;
+        else if (layer.transform & DrmHwcTransform::kRotate270)
+          rotation |= 1 << DRM_ROTATE_270;
       }
     }
 
@@ -807,24 +778,28 @@ int DrmDisplayCompositor::CommitFrame(DrmDisplayComposition *display_comp) {
 
 out:
   if (!ret) {
-    ret = drmModePropertySetCommit(drm_->fd(), DRM_MODE_ATOMIC_ALLOW_MODESET,
-                                   drm_, pset);
+    uint32_t flags = DRM_MODE_ATOMIC_ALLOW_MODESET;
+    if (test_only)
+      flags |= DRM_MODE_ATOMIC_TEST_ONLY;
+
+    ret = drmModePropertySetCommit(drm_->fd(), flags, drm_, pset);
     if (ret) {
-      ALOGE("Failed to commit pset ret=%d\n", ret);
+      if (test_only)
+        ALOGI("Commit test pset failed ret=%d\n", ret);
+      else
+        ALOGE("Failed to commit pset ret=%d\n", ret);
       drmModePropertySetFree(pset);
-      if (needs_modeset_)
-        drm_->DestroyPropertyBlob(blob_id);
       return ret;
     }
   }
   if (pset)
     drmModePropertySetFree(pset);
 
-  if (needs_modeset_) {
-    ret = drm_->DestroyPropertyBlob(old_blob_id);
+  if (!test_only && mode_.needs_modeset) {
+    ret = drm_->DestroyPropertyBlob(mode_.old_blob_id);
     if (ret) {
-      ALOGE("Failed to destroy old mode property blob %lld/%d", old_blob_id,
-            ret);
+      ALOGE("Failed to destroy old mode property blob %lld/%d",
+            mode_.old_blob_id, ret);
       return ret;
     }
 
@@ -835,8 +810,10 @@ out:
       return ret;
     }
 
-    connector->set_active_mode(next_mode_);
-    needs_modeset_ = false;
+    connector->set_active_mode(mode_.mode);
+    mode_.old_blob_id = mode_.blob_id;
+    mode_.blob_id = 0;
+    mode_.needs_modeset = false;
   }
 
   return ret;
@@ -859,12 +836,29 @@ int DrmDisplayCompositor::ApplyDpms(DrmDisplayComposition *display_comp) {
   return 0;
 }
 
+std::tuple<int, uint32_t> DrmDisplayCompositor::CreateModeBlob(
+    const DrmMode &mode) {
+  struct drm_mode_modeinfo drm_mode;
+  memset(&drm_mode, 0, sizeof(drm_mode));
+  mode.ToDrmModeModeInfo(&drm_mode);
+
+  uint32_t id = 0;
+  int ret = drm_->CreatePropertyBlob(&drm_mode,
+                                     sizeof(struct drm_mode_modeinfo), &id);
+  if (ret) {
+    ALOGE("Failed to create mode property blob %d", ret);
+    return std::make_tuple(ret, 0);
+  }
+  ALOGE("Create blob_id %ld\n", id);
+  return std::make_tuple(ret, id);
+}
+
 void DrmDisplayCompositor::ApplyFrame(
     std::unique_ptr<DrmDisplayComposition> composition, int status) {
   int ret = status;
 
   if (!ret)
-    ret = CommitFrame(composition.get());
+    ret = CommitFrame(composition.get(), false);
 
   if (ret) {
     ALOGE("Composite failed for display %d", display_);
@@ -928,7 +922,36 @@ int DrmDisplayCompositor::Composite() {
 
   switch (composition->type()) {
     case DRM_COMPOSITION_TYPE_FRAME:
-      ret = PrepareFrame(composition.get());
+      if (use_hw_overlays_ || composition->geometry_changed()) {
+        ret = PrepareFrame(composition.get());
+        if (ret) {
+          ALOGE("Failed to prepare frame for display %d", display_);
+          return ret;
+        }
+      }
+      if (composition->geometry_changed()) {
+        // Send the composition to the kernel to ensure we can commit it. This
+        // is just a test, it won't actually commit the frame. If rejected,
+        // squash the frame into one layer and use the squashed composition
+        ret = CommitFrame(composition.get(), true);
+        if (ret)
+          ALOGI("Commit test failed, squashing frame for display %d", display_);
+        use_hw_overlays_ = !ret;
+      }
+
+      // If use_hw_overlays_ is false, we can't use hardware to composite the
+      // frame. So squash all layers into a single composition and queue that
+      // instead.
+      if (!use_hw_overlays_) {
+        std::unique_ptr<DrmDisplayComposition> squashed = CreateComposition();
+        ret = SquashFrame(composition.get(), squashed.get());
+        if (!ret) {
+          composition = std::move(squashed);
+        } else {
+          ALOGE("Failed to squash frame for display %d", display_);
+          return ret;
+        }
+      }
       frame_worker_.QueueFrame(std::move(composition), ret);
       break;
     case DRM_COMPOSITION_TYPE_DPMS:
@@ -937,8 +960,15 @@ int DrmDisplayCompositor::Composite() {
         ALOGE("Failed to apply dpms for display %d", display_);
       return ret;
     case DRM_COMPOSITION_TYPE_MODESET:
-      next_mode_ = composition->display_mode();
-      needs_modeset_ = true;
+      mode_.mode = composition->display_mode();
+      if (mode_.blob_id)
+        drm_->DestroyPropertyBlob(mode_.blob_id);
+      std::tie(ret, mode_.blob_id) = CreateModeBlob(mode_.mode);
+      if (ret) {
+        ALOGE("Failed to create mode blob for display %d", display_);
+        return ret;
+      }
+      mode_.needs_modeset = true;
       return 0;
     default:
       ALOGE("Unknown composition type %d", composition->type());
@@ -964,6 +994,141 @@ bool DrmDisplayCompositor::HaveQueuedComposites() const {
   }
 
   return empty_ret;
+}
+
+int DrmDisplayCompositor::SquashAll() {
+  AutoLock lock(&lock_, "compositor");
+  int ret = lock.Lock();
+  if (ret)
+    return ret;
+
+  if (!active_composition_)
+    return 0;
+
+  std::unique_ptr<DrmDisplayComposition> comp = CreateComposition();
+  ret = SquashFrame(active_composition_.get(), comp.get());
+
+  // ApplyFrame needs the lock
+  lock.Unlock();
+
+  if (!ret)
+    ApplyFrame(std::move(comp), 0);
+
+  return ret;
+}
+
+// Returns:
+//   - 0 if src is successfully squashed into dst
+//   - -EALREADY if the src is already squashed
+//   - Appropriate error if the squash fails
+int DrmDisplayCompositor::SquashFrame(DrmDisplayComposition *src,
+                                      DrmDisplayComposition *dst) {
+  if (src->type() != DRM_COMPOSITION_TYPE_FRAME)
+    return -ENOTSUP;
+
+  std::vector<DrmCompositionPlane> &src_planes = src->composition_planes();
+  std::vector<DrmHwcLayer> &src_layers = src->layers();
+
+  // Make sure there is more than one layer to squash.
+  size_t src_planes_with_layer = std::count_if(
+      src_planes.begin(), src_planes.end(), [](DrmCompositionPlane &p) {
+        return p.source_layer <= DrmCompositionPlane::kSourceLayerMax;
+      });
+  if (src_planes_with_layer <= 1)
+    return -EALREADY;
+
+  int pre_comp_layer_index;
+
+  int ret = dst->Init(drm_, src->crtc(), src->importer(), src->frame_no());
+  if (ret) {
+    ALOGE("Failed to init squash all composition %d", ret);
+    return ret;
+  }
+
+  std::vector<DrmPlane *> primary_planes;
+  std::vector<DrmPlane *> fake_overlay_planes;
+  std::vector<DrmHwcLayer> dst_layers;
+  for (DrmCompositionPlane &comp_plane : src_planes) {
+    // Composition planes without DRM planes should never happen
+    if (comp_plane.plane == NULL) {
+      ALOGE("Skipping squash all because of NULL plane");
+      ret = -EINVAL;
+      goto move_layers_back;
+    }
+
+    if (comp_plane.source_layer == DrmCompositionPlane::kSourceNone)
+      continue;
+
+    // Out of range layers should never happen. If they do, somebody probably
+    // forgot to replace the symbolic names (kSourceSquash, kSourcePreComp) with
+    // real ones.
+    if (comp_plane.source_layer >= src_layers.size()) {
+      ALOGE("Skipping squash all because of out of range source layer %zu",
+            comp_plane.source_layer);
+      ret = -EINVAL;
+      goto move_layers_back;
+    }
+
+    DrmHwcLayer &layer = src_layers[comp_plane.source_layer];
+
+    // Squashing protected layers is impossible.
+    if (layer.protected_usage()) {
+      ret = -ENOTSUP;
+      goto move_layers_back;
+    }
+
+    // The OutputFds point to freed memory after hwc_set returns. They are
+    // returned to the default to prevent DrmDisplayComposition::Plan from
+    // filling the OutputFds.
+    layer.release_fence = OutputFd();
+    dst_layers.emplace_back(std::move(layer));
+
+    if (comp_plane.plane->type() == DRM_PLANE_TYPE_PRIMARY &&
+        primary_planes.size() == 0)
+      primary_planes.push_back(comp_plane.plane);
+    else
+      dst->AddPlaneDisable(comp_plane.plane);
+  }
+
+  ret = dst->SetLayers(dst_layers.data(), dst_layers.size(), false);
+  if (ret) {
+    ALOGE("Failed to set layers for squash all composition %d", ret);
+    goto move_layers_back;
+  }
+
+  ret =
+      dst->Plan(NULL /* SquashState */, &primary_planes, &fake_overlay_planes);
+  if (ret) {
+    ALOGE("Failed to plan for squash all composition %d", ret);
+    goto move_layers_back;
+  }
+
+  ret = ApplyPreComposite(dst);
+  if (ret) {
+    ALOGE("Failed to pre-composite for squash all composition %d", ret);
+    goto move_layers_back;
+  }
+
+  pre_comp_layer_index = dst->layers().size() - 1;
+  framebuffer_index_ = (framebuffer_index_ + 1) % DRM_DISPLAY_BUFFERS;
+
+  for (DrmCompositionPlane &plane : dst->composition_planes())
+    if (plane.source_layer == DrmCompositionPlane::kSourcePreComp)
+      plane.source_layer = pre_comp_layer_index;
+
+  return 0;
+
+// TODO(zachr): think of a better way to transfer ownership back to the active
+// composition.
+move_layers_back:
+  for (size_t plane_index = 0;
+       plane_index < src_planes.size() && plane_index < dst_layers.size();
+       plane_index++) {
+    size_t source_layer_index = src_planes[plane_index].source_layer;
+    src_layers[source_layer_index] = std::move(dst_layers[plane_index]);
+  }
+
+  return ret;
 }
 
 void DrmDisplayCompositor::Dump(std::ostringstream *out) const {

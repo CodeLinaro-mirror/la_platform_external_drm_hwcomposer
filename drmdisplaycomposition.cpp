@@ -154,6 +154,20 @@ static DrmPlane *TakePlane(DrmCrtc *crtc,
   return TakePlane(crtc, overlay_planes);
 }
 
+void DrmDisplayComposition::EmplaceCompositionPlane(
+    size_t source_layer, std::vector<DrmPlane *> *primary_planes,
+    std::vector<DrmPlane *> *overlay_planes) {
+  DrmPlane *plane = TakePlane(crtc_, primary_planes, overlay_planes);
+  if (plane == NULL) {
+    ALOGE(
+        "Failed to add composition plane because there are no planes "
+        "remaining");
+    return;
+  }
+  composition_planes_.emplace_back(
+      DrmCompositionPlane{plane, crtc_, source_layer});
+}
+
 static std::vector<size_t> SetBitsToVector(uint64_t in, size_t *index_map) {
   std::vector<size_t> out;
   size_t msb = sizeof(in) * 8 - 1;
@@ -191,11 +205,11 @@ static void SeparateLayers(DrmHwcLayer *layers, size_t *used_layers,
       layer_rects.begin() + num_exclude_rects,
       [=](size_t layer_index) { return layers[layer_index].display_frame; });
 
-  std::vector<seperate_rects::RectSet<uint64_t, int>> seperate_regions;
-  seperate_rects::seperate_rects_64(layer_rects, &seperate_regions);
+  std::vector<separate_rects::RectSet<uint64_t, int>> separate_regions;
+  separate_rects::separate_rects_64(layer_rects, &separate_regions);
   uint64_t exclude_mask = ((uint64_t)1 << num_exclude_rects) - 1;
 
-  for (seperate_rects::RectSet<uint64_t, int> &region : seperate_regions) {
+  for (separate_rects::RectSet<uint64_t, int> &region : separate_regions) {
     if (region.id_set.getBits() & exclude_mask)
       continue;
     regions.emplace_back(DrmCompositionRegion{
@@ -234,6 +248,8 @@ int DrmDisplayComposition::CreateAndAssignReleaseFences() {
   }
 
   for (DrmHwcLayer *layer : squash_layers) {
+    if (!layer->release_fence)
+      continue;
     int ret = layer->release_fence.Set(CreateNextTimelineFence());
     if (ret < 0)
       return ret;
@@ -241,6 +257,8 @@ int DrmDisplayComposition::CreateAndAssignReleaseFences() {
   timeline_squash_done_ = timeline_;
 
   for (DrmHwcLayer *layer : pre_comp_layers) {
+    if (!layer->release_fence)
+      continue;
     int ret = layer->release_fence.Set(CreateNextTimelineFence());
     if (ret < 0)
       return ret;
@@ -248,6 +266,8 @@ int DrmDisplayComposition::CreateAndAssignReleaseFences() {
   timeline_pre_comp_done_ = timeline_;
 
   for (DrmHwcLayer *layer : comp_layers) {
+    if (!layer->release_fence)
+      continue;
     int ret = layer->release_fence.Set(CreateNextTimelineFence());
     if (ret < 0)
       return ret;
@@ -324,49 +344,64 @@ int DrmDisplayComposition::Plan(SquashState *squash,
     }
   }
 
+  // All protected layers get first usage of planes
   std::vector<size_t> layers_remaining;
   for (size_t layer_index = 0; layer_index < layers_.size(); layer_index++) {
-    // Skip layers that were completely squashed
-    if (layer_squash_area[layer_index] >=
-        layers_[layer_index].display_frame.area()) {
+    if (!layers_[layer_index].protected_usage() || planes_can_use == 0) {
+      layers_remaining.push_back(layer_index);
       continue;
     }
-
-    layers_remaining.push_back(layer_index);
+    EmplaceCompositionPlane(layer_index, primary_planes, overlay_planes);
+    planes_can_use--;
   }
 
-  if (use_squash_framebuffer)
-    planes_can_use--;
+  if (planes_can_use == 0 && layers_remaining.size() > 0) {
+    ALOGE("Protected layers consumed all hardware planes");
+    return CreateAndAssignReleaseFences();
+  }
+
+  std::vector<size_t> layers_remaining_if_squash;
+  for (size_t layer_index : layers_remaining) {
+    if (layer_squash_area[layer_index] <
+        layers_[layer_index].display_frame.area())
+      layers_remaining_if_squash.push_back(layer_index);
+  }
+
+  if (use_squash_framebuffer) {
+    if (planes_can_use > 1 || layers_remaining_if_squash.size() == 0) {
+      layers_remaining = std::move(layers_remaining_if_squash);
+      planes_can_use--;  // Reserve plane for squashing
+    } else {
+      use_squash_framebuffer = false;  // The squash buffer is still rendered
+    }
+  }
 
   if (layers_remaining.size() > planes_can_use)
-    planes_can_use--;
+    planes_can_use--;  // Reserve one for pre-compositing
 
+  // Whatever planes that are not reserved get assigned a layer
   size_t last_composition_layer = 0;
   for (last_composition_layer = 0;
        last_composition_layer < layers_remaining.size() && planes_can_use > 0;
        last_composition_layer++, planes_can_use--) {
-    composition_planes_.emplace_back(
-        DrmCompositionPlane{TakePlane(crtc_, primary_planes, overlay_planes),
-                            crtc_, layers_remaining[last_composition_layer]});
+    EmplaceCompositionPlane(layers_remaining[last_composition_layer],
+                            primary_planes, overlay_planes);
   }
 
   layers_remaining.erase(layers_remaining.begin(),
                          layers_remaining.begin() + last_composition_layer);
 
   if (layers_remaining.size() > 0) {
-    composition_planes_.emplace_back(
-        DrmCompositionPlane{TakePlane(crtc_, primary_planes, overlay_planes),
-                            crtc_, DrmCompositionPlane::kSourcePreComp});
-
+    EmplaceCompositionPlane(DrmCompositionPlane::kSourcePreComp, primary_planes,
+                            overlay_planes);
     SeparateLayers(layers_.data(), layers_remaining.data(),
                    layers_remaining.size(), exclude_rects.data(),
                    exclude_rects.size(), pre_comp_regions_);
   }
 
   if (use_squash_framebuffer) {
-    composition_planes_.emplace_back(
-        DrmCompositionPlane{TakePlane(crtc_, primary_planes, overlay_planes),
-                            crtc_, DrmCompositionPlane::kSourceSquash});
+    EmplaceCompositionPlane(DrmCompositionPlane::kSourceSquash, primary_planes,
+                            overlay_planes);
   }
 
   return CreateAndAssignReleaseFences();
@@ -408,23 +443,52 @@ static void DumpBuffer(const DrmHwcBuffer &buffer, std::ostringstream *out) {
   *out << buffer->width << "/" << buffer->height << "/" << buffer->format;
 }
 
-static const char *TransformToString(DrmHwcTransform transform) {
-  switch (transform) {
-    case DrmHwcTransform::kIdentity:
-      return "IDENTITY";
-    case DrmHwcTransform::kFlipH:
-      return "FLIPH";
-    case DrmHwcTransform::kFlipV:
-      return "FLIPV";
-    case DrmHwcTransform::kRotate90:
-      return "ROTATE90";
-    case DrmHwcTransform::kRotate180:
-      return "ROTATE180";
-    case DrmHwcTransform::kRotate270:
-      return "ROTATE270";
-    default:
-      return "<invalid>";
+static void DumpTransform(uint32_t transform, std::ostringstream *out) {
+  *out << "[";
+
+  if (transform == 0)
+    *out << "IDENTITY";
+
+  bool separator = false;
+  if (transform & DrmHwcTransform::kFlipH) {
+    *out << "FLIPH";
+    separator = true;
   }
+  if (transform & DrmHwcTransform::kFlipV) {
+    if (separator)
+      *out << "|";
+    *out << "FLIPV";
+    separator = true;
+  }
+  if (transform & DrmHwcTransform::kRotate90) {
+    if (separator)
+      *out << "|";
+    *out << "ROTATE90";
+    separator = true;
+  }
+  if (transform & DrmHwcTransform::kRotate180) {
+    if (separator)
+      *out << "|";
+    *out << "ROTATE180";
+    separator = true;
+  }
+  if (transform & DrmHwcTransform::kRotate270) {
+    if (separator)
+      *out << "|";
+    *out << "ROTATE270";
+    separator = true;
+  }
+
+  uint32_t valid_bits = DrmHwcTransform::kFlipH | DrmHwcTransform::kFlipH |
+                        DrmHwcTransform::kRotate90 |
+                        DrmHwcTransform::kRotate180 |
+                        DrmHwcTransform::kRotate270;
+  if (transform & ~valid_bits) {
+    if (separator)
+      *out << "|";
+    *out << "INVALID";
+  }
+  *out << "]";
 }
 
 static const char *BlendingToString(DrmHwcBlending blending) {
@@ -485,8 +549,12 @@ void DrmDisplayComposition::Dump(std::ostringstream *out) const {
 
     DumpBuffer(layer.buffer, out);
 
-    *out << " transform=" << TransformToString(layer.transform)
-         << " blending[a=" << (int)layer.alpha
+    if (layer.protected_usage())
+      *out << " protected";
+
+    *out << " transform=";
+    DumpTransform(layer.transform, out);
+    *out << " blending[a=" << (int)layer.alpha
          << "]=" << BlendingToString(layer.blending) << " source_crop";
     layer.source_crop.Dump(out);
     *out << " display_frame";

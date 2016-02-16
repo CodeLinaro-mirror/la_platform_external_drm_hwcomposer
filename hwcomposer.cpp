@@ -17,7 +17,7 @@
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 #define LOG_TAG "hwcomposer-drm"
 
-#include "drm_hwcomposer.h"
+#include "drmhwcomposer.h"
 #include "drmresources.h"
 #include "importer.h"
 #include "virtualcompositorworker.h"
@@ -127,22 +127,17 @@ typedef struct hwc_drm_display {
 struct hwc_context_t {
   // map of display:hwc_drm_display_t
   typedef std::map<int, hwc_drm_display_t> DisplayMap;
-  typedef DisplayMap::iterator DisplayMapIter;
-
-  hwc_context_t() : procs(NULL), importer(NULL) {
-  }
 
   ~hwc_context_t() {
     virtual_compositor_worker.Exit();
-    delete importer;
   }
 
   hwc_composer_device_1_t device;
-  hwc_procs_t const *procs;
+  hwc_procs_t const *procs = NULL;
 
   DisplayMap displays;
   DrmResources drm;
-  Importer *importer;
+  std::unique_ptr<Importer> importer;
   const gralloc_module_t *gralloc;
   DummySwSyncTimeline dummy_timeline;
   VirtualCompositorWorker virtual_compositor_worker;
@@ -173,20 +168,6 @@ static void free_buffer_handle(native_handle_t *handle) {
   ret = native_handle_delete(handle);
   if (ret)
     ALOGE("Failed to delete native handle %d", ret);
-}
-
-OutputFd &OutputFd::operator=(OutputFd &&rhs) {
-  if (fd_ == NULL) {
-    std::swap(fd_, rhs.fd_);
-  } else {
-    if (*fd_ < 0) {
-      ALOGE("Failed to fill OutputFd %p before assignment", fd_);
-    }
-    fd_ = rhs.fd_;
-    rhs.fd_ = NULL;
-  }
-
-  return *this;
 }
 
 const hwc_drm_bo *DrmHwcBuffer::operator->() const {
@@ -271,28 +252,22 @@ int DrmHwcLayer::InitFromHwcLayer(hwc_layer_1_t *sf_layer, Importer *importer,
       sf_layer->displayFrame.left, sf_layer->displayFrame.top,
       sf_layer->displayFrame.right, sf_layer->displayFrame.bottom);
 
-  switch (sf_layer->transform) {
-    case 0:
-      transform = DrmHwcTransform::kIdentity;
-      break;
-    case HWC_TRANSFORM_FLIP_H:
-      transform = DrmHwcTransform::kFlipH;
-      break;
-    case HWC_TRANSFORM_FLIP_V:
-      transform = DrmHwcTransform::kFlipV;
-      break;
-    case HWC_TRANSFORM_ROT_90:
-      transform = DrmHwcTransform::kRotate90;
-      break;
-    case HWC_TRANSFORM_ROT_180:
-      transform = DrmHwcTransform::kRotate180;
-      break;
-    case HWC_TRANSFORM_ROT_270:
-      transform = DrmHwcTransform::kRotate270;
-      break;
-    default:
-      ALOGE("Invalid transform in hwc_layer_1_t %d", sf_layer->transform);
-      return -EINVAL;
+  transform = 0;
+  // 270* and 180* cannot be combined with flips. More specifically, they
+  // already contain both horizontal and vertical flips, so those fields are
+  // redundant in this case. 90* rotation can be combined with either horizontal
+  // flip or vertical flip, so treat it differently
+  if (sf_layer->transform == HWC_TRANSFORM_ROT_270) {
+    transform = DrmHwcTransform::kRotate270;
+  } else if (sf_layer->transform == HWC_TRANSFORM_ROT_180) {
+    transform = DrmHwcTransform::kRotate180;
+  } else {
+    if (sf_layer->transform & HWC_TRANSFORM_FLIP_H)
+      transform |= DrmHwcTransform::kFlipH;
+    if (sf_layer->transform & HWC_TRANSFORM_FLIP_V)
+      transform |= DrmHwcTransform::kFlipV;
+    if (sf_layer->transform & HWC_TRANSFORM_ROT_90)
+      transform |= DrmHwcTransform::kRotate90;
   }
 
   switch (sf_layer->blending) {
@@ -321,13 +296,8 @@ int DrmHwcLayer::InitFromHwcLayer(hwc_layer_1_t *sf_layer, Importer *importer,
   ret = gralloc->perform(gralloc, GRALLOC_MODULE_PERFORM_GET_USAGE,
                          handle.get(), &gralloc_buffer_usage);
   if (ret) {
-    // TODO(zachr): Once GRALLOC_MODULE_PERFORM_GET_USAGE is implemented, remove
-    // "ret = 0" and enable the error logging code.
-    ret = 0;
-#if 0
     ALOGE("Failed to get usage for buffer %p (%d)", handle.get(), ret);
     return ret;
-#endif
   }
 
   return 0;
@@ -345,6 +315,10 @@ static void hwc_dump(struct hwc_composer_device_1 *dev, char *buff,
   buff[buff_len - 1] = '\0';
 }
 
+static bool hwc_skip_layer(const std::pair<int, int> &indices, int i) {
+  return indices.first >= 0 && i >= indices.first && i <= indices.second;
+}
+
 static int hwc_prepare(hwc_composer_device_1_t *dev, size_t num_displays,
                        hwc_display_contents_1_t **display_contents) {
   struct hwc_context_t *ctx = (struct hwc_context_t *)&dev->common;
@@ -354,21 +328,48 @@ static int hwc_prepare(hwc_composer_device_1_t *dev, size_t num_displays,
       continue;
 
     bool use_framebuffer_target = false;
+    DrmMode mode;
     if (i == HWC_DISPLAY_VIRTUAL) {
       use_framebuffer_target = true;
     } else {
-      DrmCrtc *crtc = ctx->drm.GetCrtcForDisplay(i);
-      if (!crtc) {
-        ALOGE("No crtc for display %d", i);
+      DrmConnector *c = ctx->drm.GetConnectorForDisplay(i);
+      if (!c) {
+        ALOGE("Failed to get DrmConnector for display %d", i);
         return -ENODEV;
       }
+      mode = c->active_mode();
     }
 
+    // Since we can't composite HWC_SKIP_LAYERs by ourselves, we'll let SF
+    // handle all layers in between the first and last skip layers. So find the
+    // outer indices and mark everything in between as HWC_FRAMEBUFFER
+    std::pair<int, int> skip_layer_indices(-1, -1);
     int num_layers = display_contents[i]->numHwLayers;
-    for (int j = 0; j < num_layers; j++) {
+    for (int j = 0; !use_framebuffer_target && j < num_layers; ++j) {
       hwc_layer_1_t *layer = &display_contents[i]->hwLayers[j];
 
-      if (!use_framebuffer_target) {
+      if (!(layer->flags & HWC_SKIP_LAYER))
+        continue;
+
+      if (skip_layer_indices.first == -1)
+        skip_layer_indices.first = j;
+      skip_layer_indices.second = j;
+    }
+
+    for (int j = 0; j < num_layers; ++j) {
+      hwc_layer_1_t *layer = &display_contents[i]->hwLayers[j];
+
+      if (!use_framebuffer_target && !hwc_skip_layer(skip_layer_indices, j)) {
+        // If the layer is off the screen, don't earmark it for an overlay.
+        // We'll leave it as-is, which effectively just drops it from the frame
+        const hwc_rect_t *frame = &layer->displayFrame;
+        if ((frame->right - frame->left) <= 0 ||
+            (frame->bottom - frame->top) <= 0 ||
+            frame->right <= 0 || frame->bottom <= 0 ||
+            frame->left >= (int)mode.h_display() ||
+            frame->top >= (int)mode.v_display())
+            continue;
+
         if (layer->compositionType == HWC_FRAMEBUFFER)
           layer->compositionType = HWC_OVERLAY;
       } else {
@@ -444,17 +445,37 @@ static int hwc_set(hwc_composer_device_1_t *dev, size_t num_displays,
     int framebuffer_target_index = -1;
     for (size_t j = 0; j < num_dc_layers; ++j) {
       hwc_layer_1_t *sf_layer = &dc->hwLayers[j];
+      if (sf_layer->compositionType == HWC_FRAMEBUFFER_TARGET) {
+        framebuffer_target_index = j;
+        break;
+      }
+    }
+
+    for (size_t j = 0; j < num_dc_layers; ++j) {
+      hwc_layer_1_t *sf_layer = &dc->hwLayers[j];
 
       display_contents.layers.emplace_back();
       DrmHwcLayer &layer = display_contents.layers.back();
 
-      if (sf_layer->flags & HWC_SKIP_LAYER)
+      // In prepare() we marked all layers FRAMEBUFFER between SKIP_LAYER's.
+      // This means we should insert the FB_TARGET layer in the composition
+      // stack at the location of the first skip layer, and ignore the rest.
+      if (sf_layer->flags & HWC_SKIP_LAYER) {
+        if (framebuffer_target_index < 0)
+          continue;
+        int idx = framebuffer_target_index;
+        framebuffer_target_index = -1;
+        hwc_layer_1_t *fbt_layer = &dc->hwLayers[idx];
+        if (!fbt_layer->handle || (fbt_layer->flags & HWC_SKIP_LAYER)) {
+          ALOGE("Invalid HWC_FRAMEBUFFER_TARGET with HWC_SKIP_LAYER present");
+          continue;
+        }
+        indices_to_composite.push_back(idx);
         continue;
+      }
 
       if (sf_layer->compositionType == HWC_OVERLAY)
         indices_to_composite.push_back(j);
-      if (sf_layer->compositionType == HWC_FRAMEBUFFER_TARGET)
-        framebuffer_target_index = j;
 
       layer.acquire_fence.Set(sf_layer->acquireFenceFd);
       sf_layer->acquireFenceFd = -1;
@@ -469,6 +490,9 @@ static int hwc_set(hwc_composer_device_1_t *dev, size_t num_displays,
       layer.release_fence = OutputFd(&sf_layer->releaseFenceFd);
     }
 
+    // This is a catch-all in case we get a frame without any overlay layers, or
+    // skip layers, but with a value fb_target layer. This _shouldn't_ happen,
+    // but it's not ruled out by the hwc specification
     if (indices_to_composite.empty() && framebuffer_target_index >= 0) {
       hwc_layer_1_t *sf_layer = &dc->hwLayers[framebuffer_target_index];
       if (!sf_layer->handle || (sf_layer->flags & HWC_SKIP_LAYER)) {
@@ -501,7 +525,7 @@ static int hwc_set(hwc_composer_device_1_t *dev, size_t num_displays,
 
       DrmHwcLayer &layer = display_contents.layers[j];
 
-      ret = layer.InitFromHwcLayer(sf_layer, ctx->importer, ctx->gralloc);
+      ret = layer.InitFromHwcLayer(sf_layer, ctx->importer.get(), ctx->gralloc);
       if (ret) {
         ALOGE("Failed to init composition from layer %d", ret);
         return ret;
@@ -511,7 +535,7 @@ static int hwc_set(hwc_composer_device_1_t *dev, size_t num_displays,
   }
 
   std::unique_ptr<DrmComposition> composition(
-      ctx->drm.compositor()->CreateComposition(ctx->importer));
+      ctx->drm.compositor()->CreateComposition(ctx->importer.get()));
   if (!composition) {
     ALOGE("Drm composition init failed");
     return -EINVAL;
@@ -600,10 +624,8 @@ static void hwc_register_procs(struct hwc_composer_device_1 *dev,
 
   ctx->procs = procs;
 
-  for (hwc_context_t::DisplayMapIter iter = ctx->displays.begin();
-       iter != ctx->displays.end(); ++iter) {
-    iter->second.vsync_worker.SetProcs(procs);
-  }
+  for (std::pair<const int, hwc_drm_display> &display_entry : ctx->displays)
+    display_entry.second.vsync_worker.SetProcs(procs);
 }
 
 static int hwc_get_display_configs(struct hwc_composer_device_1 *dev,
@@ -628,13 +650,12 @@ static int hwc_get_display_configs(struct hwc_composer_device_1 *dev,
     return ret;
   }
 
-  for (DrmConnector::ModeIter iter = connector->begin_modes();
-       iter != connector->end_modes(); ++iter) {
+  for (const DrmMode &mode : connector->modes()) {
     size_t idx = hd->config_ids.size();
     if (idx == *num_configs)
       break;
-    hd->config_ids.push_back(iter->id());
-    configs[idx] = iter->id();
+    hd->config_ids.push_back(mode.id());
+    configs[idx] = mode.id();
   }
   *num_configs = hd->config_ids.size();
   return *num_configs == 0 ? -1 : 0;
@@ -651,10 +672,9 @@ static int hwc_get_display_attributes(struct hwc_composer_device_1 *dev,
     return -ENODEV;
   }
   DrmMode mode;
-  for (DrmConnector::ModeIter iter = c->begin_modes(); iter != c->end_modes();
-       ++iter) {
-    if (iter->id() == config) {
-      mode = *iter;
+  for (const DrmMode &conn_mode : c->modes()) {
+    if (conn_mode.id() == config) {
+      mode = conn_mode;
       break;
     }
   }
@@ -723,10 +743,9 @@ static int hwc_set_active_config(struct hwc_composer_device_1 *dev, int display,
     return -ENODEV;
   }
   DrmMode mode;
-  for (DrmConnector::ModeIter iter = c->begin_modes(); iter != c->end_modes();
-       ++iter) {
-    if (iter->id() == hd->config_ids[index]) {
-      mode = *iter;
+  for (const DrmMode &conn_mode : c->modes()) {
+    if (conn_mode.id() == hd->config_ids[index]) {
+      mode = conn_mode;
       break;
     }
   }
@@ -792,11 +811,10 @@ static int hwc_initialize_display(struct hwc_context_t *ctx, int display) {
 
 static int hwc_enumerate_displays(struct hwc_context_t *ctx) {
   int ret;
-  for (DrmResources::ConnectorIter c = ctx->drm.begin_connectors();
-       c != ctx->drm.end_connectors(); ++c) {
-    ret = hwc_initialize_display(ctx, (*c)->display());
+  for (auto &conn : ctx->drm.connectors()) {
+    ret = hwc_initialize_display(ctx, conn->display());
     if (ret) {
-      ALOGE("Failed to initialize display %d", (*c)->display());
+      ALOGE("Failed to initialize display %d", conn->display());
       return ret;
     }
   }
@@ -816,7 +834,7 @@ static int hwc_device_open(const struct hw_module_t *module, const char *name,
     return -EINVAL;
   }
 
-  struct hwc_context_t *ctx = new hwc_context_t();
+  std::unique_ptr<hwc_context_t> ctx(new hwc_context_t());
   if (!ctx) {
     ALOGE("Failed to allocate hwc context");
     return -ENOMEM;
@@ -825,7 +843,6 @@ static int hwc_device_open(const struct hw_module_t *module, const char *name,
   int ret = ctx->drm.Init();
   if (ret) {
     ALOGE("Can't initialize Drm object %d", ret);
-    delete ctx;
     return ret;
   }
 
@@ -833,7 +850,6 @@ static int hwc_device_open(const struct hw_module_t *module, const char *name,
                       (const hw_module_t **)&ctx->gralloc);
   if (ret) {
     ALOGE("Failed to open gralloc module %d", ret);
-    delete ctx;
     return ret;
   }
 
@@ -843,17 +859,15 @@ static int hwc_device_open(const struct hw_module_t *module, const char *name,
     return ret;
   }
 
-  ctx->importer = Importer::CreateInstance(&ctx->drm);
+  ctx->importer.reset(Importer::CreateInstance(&ctx->drm));
   if (!ctx->importer) {
     ALOGE("Failed to create importer instance");
-    delete ctx;
     return ret;
   }
 
-  ret = hwc_enumerate_displays(ctx);
+  ret = hwc_enumerate_displays(ctx.get());
   if (ret) {
     ALOGE("Failed to enumerate displays: %s", strerror(ret));
-    delete ctx;
     return ret;
   }
 
@@ -876,6 +890,7 @@ static int hwc_device_open(const struct hw_module_t *module, const char *name,
   ctx->device.setCursorPositionAsync = NULL; /* TODO: Add cursor */
 
   *dev = &ctx->device.common;
+  ctx.release();
 
   return 0;
 }

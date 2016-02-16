@@ -17,11 +17,11 @@
 #ifndef ANDROID_DRM_DISPLAY_COMPOSITOR_H_
 #define ANDROID_DRM_DISPLAY_COMPOSITOR_H_
 
-#include "drm_hwcomposer.h"
+#include "drmhwcomposer.h"
 #include "drmcomposition.h"
 #include "drmcompositorworker.h"
 #include "drmframebuffer.h"
-#include "seperate_rects.h"
+#include "separate_rects.h"
 
 #include <pthread.h>
 #include <memory>
@@ -32,7 +32,9 @@
 #include <hardware/hardware.h>
 #include <hardware/hwcomposer.h>
 
-#define DRM_DISPLAY_BUFFERS 2
+// One for the front, one for the back, and one for cases where we need to
+// squash a frame that the hw can't display with hw overlays.
+#define DRM_DISPLAY_BUFFERS 3
 
 namespace android {
 
@@ -89,6 +91,7 @@ class DrmDisplayCompositor {
   std::unique_ptr<DrmDisplayComposition> CreateComposition() const;
   int QueueComposition(std::unique_ptr<DrmDisplayComposition> composition);
   int Composite();
+  int SquashAll();
   void Dump(std::ostringstream *out) const;
 
   std::tuple<uint32_t, uint32_t, int> GetActiveModeResolution();
@@ -122,6 +125,13 @@ class DrmDisplayCompositor {
     std::queue<FrameState> frame_queue_;
   };
 
+  struct ModeState {
+    bool needs_modeset = false;
+    DrmMode mode;
+    uint32_t blob_id = 0;
+    uint32_t old_blob_id = 0;
+  };
+
   DrmDisplayCompositor(const DrmDisplayCompositor &) = delete;
 
   // We'll wait for acquire fences to fire for kAcquireWaitTimeoutMs,
@@ -134,12 +144,15 @@ class DrmDisplayCompositor {
   int ApplySquash(DrmDisplayComposition *display_comp);
   int ApplyPreComposite(DrmDisplayComposition *display_comp);
   int PrepareFrame(DrmDisplayComposition *display_comp);
-  int CommitFrame(DrmDisplayComposition *display_comp);
+  int CommitFrame(DrmDisplayComposition *display_comp, bool test_only);
+  int SquashFrame(DrmDisplayComposition *src, DrmDisplayComposition *dst);
   int ApplyDpms(DrmDisplayComposition *display_comp);
   int DisablePlanes(DrmDisplayComposition *display_comp);
 
   void ApplyFrame(std::unique_ptr<DrmDisplayComposition> composition,
                   int status);
+
+  std::tuple<int, uint32_t> CreateModeBlob(const DrmMode &mode);
 
   DrmResources *drm_;
   int display_;
@@ -152,9 +165,9 @@ class DrmDisplayCompositor {
 
   bool initialized_;
   bool active_;
+  bool use_hw_overlays_;
 
-  DrmMode next_mode_;
-  bool needs_modeset_;
+  ModeState mode_;
 
   int framebuffer_index_;
   DrmFramebuffer framebuffers_[DRM_DISPLAY_BUFFERS];
