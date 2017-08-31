@@ -34,7 +34,6 @@ class NvImporter : public Importer {
 
   int Init();
 
-  EGLImageKHR ImportImage(EGLDisplay egl_display, buffer_handle_t handle) override;
   int ImportBuffer(buffer_handle_t handle, hwc_drm_bo_t *bo) override;
   int ReleaseBuffer(hwc_drm_bo_t *bo) override;
 
@@ -83,7 +82,7 @@ class PlanStageNvLimits : public Planner::PlanStage {
                       std::map<size_t, DrmHwcLayer *> &layers, DrmCrtc *crtc,
                       std::vector<DrmPlane *> *planes);
  protected:
-  bool CheckLayer(DrmHwcLayer *layer);
+  bool CheckLayer(size_t zorder, DrmHwcLayer *layer);
 };
 }
 

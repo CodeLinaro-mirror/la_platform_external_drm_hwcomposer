@@ -29,10 +29,6 @@
 #include <cutils/log.h>
 #include <hardware/gralloc.h>
 
-#ifndef EGL_NATIVE_HANDLE_ANDROID_NVX
-#define EGL_NATIVE_HANDLE_ANDROID_NVX 0x322A
-#endif
-
 namespace android {
 
 #ifdef USE_NVIDIA_IMPORTER
@@ -71,13 +67,6 @@ int NvImporter::Init() {
           gralloc_->common.author);
 
   return 0;
-}
-
-
-EGLImageKHR NvImporter::ImportImage(EGLDisplay egl_display, buffer_handle_t handle) {
-  return eglCreateImageKHR(
-      egl_display, EGL_NO_CONTEXT, EGL_NATIVE_HANDLE_ANDROID_NVX,
-      (EGLClientBuffer)handle, NULL /* no attribs */);
 }
 
 int NvImporter::ImportBuffer(buffer_handle_t handle, hwc_drm_bo_t *bo) {
@@ -286,7 +275,7 @@ int PlanStageProtectedRotated::ProvisionPlanes(
   return 0;
 }
 
-bool PlanStageNvLimits::CheckLayer(DrmHwcLayer *layer) {
+bool PlanStageNvLimits::CheckLayer(size_t zorder, DrmHwcLayer *layer) {
     auto src_w = layer->source_crop.width();
     auto src_h = layer->source_crop.height();
     auto dst_w = layer->display_frame.width();
@@ -295,6 +284,17 @@ bool PlanStageNvLimits::CheckLayer(DrmHwcLayer *layer) {
     int v_limit;
 
     switch (layer->buffer->format) {
+      case DRM_FORMAT_ARGB8888:
+      case DRM_FORMAT_ABGR8888:
+      case DRM_FORMAT_XBGR8888:
+        // tegra driver assumes any layer with alpha channel has premult
+        // blending, avoid handling it this is not the case. This is not an
+        // issue for bottom-most layer since there's nothing to blend with
+        if (zorder > 0 && layer->blending != DrmHwcBlending::kPreMult)
+          return false;
+
+        v_limit = 2;
+        break;
       case DRM_FORMAT_YVU420:
       case DRM_FORMAT_BGR565:
         v_limit = 4;
@@ -323,7 +323,7 @@ int PlanStageNvLimits::ProvisionPlanes(
 
   for (auto i = layers.begin(); i != layers.end();) {
     // Skip layer if supported
-    if (CheckLayer(i->second)) {
+    if (CheckLayer(i->first, i->second)) {
       i++;
       continue;
     }
