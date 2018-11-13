@@ -14,32 +14,35 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_PLATFORM_DRM_MINIGBM_H_
-#define ANDROID_PLATFORM_DRM_MINIGBM_H_
+#ifndef RESOURCEMANAGER_H
+#define RESOURCEMANAGER_H
 
 #include "drmdevice.h"
 #include "platform.h"
-#include "platformdrmgeneric.h"
 
-#include <hardware/gralloc.h>
+#include <string.h>
 
 namespace android {
 
-class DrmMinigbmImporter : public DrmGenericImporter {
+class ResourceManager {
  public:
-  DrmMinigbmImporter(DrmDevice *drm);
-  ~DrmMinigbmImporter() override;
-
+  ResourceManager();
+  ResourceManager(const ResourceManager &) = delete;
+  ResourceManager &operator=(const ResourceManager &) = delete;
   int Init();
-
-  int ImportBuffer(buffer_handle_t handle, hwc_drm_bo_t *bo) override;
+  DrmDevice *GetDrmDevice(int display);
+  std::shared_ptr<Importer> GetImporter(int display);
+  const gralloc_module_t *gralloc();
+  DrmConnector *AvailableWritebackConnector(int display);
 
  private:
-  DrmDevice *drm_;
+  int AddDrmDevice(std::string path);
 
+  int num_displays_;
+  std::vector<std::unique_ptr<DrmDevice>> drms_;
+  std::vector<std::shared_ptr<Importer>> importers_;
   const gralloc_module_t *gralloc_;
 };
-
 }  // namespace android
 
-#endif
+#endif  // RESOURCEMANAGER_H
