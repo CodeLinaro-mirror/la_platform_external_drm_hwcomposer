@@ -136,3 +136,19 @@ filegroup {
         "platform/platformmeson.cpp",
     ],
 }
+
+cc_library_shared {
+    name: "hwcomposer.drm_qcom",
+    defaults: ["hwcomposer.drm_defaults"],
+    whole_static_libs: ["drm_hwcomposer"],
+    srcs: [
+        "platform/platformdrmgeneric.cpp",
+        "platform/platformqcom.cpp",
+    ],
+    include_dirs: [
+	"vendor/qcom/opensource/commonsys-intf/display/gralloc",
+	"vendor/qcom/opensource/commonsys-intf/display/include",
+	"vendor/qcom/opensource/commonsys-intf/display/libqdmetadata",
+	"hardware/qcom/display/gralloc",
+    ],
+}
