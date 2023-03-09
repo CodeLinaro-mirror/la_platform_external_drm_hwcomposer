@@ -26,6 +26,9 @@
 #include "utils/log.h"
 #include "utils/properties.h"
 
+#include <numeric>
+#include <inttypes.h>
+
 namespace android {
 
 std::string HwcDisplay::DumpDelta(HwcDisplay::Stats delta) {
@@ -846,6 +849,25 @@ HWC2::Error HwcDisplay::SetContentType(int32_t contentType) {
 #endif
 
 #if PLATFORM_SDK_VERSION > 28
+// Copied from android-gull/device/generic/goldfish-opengl/system/hwc2/EmuHWC2.cpp
+// these EDIDs are carefully generated according to the EDID spec version 1.3, more info
+// can be found from the following file:
+//   frameworks/native/services/surfaceflinger/DisplayHardware/DisplayIdentification.cpp
+// approved pnp ids can be found here: https://uefi.org/pnp_id_list
+// pnp id: GGL, name: EMU_display_0, last byte is checksum
+// display id is local:8141603649153536
+static const uint8_t sEDID0[] = {
+    0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0x1c, 0xec, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00,
+    0x1b, 0x10, 0x01, 0x03, 0x80, 0x50, 0x2d, 0x78, 0x0a, 0x0d, 0xc9, 0xa0, 0x57, 0x47, 0x98, 0x27,
+    0x12, 0x48, 0x4c, 0x00, 0x00, 0x00, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+    0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x02, 0x3a, 0x80, 0x18, 0x71, 0x38, 0x2d, 0x40, 0x58, 0x2c,
+    0x45, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xfc,
+    0x00, 0x45, 0x4d, 0x55, 0x5f, 0x64, 0x69, 0x73, 0x70, 0x6c, 0x61, 0x79, 0x5f, 0x30, 0x00, 0x4b
+};
+#define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
+
 HWC2::Error HwcDisplay::GetDisplayIdentificationData(uint8_t *outPort,
                                                      uint32_t *outDataSize,
                                                      uint8_t *outData) {
@@ -853,19 +875,42 @@ HWC2::Error HwcDisplay::GetDisplayIdentificationData(uint8_t *outPort,
     return HWC2::Error::Unsupported;
   }
 
-  auto blob = GetPipe().connector->Get()->GetEdidBlob();
-  if (!blob) {
-    return HWC2::Error::Unsupported;
-  }
+  if (outPort == nullptr || outDataSize == nullptr)
+    return HWC2::Error::BadParameter;
 
-  *outPort = handle_; /* TDOD(nobody): What should be here? */
-
-  if (outData) {
-    *outDataSize = std::min(*outDataSize, blob->length);
-    memcpy(outData, blob->data, *outDataSize);
+  static std::vector<const DrmConnector *> known_connectors;
+  uint64_t display = known_connectors.size();
+  const auto connector_found = std::find(begin(known_connectors), end(known_connectors), GetPipe().connector->Get());
+  if (connector_found != std::end(known_connectors)) {
+    display = std::distance(begin(known_connectors), connector_found);
   } else {
-    *outDataSize = blob->length;
+    known_connectors.push_back(GetPipe().connector->Get());
   }
+
+  uint32_t len = std::min(*outDataSize, (uint32_t)ARRAY_SIZE(sEDID0));
+  if (outData != nullptr && len < (uint32_t)ARRAY_SIZE(sEDID0)) {
+    ALOGE("%s DisplayId %" PRIu64 ", small buffer size: %u is specified", __FUNCTION__, display, len);
+  }
+
+   if (outData) {
+    memcpy(outData, sEDID0, len);
+    uint32_t size = ARRAY_SIZE(sEDID0);
+    // Change the name to EMU_display_<display>.
+    // Note the 3rd char from the back is the number, _0, _1, _2, etc.
+    if (len >= size - 2)
+        outData[size - 3] = '0' + (uint8_t)display;
+    if (len >= size) {
+        // update the last byte, which is checksum byte
+        uint8_t checksum = -(uint8_t)std::accumulate(
+                outData, outData + size - 1, static_cast<uint8_t>(0));
+        outData[size - 1] = checksum;
+    }
+    *outDataSize = len;
+   } else {
+    *outDataSize = ARRAY_SIZE(sEDID0);
+   }
+
+  *outPort = display;
 
   return HWC2::Error::None;
 }
