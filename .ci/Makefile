@@ -40,8 +40,10 @@ TIDY_CHECKS_FINE := *                                   \
     -llvmlibc* -fuchsia-* -altera-*                     \
     -llvm-header-guard                                  \
     -cppcoreguidelines-pro-type-vararg                  \
+    -google-readability-todo                            \
     -hicpp-vararg                                       \
     -hicpp-signed-bitwise                               \
+    -misc-const-correctness                             \
     -readability-identifier-length                      \
 
 TIDY_CHECKS_NORMAL :=                                   \
