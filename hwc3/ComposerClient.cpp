@@ -202,9 +202,15 @@ hwc3::Error ComposerClient::ValidateDisplayInternal(
     return Hwc2toHwc3Error(hwc2_error);
   }
 
+  hwc3::Error error = Hwc2toHwc3Error(
+      display.GetChangedCompositionTypes(&num_types, nullptr, nullptr));
+  if (error != hwc3::Error::kNone) {
+    return error;
+  }
+
   std::vector<hwc2_layer_t> hwc_changed_layers(num_types);
   std::vector<int32_t> hwc_composition_types(num_types);
-  hwc3::Error error = Hwc2toHwc3Error(
+  error = Hwc2toHwc3Error(
       display.GetChangedCompositionTypes(&num_types, hwc_changed_layers.data(),
                                          hwc_composition_types.data()));
   if (error != hwc3::Error::kNone) {
@@ -331,6 +337,9 @@ void ComposerClient::DispatchLayerCommand(int64_t display_id,
   }
   if (command.brightness) {
     ExecuteSetLayerBrightness(display_id, layer_wrapper, *command.brightness);
+  }
+  if (command.luts) {
+    ExecuteLayerCommandSetLayerLuts(display_id, layer_wrapper, *command.luts);
   }
 
   // Some unsupported functionality returns kUnsupported, and others
@@ -966,15 +975,13 @@ ndk::ScopedAStatus ComposerClient::getDisplayConfigurations(
 
   const HwcDisplayConfigs& configs = display->GetDisplayConfigs();
   for (const auto& [id, config] : configs.hwc_configs) {
-    static const int kNanosecondsPerSecond = 1E9;
     configurations->emplace_back(
         DisplayConfiguration{.configId = static_cast<int32_t>(config.id),
                              .width = config.mode.GetRawMode().hdisplay,
                              .height = config.mode.GetRawMode().vdisplay,
                              .configGroup = static_cast<int32_t>(
                                  config.group_id),
-                             .vsyncPeriod = static_cast<int>(kNanosecondsPerSecond * double(
-                                 1 / config.mode.GetVRefresh()))});
+                             .vsyncPeriod = config.mode.GetVSyncPeriodNs()});
 
     if (configs.mm_width != 0) {
       // ideally this should be vdisplay/mm_heigth, however mm_height
@@ -1130,6 +1137,12 @@ void ComposerClient::ExecuteSetLayerBrightness(
       std::isnan(brightness.brightness)) {
     cmd_result_writer_->AddError(hwc3::Error::kBadParameter);
   }
+}
+
+void ComposerClient::ExecuteLayerCommandSetLayerLuts(
+    int64_t /*display_id*/, HwcLayerWrapper& /*layer*/,
+    const std::vector<std::optional<Lut>>& /*luts*/) {
+  cmd_result_writer_->AddError(hwc3::Error::kUnsupported);
 }
 
 void ComposerClient::ExecuteSetDisplayBrightness(
