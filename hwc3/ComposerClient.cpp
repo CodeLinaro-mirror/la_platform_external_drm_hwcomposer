@@ -280,7 +280,7 @@ DisplayConfiguration HwcDisplayConfigToAidlConfiguration(
        .height = config.mode.GetRawMode().vdisplay,
        .configGroup = static_cast<int32_t>(config.group_id),
        .vsyncPeriod = config.mode.GetVSyncPeriodNs(),
-       .hdrOutputType = static_cast<OutputType>(OutputType::SYSTEM)};
+       .hdrOutputType = static_cast<OutputType>(config.output_type)};
 
   if (width > 0) {
     static const float kMmPerInch = 25.4;
