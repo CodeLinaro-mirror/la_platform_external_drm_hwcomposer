@@ -279,8 +279,12 @@ DisplayConfiguration HwcDisplayConfigToAidlConfiguration(
        .width = config.mode.GetRawMode().hdisplay,
        .height = config.mode.GetRawMode().vdisplay,
        .configGroup = static_cast<int32_t>(config.group_id),
-       .vsyncPeriod = config.mode.GetVSyncPeriodNs(),
-       .hdrOutputType = static_cast<OutputType>(config.output_type)};
+       .vsyncPeriod = config.mode.GetVSyncPeriodNs()};
+
+#if __ANDROID_API__ >= 36
+  aidl_configuration.hdrOutputType = static_cast<OutputType>(
+      config.output_type);
+#endif
 
   if (width > 0) {
     static const float kMmPerInch = 25.4;
@@ -1576,21 +1580,26 @@ ndk::ScopedAStatus ComposerClient::notifyExpectedPresent(
   return ToBinderStatus(hwc3::Error::kUnsupported);
 }
 
+#endif
+
+#if __ANDROID_API__ >= 36
+
 ndk::ScopedAStatus ComposerClient::startHdcpNegotiation(
-    int64_t /*display*/, const AidlHdcpLevels& /*levels*/) {
+    int64_t /*display*/, const drm::HdcpLevels& /*levels*/) {
   return ToBinderStatus(hwc3::Error::kUnsupported);
 }
 
-#endif
-
-ndk::ScopedAStatus ComposerClient::getMaxLayerPictureProfiles(int64_t, int32_t*) {
+ndk::ScopedAStatus ComposerClient::getMaxLayerPictureProfiles(int64_t,
+                                                              int32_t*) {
   return ToBinderStatus(hwc3::Error::kUnsupported);
 }
 
 ndk::ScopedAStatus ComposerClient::getLuts(int64_t, const std::vector<Buffer>&,
-    std::vector<Luts>*) {
+                                           std::vector<Luts>*) {
   return ToBinderStatus(hwc3::Error::kUnsupported);
 }
+
+#endif
 
 std::string ComposerClient::Dump() {
   return hwc_->DumpState();

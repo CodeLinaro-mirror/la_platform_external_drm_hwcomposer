@@ -172,7 +172,7 @@ auto HwcDisplay::GetLastRequestedConfig() const -> const HwcDisplayConfig * {
 
 HWC2::Error HwcDisplay::SetOutputType(uint32_t hdr_output_type) {
   switch (hdr_output_type) {
-    case 3: { // HDR10
+    case 3: {  // HDR10
       auto ret = SetHdrOutputMetadata(ui::Hdr::HDR10);
       if (ret != HWC2::Error::None)
         return ret;
@@ -180,7 +180,7 @@ HWC2::Error HwcDisplay::SetOutputType(uint32_t hdr_output_type) {
       colorspace_ = Colorspace::kBt2020Rgb;
       break;
     }
-    case 1: { // SYSTEM
+    case 1: {  // SYSTEM
       std::vector<ui::Hdr> hdr_types;
       GetEdid()->GetSupportedHdrTypes(hdr_types);
       if (!hdr_types.empty()) {
@@ -190,9 +190,8 @@ HWC2::Error HwcDisplay::SetOutputType(uint32_t hdr_output_type) {
         min_bpc_ = 8;
         colorspace_ = Colorspace::kBt2020Rgb;
         break;
-      } else {
-        [[fallthrough]];
       }
+      [[fallthrough]];
     }
     case 0:  // INVALID
       [[fallthrough]];
@@ -302,6 +301,12 @@ auto HwcDisplay::QueueConfig(hwc2_config_t config, int64_t desired_time,
   // refresh time.
   staged_mode_change_time_ = out_timing->refresh_time_ns;
   staged_mode_config_id_ = config;
+
+  // Allow HDR only on external displays
+  if (current_config && !IsInHeadlessMode() &&
+      GetPipe().connector->Get()->IsExternal()) {
+    SetOutputType(current_config->output_type);
+  }
 
   // Enable vsync events until the mode has been applied.
   vsync_worker_->SetVsyncTimestampTracking(true);
