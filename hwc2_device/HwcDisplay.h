@@ -286,6 +286,7 @@ class HwcDisplay {
   android_color_transform_t color_transform_hint_{};
   int32_t content_type_{};
   Colorspace colorspace_{};
+  int32_t min_bpc_{};
   std::shared_ptr<hdr_output_metadata> hdr_metadata_;
 
   std::shared_ptr<DrmKmsPlan> current_plan_;
@@ -301,6 +302,8 @@ class HwcDisplay {
 
   HWC2::Error SetActiveConfigInternal(uint32_t config, int64_t change_time);
   HWC2::Error SetHdrOutputMetadata(ui::Hdr hdrType);
+  HWC2::Error SetOutputType(uint32_t hdr_output_type);
+
   auto GetEdid() -> EdidWrapperUnique & {
     return GetPipe().connector->Get()->GetParsedEdid();
   }
