@@ -1586,6 +1586,11 @@ ndk::ScopedAStatus ComposerClient::getMaxLayerPictureProfiles(int64_t, int32_t*)
   return ToBinderStatus(hwc3::Error::kUnsupported);
 }
 
+ndk::ScopedAStatus ComposerClient::getLuts(int64_t, const std::vector<Buffer>&,
+    std::vector<Luts>*) {
+  return ToBinderStatus(hwc3::Error::kUnsupported);
+}
+
 std::string ComposerClient::Dump() {
   return hwc_->DumpState();
 }
