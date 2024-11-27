@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 The Android Open Source Project
+ * Copyright (C) 2023 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,25 +14,14 @@
  * limitations under the License.
  */
 
-#pragma once
+#include "properties.h"
 
-#include <cstdint>
-
-enum class Colorspace : int32_t {
-  kDefault,
-  kSmpte170MYcc,
-  kBt709Ycc,
-  kXvycc601,
-  kXvycc709,
-  kSycc601,
-  kOpycc601,
-  kOprgb,
-  kBt2020Cycc,
-  kBt2020Rgb,
-  kBt2020Ycc,
-  kDciP3RgbD65,
-  kDciP3RgbTheater,
-  kRgbWideFixed,
-  kRgbWideFloat,
-  kBt601Ycc,
-};
+/**
+ * @brief Determine if the "Present Not Reliable" property is enabled.
+ *
+ * @return boolean
+ */
+auto Properties::IsPresentFenceNotReliable() -> bool {
+  return (property_get_bool("ro.vendor.hwc.drm.present_fence_not_reliable",
+                            0) != 0);
+}
