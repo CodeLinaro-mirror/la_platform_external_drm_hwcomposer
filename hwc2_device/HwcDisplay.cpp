@@ -740,10 +740,20 @@ HWC2::Error HwcDisplay::CreateComposition(AtomicCommitArgs &a_args) {
   bool use_client_layer = false;
   uint32_t client_z_order = UINT32_MAX;
   std::map<uint32_t, HwcLayer *> z_map;
+  std::optional<LayerData> cursor_layer = std::nullopt;
   for (auto &[_, layer] : layers_) {
     switch (layer.GetValidatedType()) {
       case HWC2::Composition::Device:
         z_map.emplace(layer.GetZOrder(), &layer);
+        break;
+      case HWC2::Composition::Cursor:
+        if (!cursor_layer.has_value()) {
+          layer.PopulateLayerData();
+          cursor_layer = layer.GetLayerData();
+        } else {
+          ALOGW("Detected multiple cursor layers");
+          z_map.emplace(layer.GetZOrder(), &layer);
+        }
         break;
       case HWC2::Composition::Client:
         // Place it at the z_order of the lowest client layer
@@ -794,7 +804,8 @@ HWC2::Error HwcDisplay::CreateComposition(AtomicCommitArgs &a_args) {
    * in between of ValidateDisplay() and PresentDisplay() calls
    */
   current_plan_ = DrmKmsPlan::CreateDrmKmsPlan(GetPipe(),
-                                               std::move(composition_layers));
+                                               std::move(composition_layers),
+                                               cursor_layer);
 
   if (type_ == HWC2::DisplayType::Virtual) {
     writeback_layer_->PopulateLayerData();
@@ -1035,6 +1046,12 @@ std::vector<HwcLayer *> HwcDisplay::GetOrderLayersByZPos() {
 
   std::sort(std::begin(ordered_layers), std::end(ordered_layers),
             [](const HwcLayer *lhs, const HwcLayer *rhs) {
+              // Cursor layers should always have highest zpos.
+              if ((lhs->GetSfType() == HWC2::Composition::Cursor) !=
+                  (rhs->GetSfType() == HWC2::Composition::Cursor)) {
+                return rhs->GetSfType() == HWC2::Composition::Cursor;
+              }
+
               return lhs->GetZOrder() < rhs->GetZOrder();
             });
 
