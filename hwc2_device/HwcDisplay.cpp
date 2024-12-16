@@ -24,9 +24,14 @@
 #include "backend/Backend.h"
 #include "backend/BackendManager.h"
 #include "bufferinfo/BufferInfoGetter.h"
+#include "compositor/DisplayInfo.h"
+#include "drm/DrmConnector.h"
+#include "drm/DrmDisplayPipeline.h"
 #include "drm/DrmHwc.h"
 #include "utils/log.h"
 #include "utils/properties.h"
+
+using ::android::DrmDisplayPipeline;
 
 namespace android {
 
@@ -91,6 +96,58 @@ HwcDisplay::~HwcDisplay() {
   Deinit();
 };
 
+auto HwcDisplay::GetCurrentConfig() const -> const HwcDisplayConfig * {
+  auto config_iter = configs_.hwc_configs.find(configs_.active_config_id);
+  if (config_iter == configs_.hwc_configs.end()) {
+    return nullptr;
+  }
+  return &config_iter->second;
+}
+
+auto HwcDisplay::GetLastRequestedConfig() const -> const HwcDisplayConfig * {
+  auto config_iter = configs_.hwc_configs.find(staged_mode_config_id_);
+  if (config_iter == configs_.hwc_configs.end()) {
+    return nullptr;
+  }
+  return &config_iter->second;
+}
+
+auto HwcDisplay::QueueConfig(hwc2_config_t config, int64_t desired_time,
+                             bool seamless, QueuedConfigTiming *out_timing)
+    -> ConfigError {
+  if (configs_.hwc_configs.count(config) == 0) {
+    ALOGE("Could not find active mode for %u", config);
+    return ConfigError::kBadConfig;
+  }
+
+  // TODO: Add support for seamless configuration changes.
+  if (seamless) {
+    return ConfigError::kSeamlessNotAllowed;
+  }
+
+  // Request a refresh from the client one vsync period before the desired
+  // time, or simply at the desired time if there is no active configuration.
+  const HwcDisplayConfig *current_config = GetCurrentConfig();
+  out_timing->refresh_time_ns = desired_time -
+                                (current_config
+                                     ? current_config->mode.GetVSyncPeriodNs()
+                                     : 0);
+  out_timing->new_vsync_time_ns = desired_time;
+
+  // Queue the config change timing to be consistent with the requested
+  // refresh time.
+  staged_mode_ = configs_.hwc_configs[config].mode;
+  staged_mode_change_time_ = out_timing->refresh_time_ns;
+  staged_mode_config_id_ = config;
+
+  // Enable vsync events until the mode has been applied.
+  last_vsync_ts_ = 0;
+  vsync_tracking_en_ = true;
+  vsync_worker_->VSyncControl(true);
+
+  return ConfigError::kNone;
+}
+
 void HwcDisplay::SetPipeline(std::shared_ptr<DrmDisplayPipeline> pipeline) {
   Deinit();
 
@@ -109,22 +166,9 @@ void HwcDisplay::Deinit() {
     AtomicCommitArgs a_args{};
     a_args.composition = std::make_shared<DrmKmsPlan>();
     GetPipe().atomic_state_manager->ExecuteAtomicCommit(a_args);
-/*
- *  TODO:
- *  Unfortunately the following causes regressions on db845c
- *  with VtsHalGraphicsComposerV2_3TargetTest due to the display
- *  never coming back. Patches to avoiding that issue on the
- *  the kernel side unfortunately causes further crashes in
- *  drm_hwcomposer, because the client detach takes longer then the
- *  1 second max VTS expects. So for now as a workaround, lets skip
- *  deactivating the display on deinit, which matches previous
- *  behavior prior to commit d0494d9b8097
- */
-#if 0
     a_args.composition = {};
     a_args.active = false;
     GetPipe().atomic_state_manager->ExecuteAtomicCommit(a_args);
-#endif
 
     current_plan_.reset();
     backend_.reset();
@@ -194,6 +238,23 @@ HWC2::Error HwcDisplay::Init() {
   SetColorMatrixToIdentity();
 
   return HWC2::Error::None;
+}
+
+std::optional<PanelOrientation> HwcDisplay::getDisplayPhysicalOrientation() {
+  if (IsInHeadlessMode()) {
+    // The pipeline can be nullptr in headless mode, so return the default
+    // "normal" mode.
+    return PanelOrientation::kModePanelOrientationNormal;
+  }
+
+  DrmDisplayPipeline &pipeline = GetPipe();
+  if (pipeline.connector == nullptr || pipeline.connector->Get() == nullptr) {
+    ALOGW(
+        "No display pipeline present to query the panel orientation property.");
+    return {};
+  }
+
+  return pipeline.connector->Get()->GetPanelOrientation();
 }
 
 HWC2::Error HwcDisplay::ChosePreferredConfig() {

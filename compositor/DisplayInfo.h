@@ -36,3 +36,22 @@ enum class Colorspace : int32_t {
   kRgbWideFloat,
   kBt601Ycc,
 };
+
+/**
+ * Display panel orientation property values.
+ */
+enum PanelOrientation {
+  kModePanelOrientationNormal = 0,
+  kModePanelOrientationBottomUp,
+  kModePanelOrientationLeftUp,
+  kModePanelOrientationRightUp
+};
+
+struct QueuedConfigTiming {
+  // In order for the new config to be applied, the client must send a new frame
+  // at this time.
+  int64_t refresh_time_ns;
+
+  // The time when the display will start to refresh at the new vsync period.
+  int64_t new_vsync_time_ns;
+};
