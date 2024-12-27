@@ -31,6 +31,7 @@
 #include <aidl/android/hardware/graphics/composer3/DisplayRequest.h>
 #include <aidl/android/hardware/graphics/composer3/IComposerClient.h>
 #include <aidl/android/hardware/graphics/composer3/Luts.h>
+#include <aidl/android/hardware/graphics/composer3/OutputType.h>
 #include <aidl/android/hardware/graphics/composer3/PowerMode.h>
 #include <aidl/android/hardware/graphics/composer3/PresentOrValidate.h>
 #include <aidl/android/hardware/graphics/composer3/RenderIntent.h>
@@ -229,7 +230,8 @@ DisplayConfiguration HwcDisplayConfigToAidlConfiguration(
        .width = config.mode.GetRawMode().hdisplay,
        .height = config.mode.GetRawMode().vdisplay,
        .configGroup = static_cast<int32_t>(config.group_id),
-       .vsyncPeriod = config.mode.GetVSyncPeriodNs()};
+       .vsyncPeriod = config.mode.GetVSyncPeriodNs(),
+       .hdrOutputType = static_cast<OutputType>(OutputType::SYSTEM)};
 
   if (configs.mm_width != 0) {
     // ideally this should be vdisplay/mm_heigth, however mm_height
