@@ -155,7 +155,9 @@ bool IsSupportedCompositionType(
     // DisplayCommand and return.
     case Composition::DISPLAY_DECORATION:
     case Composition::SIDEBAND:
+#if __ANDROID_API__ >= 34
     case Composition::REFRESH_RATE_INDICATOR:
+#endif
       return false;
   }
 }
@@ -189,7 +191,9 @@ std::optional<HWC2::Composition> AidlToCompositionType(
     // Unsupported composition types.
     case Composition::DISPLAY_DECORATION:
     case Composition::SIDEBAND:
+#if __ANDROID_API__ >= 34
     case Composition::REFRESH_RATE_INDICATOR:
+#endif
       ALOGE("Unsupported composition type: %s",
             toString(composition->composition).c_str());
       return std::nullopt;
@@ -1085,13 +1089,36 @@ ndk::ScopedAStatus ComposerClient::setActiveConfigWithConstraints(
     return ToBinderStatus(hwc3::Error::kBadDisplay);
   }
 
-  ::QueuedConfigTiming timing{};
-  HwcDisplay::ConfigError
-      result = display->QueueConfig(config, constraints.desiredTimeNanos,
-                                    constraints.seamlessRequired, &timing);
-  timeline->newVsyncAppliedTimeNanos = timing.new_vsync_time_ns;
-  timeline->refreshTimeNanos = timing.refresh_time_ns;
-  timeline->refreshRequired = true;
+  if (constraints.seamlessRequired) {
+    return ToBinderStatus(hwc3::Error::kSeamlessNotAllowed);
+  }
+
+  const bool future_config = constraints.desiredTimeNanos >
+                             ::android::ResourceManager::GetTimeMonotonicNs();
+  const HwcDisplayConfig* current_config = display->GetCurrentConfig();
+  const HwcDisplayConfig* next_config = display->GetConfig(config);
+  const bool same_config_group = current_config != nullptr &&
+                                 next_config != nullptr &&
+                                 current_config->group_id ==
+                                     next_config->group_id;
+  // If the contraints dictate that this is to be applied in the future, it
+  // must be queued. If the new config is in the same config group as the
+  // current one, then queue it to reduce jank.
+  HwcDisplay::ConfigError result{};
+  if (future_config || same_config_group) {
+    QueuedConfigTiming timing = {};
+    result = display->QueueConfig(config, constraints.desiredTimeNanos,
+                                  constraints.seamlessRequired, &timing);
+    timeline->newVsyncAppliedTimeNanos = timing.new_vsync_time_ns;
+    timeline->refreshTimeNanos = timing.refresh_time_ns;
+    timeline->refreshRequired = true;
+  } else {
+    // Fall back to a blocking commit, which may modeset.
+    result = display->SetConfig(config);
+    timeline->newVsyncAppliedTimeNanos = ::android::ResourceManager::
+        GetTimeMonotonicNs();
+    timeline->refreshRequired = false;
+  }
 
   switch (result) {
     case HwcDisplay::ConfigError::kBadConfig:
@@ -1223,6 +1250,8 @@ ndk::ScopedAStatus ComposerClient::setIdleTimerEnabled(int64_t /*display_id*/,
   return ToBinderStatus(hwc3::Error::kUnsupported);
 }
 
+#if __ANDROID_API__ >= 34
+
 ndk::ScopedAStatus ComposerClient::getOverlaySupport(
     OverlayProperties* /*out_overlay_properties*/) {
   return ToBinderStatus(hwc3::Error::kUnsupported);
@@ -1243,6 +1272,8 @@ ndk::ScopedAStatus ComposerClient::setRefreshRateChangedCallbackDebugEnabled(
     int64_t /*display*/, bool /*enabled*/) {
   return ToBinderStatus(hwc3::Error::kUnsupported);
 }
+
+#endif
 
 #if __ANDROID_API__ >= 35
 
@@ -1270,9 +1301,19 @@ ndk::ScopedAStatus ComposerClient::notifyExpectedPresent(
   return ToBinderStatus(hwc3::Error::kUnsupported);
 }
 
+ndk::ScopedAStatus ComposerClient::startHdcpNegotiation(
+    int64_t /*display*/, const AidlHdcpLevels& /*levels*/) {
+  return ToBinderStatus(hwc3::Error::kUnsupported);
+}
+
 #endif
 
 ndk::ScopedAStatus ComposerClient::getMaxLayerPictureProfiles(int64_t, int32_t*) {
+  return ToBinderStatus(hwc3::Error::kUnsupported);
+}
+
+ndk::ScopedAStatus ComposerClient::getLuts(int64_t, const std::vector<Buffer>&,
+    std::vector<Luts>*) {
   return ToBinderStatus(hwc3::Error::kUnsupported);
 }
 
