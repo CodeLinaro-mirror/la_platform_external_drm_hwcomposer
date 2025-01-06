@@ -31,6 +31,7 @@
 #include <aidl/android/hardware/graphics/composer3/DisplayRequest.h>
 #include <aidl/android/hardware/graphics/composer3/IComposerClient.h>
 #include <aidl/android/hardware/graphics/composer3/Luts.h>
+#include <aidl/android/hardware/graphics/composer3/OutputType.h>
 #include <aidl/android/hardware/graphics/composer3/PowerMode.h>
 #include <aidl/android/hardware/graphics/composer3/PresentOrValidate.h>
 #include <aidl/android/hardware/graphics/composer3/RenderIntent.h>
@@ -109,6 +110,8 @@ std::optional<BufferColorSpace> AidlToColorSpace(
     case static_cast<int32_t>(
         common::Dataspace::STANDARD_BT2020_CONSTANT_LUMINANCE):
       return BufferColorSpace::kItuRec2020;
+    case static_cast<int32_t>(common::Dataspace::UNKNOWN):
+      return BufferColorSpace::kUndefined;
     default:
       ALOGE("Unsupported standard: %d", standard);
       return std::nullopt;
@@ -128,6 +131,8 @@ std::optional<BufferSampleRange> AidlToSampleRange(
       return BufferSampleRange::kFullRange;
     case static_cast<int32_t>(common::Dataspace::RANGE_LIMITED):
       return BufferSampleRange::kLimitedRange;
+    case static_cast<int32_t>(common::Dataspace::UNKNOWN):
+      return BufferSampleRange::kUndefined;
     default:
       ALOGE("Unsupported sample range: %d", sample_range);
       return std::nullopt;
@@ -151,7 +156,9 @@ bool IsSupportedCompositionType(
     // DisplayCommand and return.
     case Composition::DISPLAY_DECORATION:
     case Composition::SIDEBAND:
+#if __ANDROID_API__ >= 34
     case Composition::REFRESH_RATE_INDICATOR:
+#endif
       return false;
   }
 }
@@ -185,7 +192,9 @@ std::optional<HWC2::Composition> AidlToCompositionType(
     // Unsupported composition types.
     case Composition::DISPLAY_DECORATION:
     case Composition::SIDEBAND:
+#if __ANDROID_API__ >= 34
     case Composition::REFRESH_RATE_INDICATOR:
+#endif
       ALOGE("Unsupported composition type: %s",
             toString(composition->composition).c_str());
       return std::nullopt;
@@ -221,7 +230,8 @@ DisplayConfiguration HwcDisplayConfigToAidlConfiguration(
        .width = config.mode.GetRawMode().hdisplay,
        .height = config.mode.GetRawMode().vdisplay,
        .configGroup = static_cast<int32_t>(config.group_id),
-       .vsyncPeriod = config.mode.GetVSyncPeriodNs()};
+       .vsyncPeriod = config.mode.GetVSyncPeriodNs(),
+       .hdrOutputType = static_cast<OutputType>(OutputType::SYSTEM)};
 
   if (configs.mm_width != 0) {
     // ideally this should be vdisplay/mm_heigth, however mm_height
@@ -313,17 +323,8 @@ bool ComposerClient::Init() {
 ComposerClient::~ComposerClient() {
   DEBUG_FUNC();
   {
-    // First Deinit the displays to start shutting down the Display's dependent
-    // threads such as VSyncWorker.
     const std::unique_lock lock(hwc_->GetResMan().GetMainLock());
     hwc_->DeinitDisplays();
-  }
-  // Sleep to wait for threads to complete and exit.
-  const int time_for_threads_to_exit_us = 200000;
-  usleep(time_for_threads_to_exit_us);
-  {
-    // Hold the lock while destructing the hwc_ and the objects that it owns.
-    const std::unique_lock lock(hwc_->GetResMan().GetMainLock());
     hwc_.reset();
   }
   LOG(DEBUG) << "removed composer client";
@@ -603,11 +604,16 @@ void ComposerClient::ExecuteDisplayCommand(const DisplayCommand& command) {
     return;
   }
 
+  if (command.brightness) {
+    // TODO: Implement support for display brightness.
+    cmd_result_writer_->AddError(hwc3::Error::kUnsupported);
+    return;
+  }
+
   for (const auto& layer_cmd : command.layers) {
     DispatchLayerCommand(command.display, layer_cmd);
   }
 
-  // TODO: Implement support for display brightness.
   if (command.colorTransformMatrix) {
     ExecuteSetDisplayColorTransform(command.display,
                                     *command.colorTransformMatrix);
@@ -650,7 +656,7 @@ ndk::ScopedAStatus ComposerClient::executeCommands(
 }
 
 ndk::ScopedAStatus ComposerClient::getActiveConfig(int64_t display_id,
-                                                   int32_t* config) {
+                                                   int32_t* config_id) {
   DEBUG_FUNC();
   const std::unique_lock lock(hwc_->GetResMan().GetMainLock());
   HwcDisplay* display = GetDisplay(display_id);
@@ -658,13 +664,12 @@ ndk::ScopedAStatus ComposerClient::getActiveConfig(int64_t display_id,
     return ToBinderStatus(hwc3::Error::kBadDisplay);
   }
 
-  uint32_t hwc2_config = 0;
-  const hwc3::Error error = Hwc2toHwc3Error(
-      display->GetActiveConfig(&hwc2_config));
-  if (error != hwc3::Error::kNone) {
-    return ToBinderStatus(error);
+  const HwcDisplayConfig* config = display->GetLastRequestedConfig();
+  if (config == nullptr) {
+    return ToBinderStatus(hwc3::Error::kBadConfig);
   }
-  *config = Hwc2ConfigIdToHwc3(hwc2_config);
+
+  *config_id = Hwc2ConfigIdToHwc3(config->id);
   return ndk::ScopedAStatus::ok();
 }
 
@@ -887,14 +892,15 @@ ndk::ScopedAStatus ComposerClient::getDisplayVsyncPeriod(
     return ToBinderStatus(hwc3::Error::kBadDisplay);
   }
 
-  uint32_t hwc2_vsync_period = 0;
-  auto error = Hwc2toHwc3Error(
-      display->GetDisplayVsyncPeriod(&hwc2_vsync_period));
-  if (error != hwc3::Error::kNone) {
-    return ToBinderStatus(error);
+  // getDisplayVsyncPeriod should return the vsync period of the config that
+  // is currently committed to the kernel. If a config change is pending due to
+  // setActiveConfigWithConstraints, return the pre-change vsync period.
+  const HwcDisplayConfig* config = display->GetCurrentConfig();
+  if (config == nullptr) {
+    return ToBinderStatus(hwc3::Error::kBadConfig);
   }
 
-  *vsync_period = static_cast<int32_t>(hwc2_vsync_period);
+  *vsync_period = config->mode.GetVSyncPeriodNs();
   return ndk::ScopedAStatus::ok();
 }
 
@@ -1055,13 +1061,14 @@ ndk::ScopedAStatus ComposerClient::registerCallback(
 ndk::ScopedAStatus ComposerClient::setActiveConfig(int64_t display_id,
                                                    int32_t config) {
   DEBUG_FUNC();
-  const std::unique_lock lock(hwc_->GetResMan().GetMainLock());
-  HwcDisplay* display = GetDisplay(display_id);
-  if (display == nullptr) {
-    return ToBinderStatus(hwc3::Error::kBadDisplay);
-  }
 
-  return ToBinderStatus(Hwc2toHwc3Error(display->SetActiveConfig(config)));
+  VsyncPeriodChangeTimeline timeline;
+  VsyncPeriodChangeConstraints constraints = {
+      .desiredTimeNanos = ::android::ResourceManager::GetTimeMonotonicNs(),
+      .seamlessRequired = false,
+  };
+  return setActiveConfigWithConstraints(display_id, config, constraints,
+                                        &timeline);
 }
 
 ndk::ScopedAStatus ComposerClient::setActiveConfigWithConstraints(
@@ -1075,23 +1082,47 @@ ndk::ScopedAStatus ComposerClient::setActiveConfigWithConstraints(
     return ToBinderStatus(hwc3::Error::kBadDisplay);
   }
 
-  hwc_vsync_period_change_constraints_t hwc2_constraints;
-  hwc2_constraints.desiredTimeNanos = constraints.desiredTimeNanos;
-  hwc2_constraints.seamlessRequired = static_cast<uint8_t>(
-      constraints.seamlessRequired);
-
-  hwc_vsync_period_change_timeline_t hwc2_timeline{};
-  auto error = Hwc2toHwc3Error(
-      display->SetActiveConfigWithConstraints(config, &hwc2_constraints,
-                                              &hwc2_timeline));
-  if (error != hwc3::Error::kNone) {
-    return ToBinderStatus(error);
+  if (constraints.seamlessRequired) {
+    return ToBinderStatus(hwc3::Error::kSeamlessNotAllowed);
   }
 
-  timeline->refreshTimeNanos = hwc2_timeline.refreshTimeNanos;
-  timeline->newVsyncAppliedTimeNanos = hwc2_timeline.newVsyncAppliedTimeNanos;
-  timeline->refreshRequired = static_cast<bool>(hwc2_timeline.refreshRequired);
-  return ndk::ScopedAStatus::ok();
+  const bool future_config = constraints.desiredTimeNanos >
+                             ::android::ResourceManager::GetTimeMonotonicNs();
+  const HwcDisplayConfig* current_config = display->GetCurrentConfig();
+  const HwcDisplayConfig* next_config = display->GetConfig(config);
+  const bool same_config_group = current_config != nullptr &&
+                                 next_config != nullptr &&
+                                 current_config->group_id ==
+                                     next_config->group_id;
+  // If the contraints dictate that this is to be applied in the future, it
+  // must be queued. If the new config is in the same config group as the
+  // current one, then queue it to reduce jank.
+  HwcDisplay::ConfigError result{};
+  if (future_config || same_config_group) {
+    QueuedConfigTiming timing = {};
+    result = display->QueueConfig(config, constraints.desiredTimeNanos,
+                                  constraints.seamlessRequired, &timing);
+    timeline->newVsyncAppliedTimeNanos = timing.new_vsync_time_ns;
+    timeline->refreshTimeNanos = timing.refresh_time_ns;
+    timeline->refreshRequired = true;
+  } else {
+    // Fall back to a blocking commit, which may modeset.
+    result = display->SetConfig(config);
+    timeline->newVsyncAppliedTimeNanos = ::android::ResourceManager::
+        GetTimeMonotonicNs();
+    timeline->refreshRequired = false;
+  }
+
+  switch (result) {
+    case HwcDisplay::ConfigError::kBadConfig:
+      return ToBinderStatus(hwc3::Error::kBadConfig);
+    case HwcDisplay::ConfigError::kSeamlessNotAllowed:
+      return ToBinderStatus(hwc3::Error::kSeamlessNotAllowed);
+    case HwcDisplay::ConfigError::kSeamlessNotPossible:
+      return ToBinderStatus(hwc3::Error::kSeamlessNotPossible);
+    case HwcDisplay::ConfigError::kNone:
+      return ndk::ScopedAStatus::ok();
+  }
 }
 
 ndk::ScopedAStatus ComposerClient::setBootDisplayConfig(int64_t /*display_id*/,
@@ -1212,6 +1243,8 @@ ndk::ScopedAStatus ComposerClient::setIdleTimerEnabled(int64_t /*display_id*/,
   return ToBinderStatus(hwc3::Error::kUnsupported);
 }
 
+#if __ANDROID_API__ >= 34
+
 ndk::ScopedAStatus ComposerClient::getOverlaySupport(
     OverlayProperties* /*out_overlay_properties*/) {
   return ToBinderStatus(hwc3::Error::kUnsupported);
@@ -1232,6 +1265,8 @@ ndk::ScopedAStatus ComposerClient::setRefreshRateChangedCallbackDebugEnabled(
     int64_t /*display*/, bool /*enabled*/) {
   return ToBinderStatus(hwc3::Error::kUnsupported);
 }
+
+#endif
 
 #if __ANDROID_API__ >= 35
 
@@ -1259,7 +1294,21 @@ ndk::ScopedAStatus ComposerClient::notifyExpectedPresent(
   return ToBinderStatus(hwc3::Error::kUnsupported);
 }
 
+ndk::ScopedAStatus ComposerClient::startHdcpNegotiation(
+    int64_t /*display*/, const AidlHdcpLevels& /*levels*/) {
+  return ToBinderStatus(hwc3::Error::kUnsupported);
+}
+
 #endif
+
+ndk::ScopedAStatus ComposerClient::getMaxLayerPictureProfiles(int64_t, int32_t*) {
+  return ToBinderStatus(hwc3::Error::kUnsupported);
+}
+
+ndk::ScopedAStatus ComposerClient::getLuts(int64_t, const std::vector<Buffer>&,
+    std::vector<Luts>*) {
+  return ToBinderStatus(hwc3::Error::kUnsupported);
+}
 
 std::string ComposerClient::Dump() {
   uint32_t size = 0;
