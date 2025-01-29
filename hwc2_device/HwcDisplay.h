@@ -45,7 +45,8 @@ class HwcDisplay {
     kNone,
     kBadConfig,
     kSeamlessNotAllowed,
-    kSeamlessNotPossible
+    kSeamlessNotPossible,
+    kConfigFailed,
   };
 
   HwcDisplay(hwc2_display_t handle, HWC2::DisplayType type, DrmHwc *hwc);

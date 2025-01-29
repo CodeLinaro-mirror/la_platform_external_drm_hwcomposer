@@ -39,6 +39,7 @@ enum class Error : int32_t {
   kUnsupported = IComposerClient::EX_UNSUPPORTED,
   kSeamlessNotAllowed = IComposerClient::EX_SEAMLESS_NOT_ALLOWED,
   kSeamlessNotPossible = IComposerClient::EX_SEAMLESS_NOT_POSSIBLE,
+  kConfigFailed = IComposerClient::EX_CONFIG_FAILED,
 };
 }  // namespace hwc3
 
