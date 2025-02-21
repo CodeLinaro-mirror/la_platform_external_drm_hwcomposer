@@ -336,14 +336,25 @@ auto HwcDisplay::AcceptValidatedComposition() -> void {
 }
 
 auto HwcDisplay::PresentStagedComposition(
-    SharedFd &out_present_fence, std::vector<ReleaseFence> &out_release_fences)
-    -> bool {
+    std::optional<int64_t> desired_present_time, SharedFd &out_present_fence,
+    std::vector<ReleaseFence> &out_release_fences) -> bool {
   if (IsInHeadlessMode()) {
     return true;
   }
   HWC2::Error ret{};
 
   ++total_stats_.total_frames_;
+
+  uint32_t vperiod_ns = 0;
+  GetDisplayVsyncPeriod(&vperiod_ns);
+
+  if (desired_present_time && vperiod_ns != 0) {
+    // DRM atomic uAPI does not support specifying that a commit should be
+    // applied to some future vsync. Until such uAPI is available, sleep in
+    // userspace until the next expected vsync time is consistent with the
+    // desired present time.
+    WaitForPresentTime(desired_present_time.value(), vperiod_ns);
+  }
 
   AtomicCommitArgs a_args{};
   ret = CreateComposition(a_args);
@@ -703,6 +714,39 @@ AtomicCommitArgs HwcDisplay::CreateModesetCommit(
   ALOGW_IF(!args.composition, "No composition for blocking modeset");
 
   return args;
+}
+
+void HwcDisplay::WaitForPresentTime(int64_t present_time,
+                                    uint32_t vsync_period_ns) {
+  const int64_t current_time = ResourceManager::GetTimeMonotonicNs();
+  int64_t next_vsync_time = vsync_worker_->GetNextVsyncTimestamp(current_time);
+
+  int64_t vsync_after_present_time = vsync_worker_->GetNextVsyncTimestamp(
+      present_time);
+  int64_t vsync_before_present_time = vsync_after_present_time -
+                                      vsync_period_ns;
+
+  // Check if |present_time| is closer to the expected vsync before or after.
+  int64_t desired_vsync = (vsync_after_present_time - present_time) <
+                                  (present_time - vsync_before_present_time)
+                              ? vsync_after_present_time
+                              : vsync_before_present_time;
+
+  // Don't sleep if desired_vsync is before or nearly equal to vsync_period of
+  // the next expected vsync.
+  const int64_t quarter_vsync_period = vsync_period_ns / 4;
+  if ((desired_vsync - next_vsync_time) < quarter_vsync_period) {
+    return;
+  }
+
+  // Sleep until 75% vsync_period before the desired_vsync.
+  int64_t sleep_until = desired_vsync - (quarter_vsync_period * 3);
+  struct timespec sleep_until_ts{};
+  constexpr int64_t kOneSecondNs = 1LL * 1000 * 1000 * 1000;
+  sleep_until_ts.tv_sec = int(sleep_until / kOneSecondNs);
+  sleep_until_ts.tv_nsec = int(sleep_until -
+                               (sleep_until_ts.tv_sec * kOneSecondNs));
+  clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &sleep_until_ts, nullptr);
 }
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
