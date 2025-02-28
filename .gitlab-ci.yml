@@ -13,7 +13,7 @@ include:
     ref: *ci-templates-commit
     file:
       - '/templates/ubuntu.yml'
-  - local: '.ci/container/.gitlab-ci.yml'
+  - local: '.ci/.gitlab-ci.yml'
   - local: '.ci/image-tags.yml'
 
 stages:
