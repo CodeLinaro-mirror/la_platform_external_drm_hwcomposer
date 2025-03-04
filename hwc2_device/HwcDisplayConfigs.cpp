@@ -147,7 +147,6 @@ HWC2::Error HwcDisplayConfigs::Update(DrmConnector &connector) {
         .group_id = group_found,
         .mode = mode,
         .disabled = disabled,
-        .output_type = 1,  // OutputType::SYSTEM
     };
 
     /* Chwck if the mode is preferred */

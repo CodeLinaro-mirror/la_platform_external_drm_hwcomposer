@@ -280,7 +280,7 @@ DisplayConfiguration HwcDisplayConfigToAidlConfiguration(
        .height = config.mode.GetRawMode().vdisplay,
        .configGroup = static_cast<int32_t>(config.group_id),
        .vsyncPeriod = config.mode.GetVSyncPeriodNs(),
-       .hdrOutputType = static_cast<OutputType>(config.output_type)};
+       .hdrOutputType = static_cast<OutputType>(OutputType::SYSTEM)};
 
   if (configs.mm_width != 0) {
     // ideally this should be vdisplay/mm_heigth, however mm_height
