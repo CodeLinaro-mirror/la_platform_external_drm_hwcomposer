@@ -88,3 +88,25 @@ android-cts:
     expire_in: 1 week
   tags:
     - kvm
+
+android-vts:
+  stage: android
+  extends:
+    .use-ubuntu/x86_64_android
+  variables:
+    RESULTS_DIR: "${CI_PROJECT_DIR}/results"
+  script:
+    - "${CI_PROJECT_DIR}/.ci/android/vts-runner.sh"
+  needs:
+    - job: build_x86_64
+      artifacts: true
+    - job: ubuntu/x86_64_android
+    - job: use-debian/x86_64_cuttlefish
+      artifacts: true
+  artifacts:
+    paths:
+      - "${RESULTS_DIR}"
+    when: always
+    expire_in: 1 week
+  tags:
+    - kvm
