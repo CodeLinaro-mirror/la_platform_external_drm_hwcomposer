@@ -551,16 +551,6 @@ auto HwcDisplay::DestroyLayer(ILayerId layer_id) -> bool {
   return count != 0;
 }
 
-HWC2::Error HwcDisplay::GetActiveConfig(hwc2_config_t *config) const {
-  // If a config has been queued, it is considered the "active" config.
-  const HwcDisplayConfig *hwc_config = GetLastRequestedConfig();
-  if (hwc_config == nullptr)
-    return HWC2::Error::BadConfig;
-
-  *config = hwc_config->id;
-  return HWC2::Error::None;
-}
-
 HWC2::Error HwcDisplay::GetColorModes(uint32_t *num_modes, int32_t *modes) {
   if (IsInHeadlessMode()) {
     *num_modes = 1;

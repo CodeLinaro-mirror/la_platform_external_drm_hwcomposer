@@ -300,6 +300,21 @@ static int32_t DestroyLayer(hwc2_device_t *device, hwc2_display_t display,
   return 0;
 }
 
+static int32_t GetActiveConfig(hwc2_device_t *device, hwc2_display_t display,
+                               hwc2_config_t *config) {
+  ALOGV("GetActiveConfig");
+  LOCK_COMPOSER(device);
+  GET_DISPLAY(display);
+
+  // If a config has been queued, it is considered the "active" config.
+  const HwcDisplayConfig *hwc_config = idisplay->GetLastRequestedConfig();
+  if (hwc_config == nullptr)
+    return static_cast<int32_t>(HWC2::Error::BadConfig);
+
+  *config = hwc_config->id;
+  return 0;
+}
+
 static int32_t GetDisplayRequests(hwc2_device_t * /*device*/,
                                   hwc2_display_t /*display*/,
                                   int32_t * /* out_display_requests */,
@@ -850,9 +865,7 @@ static hwc2_function_pointer_t HookDevGetFunction(struct hwc2_device * /*dev*/,
     case HWC2::FunctionDescriptor::DestroyLayer:
       return (hwc2_function_pointer_t)DestroyLayer;
     case HWC2::FunctionDescriptor::GetActiveConfig:
-      return ToHook<HWC2_PFN_GET_ACTIVE_CONFIG>(
-          DisplayHook<decltype(&HwcDisplay::GetActiveConfig),
-                      &HwcDisplay::GetActiveConfig, hwc2_config_t *>);
+      return (hwc2_function_pointer_t)GetActiveConfig;
     case HWC2::FunctionDescriptor::GetChangedCompositionTypes:
       return (hwc2_function_pointer_t)GetChangedCompositionTypes;
     case HWC2::FunctionDescriptor::GetClientTargetSupport:
