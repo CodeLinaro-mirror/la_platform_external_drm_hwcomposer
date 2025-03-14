@@ -529,6 +529,33 @@ static int32_t SetDisplayBrightness(hwc2_device_t * /*device*/,
   return static_cast<int32_t>(HWC2::Error::Unsupported);
 }
 
+static int32_t GetDisplayIdentificationData(hwc2_device_t *device,
+                                            hwc2_display_t display,
+                                            uint8_t *out_port,
+                                            uint32_t *out_data_size,
+                                            uint8_t *out_data) {
+  ALOGV("GetDisplayIdentificationData");
+  LOCK_COMPOSER(device);
+  GET_DISPLAY(display);
+
+  auto edid = idisplay->GetRawEdid();
+  if (edid.empty()) {
+    return static_cast<int32_t>(HWC2::Error::Unsupported);
+  }
+
+  *out_port = idisplay->GetPort();
+
+  if (out_data != nullptr) {
+    *out_data_size = std::min(*out_data_size,
+                              static_cast<uint32_t>(edid.size()));
+    memcpy(out_data, edid.data(), *out_data_size);
+  } else {
+    *out_data_size = edid.size();
+  }
+
+  return static_cast<int32_t>(HWC2::Error::None);
+}
+
 static int32_t GetDisplayCapabilities(hwc2_device_t *device,
                                       hwc2_display_t display,
                                       uint32_t *out_num_capabilities,
@@ -904,10 +931,7 @@ static hwc2_function_pointer_t HookDevGetFunction(struct hwc2_device * /*dev*/,
 #endif
 #if __ANDROID_API__ > 28
     case HWC2::FunctionDescriptor::GetDisplayIdentificationData:
-      return ToHook<HWC2_PFN_GET_DISPLAY_IDENTIFICATION_DATA>(
-          DisplayHook<decltype(&HwcDisplay::GetDisplayIdentificationData),
-                      &HwcDisplay::GetDisplayIdentificationData, uint8_t *,
-                      uint32_t *, uint8_t *>);
+      return (hwc2_function_pointer_t)GetDisplayIdentificationData;
     case HWC2::FunctionDescriptor::GetDisplayCapabilities:
       return (hwc2_function_pointer_t)GetDisplayCapabilities;
     case HWC2::FunctionDescriptor::GetDisplayBrightnessSupport:

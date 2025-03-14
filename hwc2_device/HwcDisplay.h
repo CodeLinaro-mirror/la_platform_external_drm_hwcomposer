@@ -118,6 +118,12 @@ class HwcDisplay {
                                 std::vector<ReleaseFence> &out_release_fences)
       -> bool;
 
+  // Get the edid bytes for this display. Return an empty vector on error.
+  auto GetRawEdid() -> std::vector<uint8_t>;
+
+  // Get the port id that this display is plugged into.
+  auto GetPort() -> uint8_t;
+
   auto GetFrontendPrivateData() -> std::shared_ptr<FrontendDisplayBase> {
     return frontend_private_data_;
   }
@@ -142,11 +148,6 @@ class HwcDisplay {
   HWC2::Error GetRenderIntents(int32_t mode, uint32_t *outNumIntents,
                                int32_t *outIntents);
   HWC2::Error SetColorModeWithIntent(int32_t mode, int32_t intent);
-#endif
-#if __ANDROID_API__ > 28
-  HWC2::Error GetDisplayIdentificationData(uint8_t *outPort,
-                                           uint32_t *outDataSize,
-                                           uint8_t *outData);
 #endif
 #if __ANDROID_API__ > 29
   HWC2::Error GetDisplayConnectionType(uint32_t *outType);

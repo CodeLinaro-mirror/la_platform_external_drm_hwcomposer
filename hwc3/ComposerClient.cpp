@@ -968,23 +968,11 @@ ndk::ScopedAStatus ComposerClient::getDisplayIdentificationData(
     return ToBinderStatus(hwc3::Error::kBadDisplay);
   }
 
-  uint8_t port = 0;
-  uint32_t data_size = 0;
-  hwc3::Error error = Hwc2toHwc3Error(
-      display->GetDisplayIdentificationData(&port, &data_size, nullptr));
-  if (error != hwc3::Error::kNone) {
-    return ToBinderStatus(error);
+  id->port = static_cast<int8_t>(display->GetPort());
+  id->data = display->GetRawEdid();
+  if (id->data.empty()) {
+    return ToBinderStatus(hwc3::Error::kUnsupported);
   }
-
-  id->data.resize(data_size);
-  error = Hwc2toHwc3Error(
-      display->GetDisplayIdentificationData(&port, &data_size,
-                                            id->data.data()));
-  if (error != hwc3::Error::kNone) {
-    return ToBinderStatus(error);
-  }
-
-  id->port = static_cast<int8_t>(port);
   return ndk::ScopedAStatus::ok();
 }
 

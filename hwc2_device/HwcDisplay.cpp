@@ -403,6 +403,38 @@ auto HwcDisplay::PresentStagedComposition(
   return true;
 }
 
+auto HwcDisplay::GetRawEdid() -> std::vector<uint8_t> {
+  if (IsInHeadlessMode()) {
+    return {};
+  }
+
+  auto *connector = GetPipe().connector->Get();
+  auto blob = connector->GetEdidBlob();
+  if (!blob || blob->length == 0) {
+    return {};
+  }
+  const uint8_t *edid_data = static_cast<uint8_t *>(blob->data);
+  return {edid_data, edid_data + blob->length};
+}
+
+auto HwcDisplay::GetPort() -> uint8_t {
+  if (IsInHeadlessMode()) {
+    return 0;
+  }
+
+  auto *connector = GetPipe().connector->Get();
+
+  constexpr uint8_t kDrmDeviceBitShift = 5U;
+  constexpr uint8_t kDrmDeviceBitMask = 0xE0;
+  constexpr uint8_t kConnectorBitMask = 0x1F;
+  const auto kDrmIdx = static_cast<uint8_t>(
+      connector->GetDev().GetIndexInDevArray());
+  const auto kConnectorIdx = static_cast<uint8_t>(
+      connector->GetIndexInResArray());
+  return (((kDrmIdx << kDrmDeviceBitShift) & kDrmDeviceBitMask) |
+          (kConnectorIdx & kConnectorBitMask));
+}
+
 void HwcDisplay::SetPipeline(std::shared_ptr<DrmDisplayPipeline> pipeline) {
   Deinit();
 
@@ -1268,41 +1300,6 @@ HWC2::Error HwcDisplay::SetContentType(int32_t contentType) {
   return HWC2::Error::None;
 }
 #endif
-
-#if __ANDROID_API__ > 28
-HWC2::Error HwcDisplay::GetDisplayIdentificationData(uint8_t *outPort,
-                                                     uint32_t *outDataSize,
-                                                     uint8_t *outData) {
-  if (IsInHeadlessMode()) {
-    return HWC2::Error::Unsupported;
-  }
-
-  auto *connector = GetPipe().connector->Get();
-  auto blob = connector->GetEdidBlob();
-  if (!blob) {
-    return HWC2::Error::Unsupported;
-  }
-
-  constexpr uint8_t kDrmDeviceBitShift = 5U;
-  constexpr uint8_t kDrmDeviceBitMask = 0xE0;
-  constexpr uint8_t kConnectorBitMask = 0x1F;
-  const auto kDrmIdx = static_cast<uint8_t>(
-      connector->GetDev().GetIndexInDevArray());
-  const auto kConnectorIdx = static_cast<uint8_t>(
-      connector->GetIndexInResArray());
-  *outPort = (((kDrmIdx << kDrmDeviceBitShift) & kDrmDeviceBitMask) |
-              (kConnectorIdx & kConnectorBitMask));
-
-  if (outData) {
-    *outDataSize = std::min(*outDataSize, blob->length);
-    memcpy(outData, blob->data, *outDataSize);
-  } else {
-    *outDataSize = blob->length;
-  }
-
-  return HWC2::Error::None;
-}
-#endif /* __ANDROID_API__ > 28 */
 
 #if __ANDROID_API__ > 27
 
