@@ -216,7 +216,7 @@ HWC2::Error HwcDisplay::SetOutputType(uint32_t hdr_output_type) {
     case 2:  // SDR
       [[fallthrough]];
     default:
-      hdr_metadata_.reset();
+      hdr_metadata_ = std::make_shared<hdr_output_metadata>();
       min_bpc_ = 6;
       colorspace_ = Colorspace::kDefault;
   }
@@ -355,9 +355,22 @@ auto HwcDisplay::ValidateStagedComposition() -> std::vector<ChangedLayer> {
   return changed_layers;
 }
 
+auto HwcDisplay::GetDisplayBoundsMm() -> std::pair<int32_t, int32_t> {
+
+  const auto bounds = GetEdid()->GetBoundsMm();
+  if (bounds.first > 0 || bounds.second > 0) {
+    return bounds;
+  }
+
+  ALOGE("Failed to get display bounds for d=%d\n", int(handle_));
+  // mm_width and mm_height are unreliable. so only provide mm_width to avoid
+  // wrong dpi computations or other use of the values.
+  return {configs_.mm_width, -1};
+}
+
 auto HwcDisplay::AcceptValidatedComposition() -> void {
-  for (std::pair<const hwc2_layer_t, HwcLayer> &l : layers_) {
-    l.second.AcceptTypeChange();
+  for (auto &[_, layer] : layers_) {
+    layer.AcceptTypeChange();
   }
 }
 
@@ -506,20 +519,18 @@ HWC2::Error HwcDisplay::ChosePreferredConfig() {
   return SetActiveConfig(configs_.preferred_config_id);
 }
 
-HWC2::Error HwcDisplay::CreateLayer(hwc2_layer_t *layer) {
-  layers_.emplace(static_cast<hwc2_layer_t>(layer_idx_), HwcLayer(this));
-  *layer = static_cast<hwc2_layer_t>(layer_idx_);
-  ++layer_idx_;
-  return HWC2::Error::None;
+auto HwcDisplay::CreateLayer(ILayerId new_layer_id) -> bool {
+  if (layers_.count(new_layer_id) > 0)
+    return false;
+
+  layers_.emplace(new_layer_id, HwcLayer(this));
+
+  return true;
 }
 
-HWC2::Error HwcDisplay::DestroyLayer(hwc2_layer_t layer) {
-  if (!get_layer(layer)) {
-    return HWC2::Error::BadLayer;
-  }
-
-  layers_.erase(layer);
-  return HWC2::Error::None;
+auto HwcDisplay::DestroyLayer(ILayerId layer_id) -> bool {
+  auto count = layers_.erase(layer_id);
+  return count != 0;
 }
 
 HWC2::Error HwcDisplay::GetActiveConfig(hwc2_config_t *config) const {
@@ -588,15 +599,25 @@ HWC2::Error HwcDisplay::GetDisplayAttribute(hwc2_config_t config,
       *value = hwc_config.mode.GetVSyncPeriodNs();
       break;
     case HWC2::Attribute::DpiY:
-      // ideally this should be vdisplay/mm_heigth, however mm_height
-      // comes from edid parsing and is highly unreliable. Viewing the
-      // rarity of anisotropic displays, falling back to a single value
-      // for dpi yield more correct output.
+      *value = GetEdid()->GetDpiY();
+      if (*value < 0) {
+        // default to raw mode DpiX for both x and y when no good value
+        // can be provided from edid.
+        *value = mm_width ? int(hwc_config.mode.GetRawMode().hdisplay *
+                                kUmPerInch / mm_width)
+                          : -1;
+      }
+      break;
     case HWC2::Attribute::DpiX:
       // Dots per 1000 inches
-      *value = mm_width ? int(hwc_config.mode.GetRawMode().hdisplay *
-                              kUmPerInch / mm_width)
-                        : -1;
+      *value = GetEdid()->GetDpiX();
+      if (*value < 0) {
+        // default to raw mode DpiX for both x and y when no good value
+        // can be provided from edid.
+        *value = mm_width ? int(hwc_config.mode.GetRawMode().hdisplay *
+                                kUmPerInch / mm_width)
+                          : -1;
+      }
       break;
 #if __ANDROID_API__ > 29
     case HWC2::Attribute::ConfigGroup:
@@ -760,15 +781,15 @@ HWC2::Error HwcDisplay::CreateComposition(AtomicCommitArgs &a_args) {
   bool use_client_layer = false;
   uint32_t client_z_order = UINT32_MAX;
   std::map<uint32_t, HwcLayer *> z_map;
-  for (std::pair<const hwc2_layer_t, HwcLayer> &l : layers_) {
-    switch (l.second.GetValidatedType()) {
+  for (auto &[_, layer] : layers_) {
+    switch (layer.GetValidatedType()) {
       case HWC2::Composition::Device:
-        z_map.emplace(l.second.GetZOrder(), &l.second);
+        z_map.emplace(layer.GetZOrder(), &layer);
         break;
       case HWC2::Composition::Client:
         // Place it at the z_order of the lowest client layer
         use_client_layer = true;
-        client_z_order = std::min(client_z_order, l.second.GetZOrder());
+        client_z_order = std::min(client_z_order, layer.GetZOrder());
         break;
       default:
         continue;
@@ -842,7 +863,6 @@ HWC2::Error HwcDisplay::CreateComposition(AtomicCommitArgs &a_args) {
   }
 
   if (new_vsync_period_ns) {
-    vsync_worker_->SetVsyncPeriodNs(new_vsync_period_ns.value());
     staged_mode_config_id_.reset();
 
     vsync_worker_->SetVsyncTimestampTracking(false);
@@ -852,6 +872,7 @@ HWC2::Error HwcDisplay::CreateComposition(AtomicCommitArgs &a_args) {
                                                       last_vsync_ts +
                                                           prev_vperiod_ns);
     }
+    vsync_worker_->SetVsyncPeriodNs(new_vsync_period_ns.value());
   }
 
   return HWC2::Error::None;
@@ -1285,6 +1306,14 @@ const Backend *HwcDisplay::backend() const {
 
 void HwcDisplay::set_backend(std::unique_ptr<Backend> backend) {
   backend_ = std::move(backend);
+}
+
+bool HwcDisplay::NeedsClientLayerUpdate() const {
+  return std::any_of(layers_.begin(), layers_.end(), [](const auto &pair) {
+    const auto &layer = pair.second;
+    return layer.GetSfType() == HWC2::Composition::Client ||
+           layer.GetValidatedType() == HWC2::Composition::Client;
+  });
 }
 
 }  // namespace android
