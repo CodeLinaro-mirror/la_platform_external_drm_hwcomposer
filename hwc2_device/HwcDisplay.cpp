@@ -278,7 +278,9 @@ HwcDisplay::ConfigError HwcDisplay::SetConfig(hwc2_config_t config) {
   }
 
   ALOGV("Create modeset commit.");
-  SetOutputType(new_config->output_type);
+  // Disable HDR for internal panels due to b/404620167
+  if (GetPipe().connector->Get()->IsExternal())
+    SetOutputType(new_config->output_type);
 
   // Create atomic commit args for a blocking modeset. There's no need to do a
   // separate test commit, since the commit does a test anyways.
