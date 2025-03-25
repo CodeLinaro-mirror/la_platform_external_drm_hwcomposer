@@ -287,7 +287,9 @@ class HwcDisplay {
   uint16_t virtual_disp_height_{};
   int32_t color_mode_{};
   std::shared_ptr<drm_color_ctm> color_matrix_;
+  std::shared_ptr<drm_color_ctm> identity_color_matrix_;
   android_color_transform_t color_transform_hint_{};
+  bool ctm_has_offset_ = false;
   int32_t content_type_{};
   Colorspace colorspace_{};
   int32_t min_bpc_{};
