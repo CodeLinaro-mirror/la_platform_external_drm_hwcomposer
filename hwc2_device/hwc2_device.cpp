@@ -597,6 +597,44 @@ static int32_t GetDisplayCapabilities(hwc2_device_t *device,
 #endif
 
 #if __ANDROID_API__ >= 29
+
+static int32_t SetActiveConfigWithConstraints(
+    hwc2_device_t *device, hwc2_display_t display, hwc2_config_t config,
+    hwc_vsync_period_change_constraints_t *vsync_period_change_constraints,
+    hwc_vsync_period_change_timeline_t *out_timeline) {
+  LOCK_COMPOSER(device);
+  GET_DISPLAY(display);
+
+  if (vsync_period_change_constraints == nullptr || out_timeline == nullptr) {
+    return static_cast<int32_t>(HWC2::Error::BadParameter);
+  }
+
+  if (vsync_period_change_constraints->seamlessRequired != 0) {
+    return static_cast<int32_t>(HWC2::Error::SeamlessNotAllowed);
+  }
+
+  QueuedConfigTiming out_timing{};
+  auto result = idisplay->QueueConfig(config,
+                                      vsync_period_change_constraints
+                                          ->desiredTimeNanos,
+                                      false, &out_timing);
+
+  out_timeline->newVsyncAppliedTimeNanos = out_timing.new_vsync_time_ns;
+  out_timeline->refreshTimeNanos = out_timing.refresh_time_ns;
+  out_timeline->refreshRequired = 1;
+
+  switch (result) {
+    case HwcDisplay::ConfigError::kBadConfig:
+      return static_cast<int32_t>(HWC2::Error::BadConfig);
+    case HwcDisplay::ConfigError::kSeamlessNotAllowed:
+      return static_cast<int32_t>(HWC2::Error::SeamlessNotAllowed);
+    case HwcDisplay::ConfigError::kSeamlessNotPossible:
+      return static_cast<int32_t>(HWC2::Error::SeamlessNotPossible);
+    case HwcDisplay::ConfigError::kNone:
+      return static_cast<int32_t>(HWC2::Error::None);
+  }
+}
+
 static int32_t SetAutoLowLatencyMode(hwc2_device_t * /*device*/,
                                      hwc2_display_t /*display*/, bool /*on*/) {
   ALOGV("SetAutoLowLatencyMode");
@@ -979,11 +1017,7 @@ static hwc2_function_pointer_t HookDevGetFunction(struct hwc2_device * /*dev*/,
                       &HwcDisplay::GetDisplayVsyncPeriod,
                       hwc2_vsync_period_t *>);
     case HWC2::FunctionDescriptor::SetActiveConfigWithConstraints:
-      return ToHook<HWC2_PFN_SET_ACTIVE_CONFIG_WITH_CONSTRAINTS>(
-          DisplayHook<decltype(&HwcDisplay::SetActiveConfigWithConstraints),
-                      &HwcDisplay::SetActiveConfigWithConstraints,
-                      hwc2_config_t, hwc_vsync_period_change_constraints_t *,
-                      hwc_vsync_period_change_timeline_t *>);
+      return (hwc2_function_pointer_t)SetActiveConfigWithConstraints;
     case HWC2::FunctionDescriptor::SetAutoLowLatencyMode:
       return (hwc2_function_pointer_t)SetAutoLowLatencyMode;
     case HWC2::FunctionDescriptor::GetSupportedContentTypes:

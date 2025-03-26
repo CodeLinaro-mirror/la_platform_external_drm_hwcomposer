@@ -1242,42 +1242,6 @@ HWC2::Error HwcDisplay::GetDisplayConnectionType(uint32_t *outType) {
   return HWC2::Error::None;
 }
 
-HWC2::Error HwcDisplay::SetActiveConfigWithConstraints(
-    hwc2_config_t config,
-    hwc_vsync_period_change_constraints_t *vsyncPeriodChangeConstraints,
-    hwc_vsync_period_change_timeline_t *outTimeline) {
-  if (type_ == HWC2::DisplayType::Virtual) {
-    return HWC2::Error::None;
-  }
-
-  if (vsyncPeriodChangeConstraints == nullptr || outTimeline == nullptr) {
-    return HWC2::Error::BadParameter;
-  }
-
-  uint32_t current_vsync_period{};
-  GetDisplayVsyncPeriod(&current_vsync_period);
-
-  if (vsyncPeriodChangeConstraints->seamlessRequired) {
-    return HWC2::Error::SeamlessNotAllowed;
-  }
-
-  outTimeline->refreshTimeNanos = vsyncPeriodChangeConstraints
-                                      ->desiredTimeNanos -
-                                  current_vsync_period;
-  auto ret = SetActiveConfigInternal(config, outTimeline->refreshTimeNanos);
-  if (ret != HWC2::Error::None) {
-    return ret;
-  }
-
-  outTimeline->refreshRequired = true;
-  outTimeline->newVsyncAppliedTimeNanos = vsyncPeriodChangeConstraints
-                                              ->desiredTimeNanos;
-
-  vsync_worker_->SetVsyncTimestampTracking(true);
-
-  return HWC2::Error::None;
-}
-
 #endif
 
 #if __ANDROID_API__ > 27

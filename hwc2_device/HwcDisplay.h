@@ -155,10 +155,6 @@ class HwcDisplay {
 #if __ANDROID_API__ > 29
   HWC2::Error GetDisplayConnectionType(uint32_t *outType);
 
-  HWC2::Error SetActiveConfigWithConstraints(
-      hwc2_config_t config,
-      hwc_vsync_period_change_constraints_t *vsyncPeriodChangeConstraints,
-      hwc_vsync_period_change_timeline_t *outTimeline);
 #endif
   HWC2::Error GetDisplayVsyncPeriod(uint32_t *outVsyncPeriod);
 
