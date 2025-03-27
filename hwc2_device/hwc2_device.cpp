@@ -475,6 +475,15 @@ static int32_t GetReleaseFences(hwc2_device_t *device, hwc2_display_t display,
   return static_cast<int32_t>(HWC2::Error::None);
 }
 
+static int32_t SetVsyncEnabled(hwc2_device_t *device, hwc2_display_t display,
+                               int32_t enabled) {
+  ALOGV("SetVsyncEnabled");
+  LOCK_COMPOSER(device);
+  GET_DISPLAY(display);
+  idisplay->SetVsyncCallbacksEnabled(HWC2_VSYNC_ENABLE == enabled);
+  return static_cast<int32_t>(HWC2::Error::None);
+}
+
 static int32_t ValidateDisplay(hwc2_device_t *device, hwc2_display_t display,
                                uint32_t *out_num_types,
                                uint32_t *out_num_requests) {
@@ -1032,9 +1041,7 @@ static hwc2_function_pointer_t HookDevGetFunction(struct hwc2_device * /*dev*/,
           DisplayHook<decltype(&HwcDisplay::SetPowerMode),
                       &HwcDisplay::SetPowerMode, int32_t>);
     case HWC2::FunctionDescriptor::SetVsyncEnabled:
-      return ToHook<HWC2_PFN_SET_VSYNC_ENABLED>(
-          DisplayHook<decltype(&HwcDisplay::SetVsyncEnabled),
-                      &HwcDisplay::SetVsyncEnabled, int32_t>);
+      return (hwc2_function_pointer_t)SetVsyncEnabled;
     case HWC2::FunctionDescriptor::ValidateDisplay:
       return (hwc2_function_pointer_t)ValidateDisplay;
 #if __ANDROID_API__ > 27

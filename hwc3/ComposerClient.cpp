@@ -1380,8 +1380,8 @@ ndk::ScopedAStatus ComposerClient::setVsyncEnabled(int64_t display_id,
     return ToBinderStatus(hwc3::Error::kBadDisplay);
   }
 
-  auto error = display->SetVsyncEnabled(static_cast<int32_t>(enabled));
-  return ToBinderStatus(Hwc2toHwc3Error(error));
+  display->SetVsyncCallbacksEnabled(enabled);
+  return ndk::ScopedAStatus::ok();
 }
 
 ndk::ScopedAStatus ComposerClient::setIdleTimerEnabled(int64_t /*display_id*/,

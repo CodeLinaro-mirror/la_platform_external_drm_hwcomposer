@@ -463,6 +463,26 @@ auto HwcDisplay::GetDisplayType() -> DisplayType {
   return kExternal;
 }
 
+void HwcDisplay::SetVsyncCallbacksEnabled(bool enabled) {
+  // Enabling vsync callbacks for a virtual display succeeds with no effect.
+  if (!vsync_worker_) {
+    ALOGE_IF(!is_virtual_, "Invalid VSyncWorker. Did HwcDisplay::Init fail?");
+    return;
+  }
+
+  vsync_event_en_ = enabled;
+  std::optional<VSyncWorker::VsyncTimestampCallback> callback = std::nullopt;
+  if (vsync_event_en_) {
+    DrmHwc *hwc = hwc_;
+    hwc2_display_t id = handle_;
+    // Callback will be called from the vsync thread.
+    callback = [hwc, id](int64_t timestamp, uint32_t period_ns) {
+      hwc->SendVsyncEventToClient(id, timestamp, period_ns);
+    };
+  }
+  vsync_worker_->SetTimestampCallback(std::move(callback));
+}
+
 void HwcDisplay::SetPipeline(std::shared_ptr<DrmDisplayPipeline> pipeline) {
   Deinit();
 
@@ -1129,28 +1149,6 @@ HWC2::Error HwcDisplay::SetPowerMode(int32_t mode_in) {
     ALOGE("Failed to apply the dpms composition err=%d", err);
     return HWC2::Error::BadParameter;
   }
-  return HWC2::Error::None;
-}
-
-HWC2::Error HwcDisplay::SetVsyncEnabled(int32_t enabled) {
-  if (is_virtual_) {
-    return HWC2::Error::None;
-  }
-  if (!vsync_worker_) {
-    return HWC2::Error::NoResources;
-  }
-
-  vsync_event_en_ = HWC2_VSYNC_ENABLE == enabled;
-  std::optional<VSyncWorker::VsyncTimestampCallback> callback = std::nullopt;
-  if (vsync_event_en_) {
-    DrmHwc *hwc = hwc_;
-    hwc2_display_t id = handle_;
-    // Callback will be called from the vsync thread.
-    callback = [hwc, id](int64_t timestamp, uint32_t period_ns) {
-      hwc->SendVsyncEventToClient(id, timestamp, period_ns);
-    };
-  }
-  vsync_worker_->SetTimestampCallback(std::move(callback));
   return HWC2::Error::None;
 }
 
