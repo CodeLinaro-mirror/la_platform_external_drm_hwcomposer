@@ -156,8 +156,6 @@ class HwcDisplay {
   HWC2::Error GetDisplayConnectionType(uint32_t *outType);
 
 #endif
-  HWC2::Error GetDisplayVsyncPeriod(uint32_t *outVsyncPeriod);
-
   HWC2::Error GetHdrCapabilities(uint32_t *num_types, int32_t *types,
                                  float *max_luminance,
                                  float *max_average_luminance,
@@ -256,6 +254,8 @@ class HwcDisplay {
   // Sleep the current thread until |present_time| is closest to the next
   // expected vsync time.
   void WaitForPresentTime(int64_t present_time, uint32_t vsync_period_ns);
+
+  uint32_t GetCurrentVsyncPeriodNs() const;
 
   HwcDisplayConfigs configs_;
 

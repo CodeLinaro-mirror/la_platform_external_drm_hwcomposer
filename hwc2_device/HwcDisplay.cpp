@@ -359,9 +359,7 @@ auto HwcDisplay::PresentStagedComposition(
 
   ++total_stats_.total_frames_;
 
-  uint32_t vperiod_ns = 0;
-  GetDisplayVsyncPeriod(&vperiod_ns);
-
+  uint32_t vperiod_ns = GetCurrentVsyncPeriodNs();
   if (desired_present_time && vperiod_ns != 0) {
     // DRM atomic uAPI does not support specifying that a commit should be
     // applied to some future vsync. Until such uAPI is available, sleep in
@@ -785,6 +783,14 @@ void HwcDisplay::WaitForPresentTime(int64_t present_time,
   clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &sleep_until_ts, nullptr);
 }
 
+uint32_t HwcDisplay::GetCurrentVsyncPeriodNs() const {
+  const HwcDisplayConfig *config = GetCurrentConfig();
+  if (config == nullptr) {
+    return 0;
+  }
+  return config->mode.GetVSyncPeriodNs();
+}
+
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
 HWC2::Error HwcDisplay::CreateComposition(AtomicCommitArgs &a_args) {
   if (IsInHeadlessMode()) {
@@ -797,9 +803,7 @@ HWC2::Error HwcDisplay::CreateComposition(AtomicCommitArgs &a_args) {
   a_args.colorspace = colorspace_;
   a_args.hdr_metadata = hdr_metadata_;
 
-  uint32_t prev_vperiod_ns = 0;
-  GetDisplayVsyncPeriod(&prev_vperiod_ns);
-
+  uint32_t prev_vperiod_ns = GetCurrentVsyncPeriodNs();
   std::optional<uint32_t> new_vsync_period_ns;
   if (staged_mode_config_id_ &&
       staged_mode_change_time_ <= ResourceManager::GetTimeMonotonicNs()) {
@@ -1145,13 +1149,6 @@ std::vector<HwcLayer *> HwcDisplay::GetOrderLayersByZPos() {
             });
 
   return ordered_layers;
-}
-
-HWC2::Error HwcDisplay::GetDisplayVsyncPeriod(
-    uint32_t *outVsyncPeriod /* ns */) {
-  return GetDisplayAttribute(configs_.active_config_id,
-                             HWC2_ATTRIBUTE_VSYNC_PERIOD,
-                             (int32_t *)(outVsyncPeriod));
 }
 
 // Display primary values are coded as unsigned 16-bit values in units of

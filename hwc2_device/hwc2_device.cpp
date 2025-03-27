@@ -598,6 +598,21 @@ static int32_t GetDisplayCapabilities(hwc2_device_t *device,
 
 #if __ANDROID_API__ >= 29
 
+static int32_t GetDisplayVsyncPeriod(hwc2_device_t *device,
+                                     hwc2_display_t display,
+                                     hwc2_vsync_period_t *out_vsync_period) {
+  LOCK_COMPOSER(device);
+  GET_DISPLAY(display);
+
+  const HwcDisplayConfig *config = idisplay->GetCurrentConfig();
+  if (config == nullptr) {
+    return static_cast<int32_t>(HWC2::Error::BadConfig);
+  }
+
+  *out_vsync_period = config->mode.GetVSyncPeriodNs();
+  return static_cast<int32_t>(HWC2::Error::None);
+}
+
 static int32_t SetActiveConfigWithConstraints(
     hwc2_device_t *device, hwc2_display_t display, hwc2_config_t config,
     hwc_vsync_period_change_constraints_t *vsync_period_change_constraints,
@@ -1012,10 +1027,7 @@ static hwc2_function_pointer_t HookDevGetFunction(struct hwc2_device * /*dev*/,
           DisplayHook<decltype(&HwcDisplay::GetDisplayConnectionType),
                       &HwcDisplay::GetDisplayConnectionType, uint32_t *>);
     case HWC2::FunctionDescriptor::GetDisplayVsyncPeriod:
-      return ToHook<HWC2_PFN_GET_DISPLAY_VSYNC_PERIOD>(
-          DisplayHook<decltype(&HwcDisplay::GetDisplayVsyncPeriod),
-                      &HwcDisplay::GetDisplayVsyncPeriod,
-                      hwc2_vsync_period_t *>);
+      return (hwc2_function_pointer_t)GetDisplayVsyncPeriod;
     case HWC2::FunctionDescriptor::SetActiveConfigWithConstraints:
       return (hwc2_function_pointer_t)SetActiveConfigWithConstraints;
     case HWC2::FunctionDescriptor::SetAutoLowLatencyMode:
