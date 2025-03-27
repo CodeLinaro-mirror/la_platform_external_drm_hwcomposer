@@ -529,6 +529,29 @@ static int32_t SetDisplayBrightness(hwc2_device_t * /*device*/,
   return static_cast<int32_t>(HWC2::Error::Unsupported);
 }
 
+static int32_t GetDisplayCapabilities(hwc2_device_t *device,
+                                      hwc2_display_t display,
+                                      uint32_t *out_num_capabilities,
+                                      uint32_t *out_capabilities) {
+  ALOGV("GetDisplayCapabilities");
+  LOCK_COMPOSER(device);
+  GET_DISPLAY(display);
+
+  if (out_num_capabilities == nullptr) {
+    return static_cast<int32_t>(HWC2::Error::BadParameter);
+  }
+
+  if (ihwc->GetResMan().GetCtmHandling() == CtmHandling::kDrmOrIgnore) {
+    if (out_capabilities != nullptr && *out_num_capabilities > 0) {
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic):
+      out_capabilities[0] = HWC2_DISPLAY_CAPABILITY_SKIP_CLIENT_COLOR_TRANSFORM;
+    }
+    *out_num_capabilities = 1;
+  }
+
+  return static_cast<int32_t>(HWC2::Error::None);
+}
+
 #endif
 
 #if __ANDROID_API__ >= 29
@@ -886,10 +909,7 @@ static hwc2_function_pointer_t HookDevGetFunction(struct hwc2_device * /*dev*/,
                       &HwcDisplay::GetDisplayIdentificationData, uint8_t *,
                       uint32_t *, uint8_t *>);
     case HWC2::FunctionDescriptor::GetDisplayCapabilities:
-      return ToHook<HWC2_PFN_GET_DISPLAY_CAPABILITIES>(
-          DisplayHook<decltype(&HwcDisplay::GetDisplayCapabilities),
-                      &HwcDisplay::GetDisplayCapabilities, uint32_t *,
-                      uint32_t *>);
+      return (hwc2_function_pointer_t)GetDisplayCapabilities;
     case HWC2::FunctionDescriptor::GetDisplayBrightnessSupport:
       return (hwc2_function_pointer_t)GetDisplayBrightnessSupport;
     case HWC2::FunctionDescriptor::SetDisplayBrightness:

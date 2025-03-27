@@ -147,8 +147,6 @@ class HwcDisplay {
   HWC2::Error GetDisplayIdentificationData(uint8_t *outPort,
                                            uint32_t *outDataSize,
                                            uint8_t *outData);
-  HWC2::Error GetDisplayCapabilities(uint32_t *outNumCapabilities,
-                                     uint32_t *outCapabilities);
 #endif
 #if __ANDROID_API__ > 29
   HWC2::Error GetDisplayConnectionType(uint32_t *outType);

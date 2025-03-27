@@ -911,28 +911,14 @@ ndk::ScopedAStatus ComposerClient::getDisplayCapabilities(
     int64_t display_id, std::vector<DisplayCapability>* caps) {
   DEBUG_FUNC();
   const std::unique_lock lock(hwc_->GetResMan().GetMainLock());
-  HwcDisplay* display = GetDisplay(display_id);
-  if (display == nullptr) {
+  if (GetDisplay(display_id) == nullptr) {
     return ToBinderStatus(hwc3::Error::kBadDisplay);
   }
 
-  uint32_t num_capabilities = 0;
-  hwc3::Error error = Hwc2toHwc3Error(
-      display->GetDisplayCapabilities(&num_capabilities, nullptr));
-  if (error != hwc3::Error::kNone) {
-    return ToBinderStatus(error);
-  }
-
-  std::vector<uint32_t> out_caps(num_capabilities);
-  error = Hwc2toHwc3Error(
-      display->GetDisplayCapabilities(&num_capabilities, out_caps.data()));
-  if (error != hwc3::Error::kNone) {
-    return ToBinderStatus(error);
-  }
-
-  caps->reserve(num_capabilities);
-  for (const auto cap : out_caps) {
-    caps->emplace_back(Hwc2DisplayCapabilityToHwc3(cap));
+  // Skip color transform altogether if device/drm cannot support it.
+  if (hwc_->GetResMan().GetCtmHandling() ==
+      ::android::CtmHandling::kDrmOrIgnore) {
+    caps->emplace_back(DisplayCapability::SKIP_CLIENT_COLOR_TRANSFORM);
   }
   return ndk::ScopedAStatus::ok();
 }

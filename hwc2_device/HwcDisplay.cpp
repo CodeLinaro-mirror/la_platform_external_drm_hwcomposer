@@ -1302,32 +1302,6 @@ HWC2::Error HwcDisplay::GetDisplayIdentificationData(uint8_t *outPort,
 
   return HWC2::Error::None;
 }
-
-HWC2::Error HwcDisplay::GetDisplayCapabilities(uint32_t *outNumCapabilities,
-                                               uint32_t *outCapabilities) {
-  if (outNumCapabilities == nullptr) {
-    return HWC2::Error::BadParameter;
-  }
-
-  bool skip_ctm = false;
-
-  // Skip client CTM if user requested DRM_OR_IGNORE
-  if (GetHwc()->GetResMan().GetCtmHandling() == CtmHandling::kDrmOrIgnore)
-    skip_ctm = true;
-
-  if (!skip_ctm) {
-    *outNumCapabilities = 0;
-    return HWC2::Error::None;
-  }
-
-  *outNumCapabilities = 1;
-  if (outCapabilities) {
-    outCapabilities[0] = HWC2_DISPLAY_CAPABILITY_SKIP_CLIENT_COLOR_TRANSFORM;
-  }
-
-  return HWC2::Error::None;
-}
-
 #endif /* __ANDROID_API__ > 28 */
 
 #if __ANDROID_API__ > 27
