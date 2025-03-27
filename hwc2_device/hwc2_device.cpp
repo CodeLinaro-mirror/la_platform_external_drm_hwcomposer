@@ -475,6 +475,34 @@ static int32_t GetReleaseFences(hwc2_device_t *device, hwc2_display_t display,
   return static_cast<int32_t>(HWC2::Error::None);
 }
 
+static int32_t SetPowerMode(hwc2_device_t *device, hwc2_display_t display,
+                            int32_t mode) {
+  ALOGV("SetPowerMode");
+  LOCK_COMPOSER(device);
+  GET_DISPLAY(display);
+
+  switch (mode) {
+    // Supported modes.
+    case static_cast<int32_t>(HWC2::PowerMode::Off):
+    case static_cast<int32_t>(HWC2::PowerMode::On):
+      break;
+    // Unsupported modes.
+    case static_cast<int32_t>(HWC2::PowerMode::Doze):
+    case static_cast<int32_t>(HWC2::PowerMode::DozeSuspend):
+      return static_cast<int32_t>(HWC2::Error::Unsupported);
+    // Bad parameter.
+    default:
+      ALOGE("Incorrect power mode value (%d)\n", mode);
+      return static_cast<int32_t>(HWC2::Error::BadParameter);
+  }
+
+  if (!idisplay->SetDisplayEnabled(mode ==
+                                   static_cast<int32_t>(HWC2::PowerMode::On))) {
+    return static_cast<int32_t>(HWC2::Error::BadParameter);
+  }
+  return static_cast<int32_t>(HWC2::Error::None);
+}
+
 static int32_t SetVsyncEnabled(hwc2_device_t *device, hwc2_display_t display,
                                int32_t enabled) {
   ALOGV("SetVsyncEnabled");
@@ -1037,9 +1065,7 @@ static hwc2_function_pointer_t HookDevGetFunction(struct hwc2_device * /*dev*/,
     case HWC2::FunctionDescriptor::SetOutputBuffer:
       return (hwc2_function_pointer_t)SetOutputBuffer;
     case HWC2::FunctionDescriptor::SetPowerMode:
-      return ToHook<HWC2_PFN_SET_POWER_MODE>(
-          DisplayHook<decltype(&HwcDisplay::SetPowerMode),
-                      &HwcDisplay::SetPowerMode, int32_t>);
+      return (hwc2_function_pointer_t)SetPowerMode;
     case HWC2::FunctionDescriptor::SetVsyncEnabled:
       return (hwc2_function_pointer_t)SetVsyncEnabled;
     case HWC2::FunctionDescriptor::ValidateDisplay:

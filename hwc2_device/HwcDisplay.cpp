@@ -483,6 +483,29 @@ void HwcDisplay::SetVsyncCallbacksEnabled(bool enabled) {
   vsync_worker_->SetTimestampCallback(std::move(callback));
 }
 
+bool HwcDisplay::SetDisplayEnabled(bool enabled) {
+  if (IsInHeadlessMode()) {
+    return true;
+  }
+  if (enabled) {
+    /*
+     * Setting the display to active before we have a composition
+     * can break some drivers, so skip setting a_args.active to
+     * true, as the next composition frame will implicitly activate
+     * the display
+     */
+    return GetPipe().atomic_state_manager->ActivateDisplayUsingDPMS() == 0;
+  };
+
+  // Disable the display.
+  AtomicCommitArgs a_args{};
+  a_args.active = false;
+
+  auto err = GetPipe().atomic_state_manager->ExecuteAtomicCommit(a_args);
+  ALOGE_IF(err != 0, "Failed to apply the dpms composition err=%d", err);
+  return err == 0;
+}
+
 void HwcDisplay::SetPipeline(std::shared_ptr<DrmDisplayPipeline> pipeline) {
   Deinit();
 
@@ -1106,50 +1129,6 @@ bool HwcDisplay::CtmByGpu() {
     return false;
 
   return true;
-}
-
-HWC2::Error HwcDisplay::SetPowerMode(int32_t mode_in) {
-  auto mode = static_cast<HWC2::PowerMode>(mode_in);
-
-  AtomicCommitArgs a_args{};
-
-  switch (mode) {
-    case HWC2::PowerMode::Off:
-      a_args.active = false;
-      break;
-    case HWC2::PowerMode::On:
-      a_args.active = true;
-      break;
-    case HWC2::PowerMode::Doze:
-    case HWC2::PowerMode::DozeSuspend:
-      return HWC2::Error::Unsupported;
-    default:
-      ALOGE("Incorrect power mode value (%d)\n", mode_in);
-      return HWC2::Error::BadParameter;
-  }
-
-  if (IsInHeadlessMode()) {
-    return HWC2::Error::None;
-  }
-
-  if (a_args.active && *a_args.active) {
-    /*
-     * Setting the display to active before we have a composition
-     * can break some drivers, so skip setting a_args.active to
-     * true, as the next composition frame will implicitly activate
-     * the display
-     */
-    return GetPipe().atomic_state_manager->ActivateDisplayUsingDPMS() == 0
-               ? HWC2::Error::None
-               : HWC2::Error::BadParameter;
-  };
-
-  auto err = GetPipe().atomic_state_manager->ExecuteAtomicCommit(a_args);
-  if (err) {
-    ALOGE("Failed to apply the dpms composition err=%d", err);
-    return HWC2::Error::BadParameter;
-  }
-  return HWC2::Error::None;
 }
 
 std::vector<HwcLayer *> HwcDisplay::GetOrderLayersByZPos() {

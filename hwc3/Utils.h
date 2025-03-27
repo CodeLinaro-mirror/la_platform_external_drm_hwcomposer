@@ -100,17 +100,6 @@ inline int32_t Hwc3RenderIntentToHwc2(RenderIntent render_intent) {
   return static_cast<int32_t>(render_intent);
 }
 
-// Values match up to DOZE_SUSPEND.
-// https://android.googlesource.com/platform/hardware/interfaces/+/refs/heads/main/graphics/composer/aidl/android/hardware/graphics/composer3/PowerMode.aidl
-// https://cs.android.com/android/platform/superproject/main/+/main:hardware/libhardware/include_all/hardware/hwcomposer2.h;l=348;drc=d783cabd4d9bddb4b83f2dd38300b7598bb58b24
-inline int32_t Hwc3PowerModeToHwc2(PowerMode power_mode) {
-  if (power_mode > PowerMode::DOZE_SUSPEND) {
-    ALOGE("Unsupported HWC2 power mode. Could not translate: %d", power_mode);
-    return HWC2_POWER_MODE_ON;
-  }
-  return static_cast<int32_t>(power_mode);
-}
-
 // Values appear to match.
 // https://cs.android.com/android/platform/superproject/main/+/main:hardware/interfaces/graphics/common/aidl/android/hardware/graphics/common/Dataspace.aidl
 // https://cs.android.com/android/platform/superproject/main/+/main:system/core/libsystem/include/system/graphics-base-v1.0.h;l=43

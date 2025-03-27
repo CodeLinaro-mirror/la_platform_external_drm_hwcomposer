@@ -1356,12 +1356,24 @@ ndk::ScopedAStatus ComposerClient::setPowerMode(int64_t display_id,
     return ToBinderStatus(hwc3::Error::kBadDisplay);
   }
 
-  if (mode == PowerMode::ON_SUSPEND) {
-    return ToBinderStatus(hwc3::Error::kUnsupported);
+  // Only OFF and ON are supported. VTS requires checking for invalid enum
+  // values.
+  switch (static_cast<int32_t>(mode)) {
+    case static_cast<int32_t>(PowerMode::OFF):
+    case static_cast<int32_t>(PowerMode::ON):
+      break;
+    case static_cast<int32_t>(PowerMode::DOZE):
+    case static_cast<int32_t>(PowerMode::DOZE_SUSPEND):
+    case static_cast<int32_t>(PowerMode::ON_SUSPEND):
+      return ToBinderStatus(hwc3::Error::kUnsupported);
+    default:
+      return ToBinderStatus(hwc3::Error::kBadParameter);
   }
 
-  auto error = display->SetPowerMode(Hwc3PowerModeToHwc2(mode));
-  return ToBinderStatus(Hwc2toHwc3Error(error));
+  if (!display->SetDisplayEnabled(mode == PowerMode::ON)) {
+    return ToBinderStatus(hwc3::Error::kBadParameter);
+  }
+  return ndk::ScopedAStatus::ok();
 }
 
 ndk::ScopedAStatus ComposerClient::setReadbackBuffer(

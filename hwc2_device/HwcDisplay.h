@@ -136,6 +136,9 @@ class HwcDisplay {
   // Enable or disable vsync callbacks.
   void SetVsyncCallbacksEnabled(bool enabled);
 
+  // Enable or disable the display.
+  bool SetDisplayEnabled(bool enabled);
+
   auto GetFrontendPrivateData() -> std::shared_ptr<FrontendDisplayBase> {
     return frontend_private_data_;
   }
@@ -167,7 +170,6 @@ class HwcDisplay {
   HWC2::Error ChosePreferredConfig();
   HWC2::Error SetColorMode(int32_t mode);
   HWC2::Error SetColorTransform(const float *matrix, int32_t hint);
-  HWC2::Error SetPowerMode(int32_t mode);
   HwcLayer *get_layer(ILayerId layer) {
     auto it = layers_.find(layer);
     if (it == layers_.end())
