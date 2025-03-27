@@ -55,7 +55,9 @@ class HwcDisplay {
     kSeamlessNotPossible
   };
 
-  HwcDisplay(hwc2_display_t handle, HWC2::DisplayType type, DrmHwc *hwc);
+  enum DisplayType { kInternal, kExternal, kVirtual };
+
+  HwcDisplay(hwc2_display_t handle, bool is_virtual, DrmHwc *hwc);
   HwcDisplay(const HwcDisplay &) = delete;
   ~HwcDisplay();
 
@@ -128,6 +130,9 @@ class HwcDisplay {
     content_type_ = content_type;
   }
 
+  // Physical displays are either internal or external.
+  auto GetDisplayType() -> DisplayType;
+
   auto GetFrontendPrivateData() -> std::shared_ptr<FrontendDisplayBase> {
     return frontend_private_data_;
   }
@@ -146,15 +151,10 @@ class HwcDisplay {
   HWC2::Error LegacyGetDisplayConfigs(uint32_t *num_configs,
                                       hwc2_config_t *configs);
   HWC2::Error GetDisplayName(uint32_t *size, char *name);
-  HWC2::Error GetDisplayType(int32_t *type);
 #if __ANDROID_API__ > 27
   HWC2::Error GetRenderIntents(int32_t mode, uint32_t *outNumIntents,
                                int32_t *outIntents);
   HWC2::Error SetColorModeWithIntent(int32_t mode, int32_t intent);
-#endif
-#if __ANDROID_API__ > 29
-  HWC2::Error GetDisplayConnectionType(uint32_t *outType);
-
 #endif
   HWC2::Error GetHdrCapabilities(uint32_t *num_types, int32_t *types,
                                  float *max_luminance,
@@ -273,7 +273,7 @@ class HwcDisplay {
   bool vsync_event_en_{};
 
   const hwc2_display_t handle_;
-  HWC2::DisplayType type_;
+  bool is_virtual_;
 
   std::map<ILayerId, HwcLayer> layers_;
   HwcLayer client_layer_;

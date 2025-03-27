@@ -143,10 +143,9 @@ std::string HwcDisplay::Dump() {
   return ss.str();
 }
 
-HwcDisplay::HwcDisplay(hwc2_display_t handle, HWC2::DisplayType type,
-                       DrmHwc *hwc)
-    : hwc_(hwc), handle_(handle), type_(type), client_layer_(this) {
-  if (type_ == HWC2::DisplayType::Virtual) {
+HwcDisplay::HwcDisplay(hwc2_display_t handle, bool is_virtual, DrmHwc *hwc)
+    : hwc_(hwc), handle_(handle), is_virtual_(is_virtual), client_layer_(this) {
+  if (is_virtual_) {
     writeback_layer_ = std::make_unique<HwcLayer>(this);
   }
 
@@ -433,6 +432,37 @@ auto HwcDisplay::GetPort() -> uint8_t {
           (kConnectorIdx & kConnectorBitMask));
 }
 
+auto HwcDisplay::GetDisplayType() -> DisplayType {
+  if (is_virtual_) {
+    return kVirtual;
+  }
+
+  if (IsInHeadlessMode()) {
+    return kInternal;
+  }
+
+  /* Primary display should be always internal,
+   * otherwise SF will be unhappy and will crash
+   */
+  if (handle_ == kPrimaryDisplay) {
+    return kInternal;
+  }
+
+  auto displays = GetHwc()->GetResMan().GetInternalDisplayNames();
+  if (!displays.empty()) {
+    std::string name = GetPipe().connector->Get()->GetName();
+    const bool is_internal = (displays.find(name) != displays.end());
+    return is_internal ? kInternal : kExternal;
+  }
+
+  if (GetPipe().connector->Get()->IsInternal())
+    return kInternal;
+
+  ALOGW_IF(!GetPipe().connector->Get()->IsExternal(),
+           "Connector type is neither internal nor external.");
+  return kExternal;
+}
+
 void HwcDisplay::SetPipeline(std::shared_ptr<DrmDisplayPipeline> pipeline) {
   Deinit();
 
@@ -474,7 +504,7 @@ void HwcDisplay::Deinit() {
 HWC2::Error HwcDisplay::Init() {
   ChosePreferredConfig();
 
-  if (type_ != HWC2::DisplayType::Virtual) {
+  if (!is_virtual_) {
     vsync_worker_ = VSyncWorker::CreateInstance(pipeline_);
     if (!vsync_worker_) {
       ALOGE("Failed to create event worker for d=%d\n", int(handle_));
@@ -521,7 +551,7 @@ std::optional<PanelOrientation> HwcDisplay::getDisplayPhysicalOrientation() {
 
 HWC2::Error HwcDisplay::ChosePreferredConfig() {
   HWC2::Error err{};
-  if (type_ == HWC2::DisplayType::Virtual) {
+  if (is_virtual_) {
     configs_.GenFakeMode(virtual_disp_width_, virtual_disp_height_);
   } else if (!IsInHeadlessMode()) {
     err = configs_.Update(*pipeline_->connector->Get());
@@ -676,11 +706,6 @@ HWC2::Error HwcDisplay::GetDisplayName(uint32_t *size, char *name) {
 
   *size = std::min<uint32_t>(static_cast<uint32_t>(length - 1), *size);
   strncpy(name, string.c_str(), *size);
-  return HWC2::Error::None;
-}
-
-HWC2::Error HwcDisplay::GetDisplayType(int32_t *type) {
-  *type = static_cast<int32_t>(type_);
   return HWC2::Error::None;
 }
 
@@ -900,7 +925,7 @@ HWC2::Error HwcDisplay::CreateComposition(AtomicCommitArgs &a_args) {
                                                std::move(composition_layers),
                                                cursor_layer);
 
-  if (type_ == HWC2::DisplayType::Virtual) {
+  if (is_virtual_) {
     writeback_layer_->PopulateLayerData();
     if (!writeback_layer_->IsLayerUsableAsDevice()) {
       ALOGE("Output layer must be always usable by DRM/KMS");
@@ -1108,7 +1133,7 @@ HWC2::Error HwcDisplay::SetPowerMode(int32_t mode_in) {
 }
 
 HWC2::Error HwcDisplay::SetVsyncEnabled(int32_t enabled) {
-  if (type_ == HWC2::DisplayType::Virtual) {
+  if (is_virtual_) {
     return HWC2::Error::None;
   }
   if (!vsync_worker_) {
@@ -1205,41 +1230,6 @@ HWC2::Error HwcDisplay::SetHdrOutputMetadata(ui::Hdr type) {
 
   return HWC2::Error::None;
 }
-
-#if __ANDROID_API__ > 29
-HWC2::Error HwcDisplay::GetDisplayConnectionType(uint32_t *outType) {
-  if (IsInHeadlessMode()) {
-    *outType = static_cast<uint32_t>(HWC2::DisplayConnectionType::Internal);
-    return HWC2::Error::None;
-  }
-  /* Primary display should be always internal,
-   * otherwise SF will be unhappy and will crash
-   */
-  auto displays = GetHwc()->GetResMan().GetInternalDisplayNames();
-  if (handle_ == kPrimaryDisplay) {
-    *outType = static_cast<uint32_t>(HWC2::DisplayConnectionType::Internal);
-    return HWC2::Error::None;
-  }
-  if (!displays.empty()) {
-    std::string name = GetPipe().connector->Get()->GetName();
-    const bool is_internal = (displays.find(name) != displays.end());
-    if (is_internal)
-      *outType = static_cast<uint32_t>(HWC2::DisplayConnectionType::Internal);
-    else
-      *outType = static_cast<uint32_t>(HWC2::DisplayConnectionType::External);
-    return HWC2::Error::None;
-  }
-  if (GetPipe().connector->Get()->IsInternal())
-    *outType = static_cast<uint32_t>(HWC2::DisplayConnectionType::Internal);
-  else if (GetPipe().connector->Get()->IsExternal())
-    *outType = static_cast<uint32_t>(HWC2::DisplayConnectionType::External);
-  else
-    return HWC2::Error::BadConfig;
-
-  return HWC2::Error::None;
-}
-
-#endif
 
 #if __ANDROID_API__ > 27
 

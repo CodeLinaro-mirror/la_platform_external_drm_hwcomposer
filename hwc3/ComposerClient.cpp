@@ -948,14 +948,16 @@ ndk::ScopedAStatus ComposerClient::getDisplayConnectionType(
     return ToBinderStatus(hwc3::Error::kBadDisplay);
   }
 
-  uint32_t out_type = 0;
-  const hwc3::Error error = Hwc2toHwc3Error(
-      display->GetDisplayConnectionType(&out_type));
-  if (error != hwc3::Error::kNone) {
-    return ToBinderStatus(error);
+  switch (display->GetDisplayType()) {
+    case HwcDisplay::DisplayType::kVirtual:
+      return ToBinderStatus(hwc3::Error::kBadDisplay);
+    case HwcDisplay::DisplayType::kInternal:
+      *type = DisplayConnectionType::INTERNAL;
+      break;
+    case HwcDisplay::DisplayType::kExternal:
+      *type = DisplayConnectionType::EXTERNAL;
+      break;
   }
-
-  *type = Hwc2DisplayConnectionTypeToHwc3(out_type);
   return ndk::ScopedAStatus::ok();
 }
 

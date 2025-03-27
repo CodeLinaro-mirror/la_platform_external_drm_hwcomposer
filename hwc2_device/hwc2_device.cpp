@@ -327,6 +327,24 @@ static int32_t GetDisplayRequests(hwc2_device_t * /*device*/,
   return 0;
 }
 
+static int32_t GetDisplayType(hwc2_device_t *device, hwc2_display_t display,
+                              int32_t *out_type) {
+  ALOGV("GetDisplayType");
+  LOCK_COMPOSER(device);
+  GET_DISPLAY(display);
+
+  switch (idisplay->GetDisplayType()) {
+    case HwcDisplay::DisplayType::kVirtual:
+      *out_type = static_cast<int32_t>(HWC2::DisplayType::Virtual);
+      break;
+    case HwcDisplay::DisplayType::kInternal:
+    case HwcDisplay::DisplayType::kExternal:
+      *out_type = static_cast<int32_t>(HWC2::DisplayType::Physical);
+      break;
+  }
+  return 0;
+}
+
 static int32_t GetDozeSupport(hwc2_device_t * /*device*/,
                               hwc2_display_t /*display*/,
                               int32_t *out_support) {
@@ -597,6 +615,27 @@ static int32_t GetDisplayCapabilities(hwc2_device_t *device,
 #endif
 
 #if __ANDROID_API__ >= 29
+static int32_t GetDisplayConnectionType(hwc2_device_t *device,
+                                        hwc2_display_t display,
+                                        int32_t *out_connection_type) {
+  ALOGV("GetDisplayConnectionType");
+  LOCK_COMPOSER(device);
+  GET_DISPLAY(display);
+
+  switch (idisplay->GetDisplayType()) {
+    case HwcDisplay::DisplayType::kVirtual:
+      return static_cast<int32_t>(HWC2::Error::BadDisplay);
+    case HwcDisplay::DisplayType::kInternal:
+      *out_connection_type = static_cast<int32_t>(
+          HWC2::DisplayConnectionType::Internal);
+      break;
+    case HwcDisplay::DisplayType::kExternal:
+      *out_connection_type = static_cast<int32_t>(
+          HWC2::DisplayConnectionType::External);
+      break;
+  }
+  return 0;
+}
 
 static int32_t GetDisplayVsyncPeriod(hwc2_device_t *device,
                                      hwc2_display_t display,
@@ -960,9 +999,7 @@ static hwc2_function_pointer_t HookDevGetFunction(struct hwc2_device * /*dev*/,
     case HWC2::FunctionDescriptor::GetDisplayRequests:
       return (hwc2_function_pointer_t)GetDisplayRequests;
     case HWC2::FunctionDescriptor::GetDisplayType:
-      return ToHook<HWC2_PFN_GET_DISPLAY_TYPE>(
-          DisplayHook<decltype(&HwcDisplay::GetDisplayType),
-                      &HwcDisplay::GetDisplayType, int32_t *>);
+      return (hwc2_function_pointer_t)GetDisplayType;
     case HWC2::FunctionDescriptor::GetDozeSupport:
       return (hwc2_function_pointer_t)GetDozeSupport;
     case HWC2::FunctionDescriptor::GetHdrCapabilities:
@@ -1023,9 +1060,7 @@ static hwc2_function_pointer_t HookDevGetFunction(struct hwc2_device * /*dev*/,
 #endif /* __ANDROID_API__ > 28 */
 #if __ANDROID_API__ > 29
     case HWC2::FunctionDescriptor::GetDisplayConnectionType:
-      return ToHook<HWC2_PFN_GET_DISPLAY_CONNECTION_TYPE>(
-          DisplayHook<decltype(&HwcDisplay::GetDisplayConnectionType),
-                      &HwcDisplay::GetDisplayConnectionType, uint32_t *>);
+      return (hwc2_function_pointer_t)GetDisplayConnectionType;
     case HWC2::FunctionDescriptor::GetDisplayVsyncPeriod:
       return (hwc2_function_pointer_t)GetDisplayVsyncPeriod;
     case HWC2::FunctionDescriptor::SetActiveConfigWithConstraints:

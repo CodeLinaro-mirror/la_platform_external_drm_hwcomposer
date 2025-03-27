@@ -85,19 +85,6 @@ inline int32_t Hwc3ColorModeToHwc2(ColorMode color_mode) {
   return static_cast<int32_t>(color_mode);
 }
 
-// Values match between hwc versions, so static cast is safe.
-// https://android.googlesource.com/platform/hardware/interfaces/+/refs/heads/main/graphics/composer/aidl/android/hardware/graphics/composer3/DisplayConnectionType.aidl
-// https://cs.android.com/android/platform/superproject/main/+/main:hardware/libhardware/include_all/hardware/hwcomposer2.h;l=216;drc=d783cabd4d9bddb4b83f2dd38300b7598bb58b24;bpv=0;bpt=1
-inline DisplayConnectionType Hwc2DisplayConnectionTypeToHwc3(uint32_t type) {
-  if (type > HWC2_DISPLAY_CONNECTION_TYPE_EXTERNAL) {
-    // Arbitrarily return EXTERNAL in this case, which shouldn't happen.
-    // TODO: This will be cleaned up once hwc2<->hwc3 conversion is removed.
-    ALOGE("Unknown HWC2 connection type. Could not translate: %d", type);
-    return DisplayConnectionType::EXTERNAL;
-  }
-  return static_cast<DisplayConnectionType>(type);
-}
-
 // Values match, so static_cast is safe.
 // https://android.googlesource.com/platform/hardware/interfaces/+/refs/heads/main/graphics/composer/aidl/android/hardware/graphics/composer3/RenderIntent.aidl
 // https://cs.android.com/android/platform/superproject/main/+/main:system/core/libsystem/include/system/graphics-base-v1.1.h;drc=7d940ae4afa450696afa25e07982f3a95e17e9b2;l=37
