@@ -237,7 +237,9 @@ HwcDisplay::ConfigError HwcDisplay::SetConfig(ConfigId config) {
   }
 
   ALOGV("Create modeset commit.");
-  SetOutputType(new_config->output_type);
+  // Allow HDR only on external displays
+  if (GetPipe().connector->Get()->IsExternal())
+    SetOutputType(new_config->output_type);
 
   // Create atomic commit args for a blocking modeset. There's no need to do a
   // separate test commit, since the commit does a test anyways.
