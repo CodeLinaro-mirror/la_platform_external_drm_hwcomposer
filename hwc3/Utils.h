@@ -73,18 +73,6 @@ inline hwc2_config_t Hwc3ConfigIdToHwc2(int32_t config_id) {
   return static_cast<hwc2_config_t>(config_id);
 }
 
-// Values match up to HWC2_COMPOSITION_SIDEBAND, with HWC2 not supporting
-// newer values. static_cast in between shared values.
-// https://android.googlesource.com/platform/hardware/interfaces/+/refs/heads/main/graphics/composer/aidl/android/hardware/graphics/composer3/Composition.aidl
-// https://cs.android.com/android/platform/superproject/main/+/main:hardware/libhardware/include_all/hardware/hwcomposer2.h;drc=d783cabd4d9bddb4b83f2dd38300b7598bb58b24;l=826
-inline Composition Hwc2CompositionTypeToHwc3(int32_t composition_type) {
-  if (composition_type < HWC2_COMPOSITION_INVALID ||
-      composition_type > HWC2_COMPOSITION_SIDEBAND) {
-    return Composition::INVALID;
-  }
-  return static_cast<Composition>(composition_type);
-}
-
 // Values for color modes match across HWC versions, so static cast is safe:
 // https://android.googlesource.com/platform/hardware/interfaces/+/refs/heads/main/graphics/composer/aidl/android/hardware/graphics/composer3/ColorMode.aidl
 // https://cs.android.com/android/platform/superproject/main/+/main:system/core/libsystem/include/system/graphics-base-v1.0.h;drc=7d940ae4afa450696afa25e07982f3a95e17e9b2;l=118
