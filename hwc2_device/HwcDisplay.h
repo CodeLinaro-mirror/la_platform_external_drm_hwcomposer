@@ -124,6 +124,10 @@ class HwcDisplay {
   // Get the port id that this display is plugged into.
   auto GetPort() -> uint8_t;
 
+  auto SetContentType(ContentType content_type) {
+    content_type_ = content_type;
+  }
+
   auto GetFrontendPrivateData() -> std::shared_ptr<FrontendDisplayBase> {
     return frontend_private_data_;
   }
@@ -155,8 +159,6 @@ class HwcDisplay {
       hwc2_config_t config,
       hwc_vsync_period_change_constraints_t *vsyncPeriodChangeConstraints,
       hwc_vsync_period_change_timeline_t *outTimeline);
-
-  HWC2::Error SetContentType(int32_t contentType);
 #endif
   HWC2::Error GetDisplayVsyncPeriod(uint32_t *outVsyncPeriod);
 
@@ -287,7 +289,7 @@ class HwcDisplay {
   std::shared_ptr<drm_color_ctm> identity_color_matrix_;
   android_color_transform_t color_transform_hint_{};
   bool ctm_has_offset_ = false;
-  int32_t content_type_{};
+  ContentType content_type_ = ContentType::kNoData;
   Colorspace colorspace_{};
   std::shared_ptr<hdr_output_metadata> hdr_metadata_;
 

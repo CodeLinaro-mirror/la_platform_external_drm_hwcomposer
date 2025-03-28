@@ -611,6 +611,22 @@ static int32_t GetSupportedContentTypes(
   *out_num_supported_content_types = 0;
   return static_cast<int32_t>(HWC2::Error::None);
 }
+
+static int32_t SetContentType(hwc2_device_t *device, hwc2_display_t display,
+                              int32_t content_type) {
+  ALOGV("SetContentType");
+  LOCK_COMPOSER(device);
+  GET_DISPLAY(display);
+
+  if (content_type < HWC2_CONTENT_TYPE_NONE ||
+      content_type > HWC2_CONTENT_TYPE_GAME) {
+    return static_cast<int32_t>(HWC2::Error::BadParameter);
+  }
+
+  idisplay->SetContentType(static_cast<ContentType>(content_type));
+
+  return static_cast<int32_t>(HWC2::Error::None);
+}
 #endif
 
 /* Layer functions */
@@ -973,9 +989,7 @@ static hwc2_function_pointer_t HookDevGetFunction(struct hwc2_device * /*dev*/,
     case HWC2::FunctionDescriptor::GetSupportedContentTypes:
       return (hwc2_function_pointer_t)GetSupportedContentTypes;
     case HWC2::FunctionDescriptor::SetContentType:
-      return ToHook<HWC2_PFN_SET_CONTENT_TYPE>(
-          DisplayHook<decltype(&HwcDisplay::SetContentType),
-                      &HwcDisplay::SetContentType, int32_t>);
+      return (hwc2_function_pointer_t)SetContentType;
 #endif
     // Layer functions
     case HWC2::FunctionDescriptor::SetCursorPosition:

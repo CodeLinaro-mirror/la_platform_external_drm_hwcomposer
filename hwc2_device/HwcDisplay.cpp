@@ -1278,17 +1278,6 @@ HWC2::Error HwcDisplay::SetActiveConfigWithConstraints(
   return HWC2::Error::None;
 }
 
-HWC2::Error HwcDisplay::SetContentType(int32_t contentType) {
-  /* Maps exactly to the content_type DRM connector property:
-   * https://elixir.bootlin.com/linux/v6.11/source/include/uapi/drm/drm_mode.h#L107
-   */
-  if (contentType < HWC2_CONTENT_TYPE_NONE || contentType > HWC2_CONTENT_TYPE_GAME)
-    return HWC2::Error::BadParameter;
-
-  content_type_ = contentType;
-
-  return HWC2::Error::None;
-}
 #endif
 
 #if __ANDROID_API__ > 27
