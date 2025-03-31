@@ -967,8 +967,13 @@ HWC2::Error HwcDisplay::SetActiveConfigInternal(uint32_t config,
 
   staged_mode_change_time_ = change_time;
   staged_mode_config_id_ = config;
-  if (const HwcDisplayConfig *new_config = GetConfig(config))
+
+  // Disable HDR for internal panels due to b/404620167
+  const HwcDisplayConfig *new_config = GetConfig(config);
+  if (new_config && !IsInHeadlessMode() &&
+      GetPipe().connector->Get()->IsExternal()) {
     SetOutputType(new_config->output_type);
+  }
 
   return HWC2::Error::None;
 }
