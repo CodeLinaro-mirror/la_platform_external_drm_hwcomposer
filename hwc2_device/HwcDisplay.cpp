@@ -298,6 +298,11 @@ auto HwcDisplay::ValidateStagedComposition() -> std::vector<ChangedLayer> {
     return {};
   }
 
+  if (layers_.empty()) {
+    ALOGI("No layers to validate.");
+    return {};
+  }
+
   /* In current drm_hwc design in case previous frame layer was not validated as
    * a CLIENT, it is used by display controller (Front buffer). We have to store
    * this state to provide the CLIENT with the release fences for such buffers.
@@ -354,6 +359,12 @@ auto HwcDisplay::PresentStagedComposition(
   if (IsInHeadlessMode()) {
     return true;
   }
+
+  if (layers_.empty()) {
+    ALOGI("No layers to present.");
+    return true;
+  }
+
   HWC2::Error ret{};
 
   ++total_stats_.total_frames_;
@@ -943,8 +954,7 @@ HWC2::Error HwcDisplay::CreateComposition(AtomicCommitArgs &a_args) {
     }
   }
 
-  if (z_map.empty())
-    return HWC2::Error::BadLayer;
+  ALOGW_IF(z_map.empty() && !cursor_layer.has_value(), "Empty composition");
 
   std::vector<LayerData> composition_layers;
 
