@@ -27,10 +27,16 @@ namespace android {
 
 namespace {
 
-bool HasCursorLayer(const std::vector<HwcLayer *> &layers) {
-  return std::find_if(layers.begin(), layers.end(), [&](auto *layer) -> bool {
-           return layer->GetSfType() == HWC2::Composition::Cursor;
-         }) != layers.end();
+HwcLayer *GetCursorLayer(const std::vector<HwcLayer *> &layers) {
+  auto it = std::find_if(layers.begin(), layers.end(),
+                         [&](auto *layer) -> bool {
+                           return layer->GetSfType() ==
+                                  HWC2::Composition::Cursor;
+                         });
+  if (it == layers.end()) {
+    return nullptr;
+  }
+  return *it;
 }
 
 }  // namespace
@@ -60,9 +66,12 @@ HWC2::Error Backend::ValidateDisplay(HwcDisplay *display, uint32_t *num_types,
 
   int client_start = -1;
   size_t client_size = 0;
-  bool use_cursor_plane = HasCursorLayer(layers) &&
-                          display->GetPipe().GetUsablePlanes().second !=
-                              nullptr;
+  auto *cursor_layer = GetCursorLayer(layers);
+  auto cursor_plane = display->GetPipe().GetUsablePlanes().second;
+  bool use_cursor_plane = cursor_layer != nullptr && cursor_plane != nullptr &&
+                          !IsClientLayer(display, cursor_layer) &&
+                          cursor_plane->Get()->IsValidForLayer(
+                              &cursor_layer->GetLayerData());
 
   // Validates layers and creates a test composition, returning whether it
   // succeeded.
