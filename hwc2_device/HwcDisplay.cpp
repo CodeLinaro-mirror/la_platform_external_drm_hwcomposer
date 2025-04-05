@@ -967,8 +967,13 @@ HWC2::Error HwcDisplay::SetActiveConfigInternal(uint32_t config,
 
   staged_mode_change_time_ = change_time;
   staged_mode_config_id_ = config;
-  if (const HwcDisplayConfig *new_config = GetConfig(config))
+
+  // Disable HDR for internal panels due to b/404620167
+  const HwcDisplayConfig *new_config = GetConfig(config);
+  if (new_config && !IsInHeadlessMode() &&
+      GetPipe().connector->Get()->IsExternal()) {
     SetOutputType(new_config->output_type);
+  }
 
   return HWC2::Error::None;
 }
@@ -1227,7 +1232,21 @@ HWC2::Error HwcDisplay::GetDisplayConnectionType(uint32_t *outType) {
   /* Primary display should be always internal,
    * otherwise SF will be unhappy and will crash
    */
-  if (GetPipe().connector->Get()->IsInternal() || handle_ == kPrimaryDisplay)
+  auto displays = GetHwc()->GetResMan().GetInternalDisplayNames();
+  if (handle_ == kPrimaryDisplay) {
+    *outType = static_cast<uint32_t>(HWC2::DisplayConnectionType::Internal);
+    return HWC2::Error::None;
+  }
+  if (!displays.empty()) {
+    std::string name = GetPipe().connector->Get()->GetName();
+    const bool is_internal = (displays.find(name) != displays.end());
+    if (is_internal)
+      *outType = static_cast<uint32_t>(HWC2::DisplayConnectionType::Internal);
+    else
+      *outType = static_cast<uint32_t>(HWC2::DisplayConnectionType::External);
+    return HWC2::Error::None;
+  }
+  if (GetPipe().connector->Get()->IsInternal())
     *outType = static_cast<uint32_t>(HWC2::DisplayConnectionType::Internal);
   else if (GetPipe().connector->Get()->IsExternal())
     *outType = static_cast<uint32_t>(HWC2::DisplayConnectionType::External);
