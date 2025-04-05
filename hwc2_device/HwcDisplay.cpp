@@ -312,6 +312,12 @@ auto HwcDisplay::ValidateStagedComposition() -> std::vector<ChangedLayer> {
   for (auto &l : layers_) {
     l.second.SetPriorBufferScanOutFlag(l.second.GetValidatedType() !=
                                        HWC2::Composition::Client);
+
+    /* Populate layer data for layers that might be mapped to a drm plane. */
+    if (l.second.GetSfType() == HWC2::Composition::Device ||
+        l.second.GetSfType() == HWC2::Composition::Cursor) {
+      l.second.PopulateLayerData();
+    }
   }
 
   // ValidateDisplay returns the number of layers that may be changed.
@@ -914,7 +920,6 @@ HWC2::Error HwcDisplay::CreateComposition(AtomicCommitArgs &a_args) {
         break;
       case HWC2::Composition::Cursor:
         if (!cursor_layer.has_value()) {
-          layer.PopulateLayerData();
           cursor_layer = layer.GetLayerData();
         } else {
           ALOGW("Detected multiple cursor layers");
@@ -959,11 +964,6 @@ HWC2::Error HwcDisplay::CreateComposition(AtomicCommitArgs &a_args) {
   ALOGW_IF(z_map.empty() && !cursor_layer.has_value(), "Empty composition");
 
   std::vector<LayerData> composition_layers;
-
-  /* Import & populate */
-  for (std::pair<const uint32_t, HwcLayer *> &l : z_map) {
-    l.second->PopulateLayerData();
-  }
 
   // now that they're ordered by z, add them to the composition
   for (std::pair<const uint32_t, HwcLayer *> &l : z_map) {
