@@ -90,6 +90,14 @@ auto DrmDevice::Init(const char *path) -> int {
   }
   HasAddFb2ModifiersSupport_ = cap_value != 0;
 
+  uint64_t cursor_width = 0;
+  uint64_t cursor_height = 0;
+  if (drmGetCap(*GetFd(), DRM_CAP_CURSOR_WIDTH, &cursor_width) == 0 &&
+      drmGetCap(*GetFd(), DRM_CAP_CURSOR_HEIGHT, &cursor_height) == 0) {
+    cap_cursor_size_ = std::pair<uint64_t, uint64_t>(cursor_width,
+                                                     cursor_height);
+  }
+
   drmSetMaster(*GetFd());
   if (drmIsMaster(*GetFd()) == 0) {
     ALOGE("DRM/KMS master access required");
@@ -200,7 +208,7 @@ int DrmDevice::GetProperty(uint32_t obj_id, uint32_t obj_type,
     drmModePropertyPtr p = drmModeGetProperty(*GetFd(), props->props[i]);
     if (strcmp(p->name, prop_name) == 0) {
       // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
-      property->Init(obj_id, p, props->prop_values[i]);
+      property->Init(GetFd(), obj_id, p, props->prop_values[i]);
       found = true;
     }
     drmModeFreeProperty(p);
