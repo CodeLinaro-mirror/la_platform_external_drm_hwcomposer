@@ -602,8 +602,8 @@ bool HwcDisplay::Init() {
              HWC2::Error::None) {
     return false;
   }
-
-  return SetActiveConfig(configs_.preferred_config_id) == HWC2::Error::None;
+  return SetConfig(configs_.preferred_config_id) ==
+         HwcDisplay::ConfigError::kNone;
 }
 
 std::optional<PanelOrientation> HwcDisplay::getDisplayPhysicalOrientation() {
