@@ -1022,21 +1022,16 @@ HWC2::Error HwcDisplay::CreateComposition(AtomicCommitArgs &a_args) {
   return HWC2::Error::None;
 }
 
-HWC2::Error HwcDisplay::SetActiveConfigInternal(uint32_t config,
-                                                int64_t change_time) {
+HWC2::Error HwcDisplay::SetActiveConfig(hwc2_config_t config) {
   if (configs_.hwc_configs.count(config) == 0) {
     ALOGE("Could not find active mode for %u", config);
     return HWC2::Error::BadConfig;
   }
 
-  staged_mode_change_time_ = change_time;
+  staged_mode_change_time_ = ResourceManager::GetTimeMonotonicNs();
   staged_mode_config_id_ = config;
 
   return HWC2::Error::None;
-}
-
-HWC2::Error HwcDisplay::SetActiveConfig(hwc2_config_t config) {
-  return SetActiveConfigInternal(config, ResourceManager::GetTimeMonotonicNs());
 }
 
 HWC2::Error HwcDisplay::SetColorMode(int32_t mode) {
