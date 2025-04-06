@@ -166,7 +166,6 @@ class HwcDisplay {
                                  float *max_luminance,
                                  float *max_average_luminance,
                                  float *min_luminance);
-  HWC2::Error SetActiveConfig(hwc2_config_t config);
   HWC2::Error SetColorMode(int32_t mode);
   HWC2::Error SetColorTransform(const float *matrix, int32_t hint);
   HwcLayer *get_layer(ILayerId layer) {
