@@ -531,7 +531,8 @@ void HwcDisplay::SetPipeline(std::shared_ptr<DrmDisplayPipeline> pipeline) {
   pipeline_ = std::move(pipeline);
 
   if (pipeline_ != nullptr || handle_ == kPrimaryDisplay) {
-    Init();
+    bool success = Init();
+    ALOGE_IF(!success, "Failed to init HwcDisplay after setting pipeline.");
     hwc_->ScheduleHotplugEvent(handle_, DrmHwc::kConnected);
   } else {
     hwc_->ScheduleHotplugEvent(handle_, DrmHwc::kDisconnected);
@@ -563,14 +564,14 @@ void HwcDisplay::Deinit() {
   client_layer_.ClearSlots();
 }
 
-HWC2::Error HwcDisplay::Init() {
+bool HwcDisplay::Init() {
   ChosePreferredConfig();
 
   if (!is_virtual_) {
     vsync_worker_ = VSyncWorker::CreateInstance(pipeline_);
     if (!vsync_worker_) {
       ALOGE("Failed to create event worker for d=%d\n", int(handle_));
-      return HWC2::Error::BadDisplay;
+      return false;
     }
   }
 
@@ -578,7 +579,7 @@ HWC2::Error HwcDisplay::Init() {
     auto ret = BackendManager::GetInstance().SetBackendForDisplay(this);
     if (ret) {
       ALOGE("Failed to set backend for d=%d %d\n", int(handle_), ret);
-      return HWC2::Error::BadDisplay;
+      return false;
     }
     auto flatcbk = (struct FlatConCallbacks){
         .trigger = [this]() { hwc_->SendRefreshEventToClient(handle_); }};
@@ -591,7 +592,7 @@ HWC2::Error HwcDisplay::Init() {
 
   SetColorMatrixToIdentity();
 
-  return HWC2::Error::None;
+  return true;
 }
 
 std::optional<PanelOrientation> HwcDisplay::getDisplayPhysicalOrientation() {

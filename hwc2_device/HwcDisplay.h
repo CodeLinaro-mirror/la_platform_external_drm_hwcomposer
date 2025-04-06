@@ -306,7 +306,7 @@ class HwcDisplay {
 
   void SetColorMatrixToIdentity();
 
-  HWC2::Error Init();
+  bool Init();
 
   HWC2::Error SetActiveConfigInternal(uint32_t config, int64_t change_time);
   HWC2::Error SetHdrOutputMetadata(ui::Hdr hdrType);
