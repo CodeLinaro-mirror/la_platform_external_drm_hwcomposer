@@ -75,7 +75,7 @@ HWC2::Error Backend::ValidateDisplay(HwcDisplay *display, uint32_t *num_types,
     AtomicCommitArgs a_args = {.test_only = true};
 
     if (testing_needed) {
-      return display->CreateComposition(a_args) != HWC2::Error::None;
+      return display->CreateComposition(a_args) == HWC2::Error::None;
     }
 
     return true;
