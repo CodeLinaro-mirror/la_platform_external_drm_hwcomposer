@@ -113,15 +113,17 @@ std::string HwcDisplay::DumpDelta(HwcDisplay::Stats delta) {
 
   std::stringstream ss;
   ss << " Total frames count: " << delta.total_frames_ << "\n"
+     << " Failed cursor test commit frames: "
+     << delta.failed_kms_cursor_validate_ << "\n"
      << " Failed to test commit frames: " << delta.failed_kms_validate_ << "\n"
      << " Failed to commit frames: " << delta.failed_kms_present_ << "\n"
      << ((delta.failed_kms_present_ > 0)
              ? " !!! Internal failure, FIX it please\n"
              : "")
      << " Flattened frames: " << delta.frames_flattened_ << "\n"
-     << " Pixel operations (free units)"
-     << " : [TOTAL: " << delta.total_pixops_ << " / GPU: " << delta.gpu_pixops_
-     << "]\n"
+     << " Cursor plane frames: " << delta.cursor_plane_frames_ << "\n"
+     << " Pixel operations (free units) : [TOTAL: " << delta.total_pixops_
+     << " / GPU: " << delta.gpu_pixops_ << "]\n"
      << " Composition efficiency: " << ratio;
 
   return ss.str();

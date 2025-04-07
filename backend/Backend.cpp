@@ -74,10 +74,8 @@ HWC2::Error Backend::ValidateDisplay(HwcDisplay *display, uint32_t *num_types,
     bool testing_needed = client_start != 0 || client_size != layers.size();
     AtomicCommitArgs a_args = {.test_only = true};
 
-    if (testing_needed &&
-        display->CreateComposition(a_args) != HWC2::Error::None) {
-      ++display->total_stats().failed_kms_validate_;
-      return false;
+    if (testing_needed) {
+      return display->CreateComposition(a_args) != HWC2::Error::None;
     }
 
     return true;
@@ -88,12 +86,14 @@ HWC2::Error Backend::ValidateDisplay(HwcDisplay *display, uint32_t *num_types,
 
   // First fallback: convert cursor layer to device composition and reattempt.
   if (!success && use_cursor_plane) {
+    ++display->total_stats().failed_kms_cursor_validate_;
     use_cursor_plane = false;
     success = validate_and_test();
   }
 
   // Final fallback: convert all layers to client composition.
   if (!success) {
+    ++display->total_stats().failed_kms_validate_;
     client_start = 0;
     client_size = layers.size();
     MarkValidated(layers, client_start, client_size, use_cursor_plane);
@@ -103,6 +103,9 @@ HWC2::Error Backend::ValidateDisplay(HwcDisplay *display, uint32_t *num_types,
   display->total_stats().gpu_pixops_ += CalcPixOps(layers, client_start,
                                                    client_size);
   display->total_stats().total_pixops_ += CalcPixOps(layers, 0, layers.size());
+  if (use_cursor_plane) {
+    ++display->total_stats().cursor_plane_frames_;
+  }
   return *num_types != 0 ? HWC2::Error::HasChanges : HWC2::Error::None;
 }
 
