@@ -565,8 +565,6 @@ void HwcDisplay::Deinit() {
 }
 
 bool HwcDisplay::Init() {
-  ChosePreferredConfig();
-
   if (!is_virtual_) {
     vsync_worker_ = VSyncWorker::CreateInstance(pipeline_);
     if (!vsync_worker_) {
@@ -592,7 +590,16 @@ bool HwcDisplay::Init() {
 
   SetColorMatrixToIdentity();
 
-  return true;
+  if (is_virtual_) {
+    configs_.GenFakeMode(virtual_disp_width_, virtual_disp_height_);
+  } else if (IsInHeadlessMode()) {
+    configs_.GenFakeMode(0, 0);
+  } else if (configs_.Update(*pipeline_->connector->Get()) !=
+             HWC2::Error::None) {
+    return false;
+  }
+
+  return SetActiveConfig(configs_.preferred_config_id) == HWC2::Error::None;
 }
 
 std::optional<PanelOrientation> HwcDisplay::getDisplayPhysicalOrientation() {
@@ -610,22 +617,6 @@ std::optional<PanelOrientation> HwcDisplay::getDisplayPhysicalOrientation() {
   }
 
   return pipeline.connector->Get()->GetPanelOrientation();
-}
-
-HWC2::Error HwcDisplay::ChosePreferredConfig() {
-  HWC2::Error err{};
-  if (is_virtual_) {
-    configs_.GenFakeMode(virtual_disp_width_, virtual_disp_height_);
-  } else if (!IsInHeadlessMode()) {
-    err = configs_.Update(*pipeline_->connector->Get());
-  } else {
-    configs_.GenFakeMode(0, 0);
-  }
-  if (!IsInHeadlessMode() && err != HWC2::Error::None) {
-    return HWC2::Error::BadDisplay;
-  }
-
-  return SetActiveConfig(configs_.preferred_config_id);
 }
 
 auto HwcDisplay::CreateLayer(ILayerId new_layer_id) -> bool {
