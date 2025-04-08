@@ -721,6 +721,8 @@ static int32_t SetActiveConfigWithConstraints(
       return static_cast<int32_t>(HWC2::Error::SeamlessNotAllowed);
     case HwcDisplay::ConfigError::kSeamlessNotPossible:
       return static_cast<int32_t>(HWC2::Error::SeamlessNotPossible);
+    case HwcDisplay::ConfigError::kConfigFailed:
+      return static_cast<int32_t>(HWC2::Error::BadConfig);
     case HwcDisplay::ConfigError::kNone:
       return static_cast<int32_t>(HWC2::Error::None);
   }
