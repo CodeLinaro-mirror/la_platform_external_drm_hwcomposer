@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC1091 # no need to follow references to other shell scripts
 # Bump the UBUNTU_AOSPLESS_TAG for changes in this file to take effect.
 
+set -e
 
-set -ex
+source "./.ci/setup-test-env.sh"
 
 DEPS=(
     clang
