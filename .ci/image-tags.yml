@@ -1,4 +1,4 @@
 
 variables:
-  UBUNTU_HWC_IMAGE: "ubuntu/x86_64_hwc"
-  UBUNTU_HWC_TAG: "20250218_hwc"
+  UBUNTU_AOSPLESS_IMAGE: "ubuntu/x86_64_aospless"
+  UBUNTU_AOSPLESS_TAG: "20250422_aospless"

@@ -19,7 +19,7 @@ ubuntu/x86_64_hwc:
   variables:
     FDO_DISTRIBUTION_VERSION: "24.10"
     FDO_DISTRIBUTION_EXEC: 'bash .ci/container/ubuntu/x86_64_aospless.sh'
-    HWC_TAG: $UBUNTU_HWC_TAG
+    HWC_TAG: $UBUNTU_AOSPLESS_TAG
 
 .set-image:
   extends:
@@ -31,7 +31,7 @@ ubuntu/x86_64_hwc:
     - .fdo.container-build@ubuntu
     - .set-image
   variables:
-    HWC_TAG: $UBUNTU_HWC_TAG
-    HWC_IMAGE: $UBUNTU_HWC_IMAGE
+    HWC_IMAGE: $UBUNTU_AOSPLESS_IMAGE
+    HWC_TAG: $UBUNTU_AOSPLESS_TAG
   needs:
     - ubuntu/x86_64_hwc

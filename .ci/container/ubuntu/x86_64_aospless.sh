@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
+# Bump the UBUNTU_AOSPLESS_TAG for changes in this file to take effect.
 
-# For any changes to this file to take effect, the UBUNTU_HWC_TAG has
-# to be bumped to generate a new image.
 
 set -ex
 
