@@ -25,7 +25,7 @@ stages:
 build:
   stage: build
   extends:
-    .use-ubuntu/x86_64_hwc
+    .use-ubuntu/x86_64_aospless
   script:
     - ln -s "${CI_PROJECT_DIR}" "/aospless/src"
     - make -C /aospless install
@@ -39,7 +39,7 @@ build:
 tidy:
   stage: tidy
   extends:
-    .use-ubuntu/x86_64_hwc
+    .use-ubuntu/x86_64_aospless
   script:
     - cp -r /aospless ../
     - make -j$(nproc) -k -f "${CI_PROJECT_DIR}/.ci/Makefile"
@@ -47,7 +47,7 @@ tidy:
 checkstyle:
   stage: style
   extends:
-    .use-ubuntu/x86_64_hwc
+    .use-ubuntu/x86_64_aospless
   script: "./.ci/.gitlab-ci-checkcommit.sh"
   artifacts:
     when: on_failure

@@ -12,12 +12,17 @@
     # no need to pull the whole repo to build the container image
     GIT_STRATEGY: none
 
-ubuntu/x86_64_hwc:
+.ubuntu/x86_64_hwc:
   extends:
     - .fdo.container-build@ubuntu
     - .container
   variables:
     FDO_DISTRIBUTION_VERSION: "24.10"
+
+ubuntu/x86_64_aospless:
+  extends:
+    - .ubuntu/x86_64_hwc
+  variables:
     FDO_DISTRIBUTION_EXEC: 'bash .ci/container/ubuntu/x86_64_aospless.sh'
     HWC_TAG: $UBUNTU_AOSPLESS_TAG
 
@@ -26,7 +31,7 @@ ubuntu/x86_64_hwc:
     - .incorporate-templates-commit
   image: "$CI_REGISTRY_IMAGE/${HWC_IMAGE}:${FDO_DISTRIBUTION_TAG}"
 
-.use-ubuntu/x86_64_hwc:
+.use-ubuntu/x86_64_aospless:
   extends:
     - .fdo.container-build@ubuntu
     - .set-image
@@ -34,4 +39,4 @@ ubuntu/x86_64_hwc:
     HWC_IMAGE: $UBUNTU_AOSPLESS_IMAGE
     HWC_TAG: $UBUNTU_AOSPLESS_TAG
   needs:
-    - ubuntu/x86_64_hwc
+    - ubuntu/x86_64_aospless
