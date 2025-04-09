@@ -4,6 +4,7 @@ workflow:
     - if: $CI_PIPELINE_SOURCE == 'push'
 
 variables:
+  ANDROID_BRANCH: android15-release
   DEBIAN_FRONTEND: noninteractive
   CI_TEMPLATES_COMMIT: &ci-templates-commit ea3f77641d91765396beba192b8defd3085fa343
   FDO_UPSTREAM_REPO: "drm-hwcomposer/drm-hwcomposer"
@@ -27,10 +28,10 @@ build:
   extends:
     .use-ubuntu/x86_64_aospless
   script:
-    - ln -s "${CI_PROJECT_DIR}" "/aospless/src"
-    - make -C /aospless install
+    - ln -s "${CI_PROJECT_DIR}" "/aospless_arm64/src"
+    - make -C /aospless_arm64 install
     - mkdir -p "${CI_PROJECT_DIR}/install/arm64"
-    - cp -r /aospless/install/* "${CI_PROJECT_DIR}/install/arm64"
+    - cp -r /aospless_arm64/install/* "${CI_PROJECT_DIR}/install/arm64"
   artifacts:
     paths:
       - "${CI_PROJECT_DIR}/install/arm64"
@@ -41,7 +42,7 @@ tidy:
   extends:
     .use-ubuntu/x86_64_aospless
   script:
-    - cp -r /aospless ../
+    - cp -r /aospless_arm64 ../aospless
     - make -j$(nproc) -k -f "${CI_PROJECT_DIR}/.ci/Makefile"
 
 checkstyle:

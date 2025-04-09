@@ -53,15 +53,56 @@ apt-get install -y --no-remove --no-install-recommends "${DEPS_FOR_BUILD[@]}"
 apt-get install -y --no-remove --no-install-recommends "${DEPS_FOR_TIDY[@]}"
 apt-get install -y --no-remove --no-install-recommends "${DEPS_FOR_CHECK[@]}"
 
+curl -o /usr/local/bin/repo https://storage.googleapis.com/git-repo-downloads/repo
+chmod a+x /usr/local/bin/repo
 set +x
 section_end install_packages
 
-wget https://gitlab.freedesktop.org/-/project/5/uploads/cafa930dad28acf7ee44d50101d5e8f0/aospless_drm_hwcomposer_arm64.tar.xz
+section_start repo_init "repo_init"
+set -x
+TOP="$(pwd)/aosp" # $CI_PROJECT_DIR is unavailable in FDO_DISTRIBUTION_EXEC
+mkdir "${TOP}"
+cd "${TOP}"
 
-sha256sum aospless_drm_hwcomposer_arm64.tar.xz
-if echo f792b1140861112f80c8a3a22e1af8e3eccf4910fe4449705e62d2032b713bf9 aospless_drm_hwcomposer_arm64.tar.xz | sha256sum --check; then
-    tar --no-same-owner -xf aospless_drm_hwcomposer_arm64.tar.xz -C /
-else
-    echo "Tar file check failed"
-    exit 1
-fi
+: "${ANDROID_BRANCH:?ANDROID_BRANCH is not set}"
+
+yes n | repo init \
+  -u https://android.googlesource.com/platform/manifest \
+  -b "${ANDROID_BRANCH}" \
+  --depth=1
+time repo sync --fail-fast --no-tags -j2
+
+rm external/drm_hwcomposer -rf
+git clone --depth=1 --branch "${CI_COMMIT_REF_NAME}" "${CI_PROJECT_URL}" external/drm_hwcomposer
+git -C external/drm_hwcomposer checkout "${CI_COMMIT_SHA}"
+
+rm external/libdisplay_info -rf
+git clone --depth=1 https://android.googlesource.com/platform/external/libdisplay-info/ external/libdisplay_info
+
+git clone https://github.com/GloDroid/aospext.git
+cat >> "${TOP}/device/google/cuttlefish/shared/device.mk" <<EOF
+BOARD_BUILD_AOSPEXT_DRMHWCOMPOSER := true
+BOARD_DRMHWCOMPOSER_SRC_DIR := external/drm_hwcomposer
+EOF
+set +x
+source build/envsetup.sh
+section_end repo_init
+
+section_start build_aospless_arm64 "build_aospless_arm64"
+set -x
+cd "${TOP}/aospext"
+export TARGET_BUILD_VARIANT=userdebug # needed for adb root and remount
+export TARGET_PRODUCT=aosp_cf_arm64_slim
+export TARGET_RELEASE=trunk_staging
+lunch "${TARGET_PRODUCT}-${TARGET_RELEASE}-${TARGET_BUILD_VARIANT}"
+mm
+cd "${TOP}/out/target/product/vsoc_arm64_only/obj/AOSPEXT/DRMHWCOMPOSER/"
+make gen_aospless
+tar --no-same-owner -xf aospless.tar.gz
+# Rename and move the artifacts needed for subsequent jobs to the root directory
+cp -r "./aospless" "/aospless_arm64"
+set +x
+section_end build_aospless_arm64
+
+# clean up
+rm "${TOP}" -rf
