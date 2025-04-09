@@ -23,15 +23,12 @@ stages:
   - tidy
   - style
 
-build:
+build_arm64:
   stage: build
   extends:
     .use-ubuntu/x86_64_aospless
   script:
-    - ln -s "${CI_PROJECT_DIR}" "/aospless_arm64/src"
-    - make -C /aospless_arm64 install
-    - mkdir -p "${CI_PROJECT_DIR}/install/arm64"
-    - cp -r /aospless_arm64/install/* "${CI_PROJECT_DIR}/install/arm64"
+    .ci/build-arm64.sh
   artifacts:
     paths:
       - "${CI_PROJECT_DIR}/install/arm64"
