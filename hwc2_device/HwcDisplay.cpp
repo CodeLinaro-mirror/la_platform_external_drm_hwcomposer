@@ -205,6 +205,10 @@ HwcDisplay::ConfigError HwcDisplay::SetConfig(hwc2_config_t config) {
     ALOGE("Could not find active mode for %u", config);
     return ConfigError::kBadConfig;
   }
+  if (IsInHeadlessMode()) {
+    configs_.active_config_id = config;
+    return ConfigError::kNone;
+  }
 
   const HwcDisplayConfig *current_config = GetCurrentConfig();
 
