@@ -7,8 +7,6 @@ variables:
   DEBIAN_FRONTEND: noninteractive
   CI_TEMPLATES_COMMIT: &ci-templates-commit ea3f77641d91765396beba192b8defd3085fa343
   FDO_UPSTREAM_REPO: "drm-hwcomposer/drm-hwcomposer"
-  UBUNTU_HWC_IMAGE: "ubuntu/x86_64_hwc"
-  UBUNTU_HWC_TAG: "20250218_hwc"
 
 include:
   - project: 'freedesktop/ci-templates'
@@ -16,6 +14,7 @@ include:
     file:
       - '/templates/ubuntu.yml'
   - local: '.ci/container/.gitlab-ci.yml'
+  - local: '.ci/image-tags.yml'
 
 stages:
   - container

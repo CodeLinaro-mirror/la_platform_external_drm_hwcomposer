@@ -1,0 +1,4 @@
+
+variables:
+  UBUNTU_HWC_IMAGE: "ubuntu/x86_64_hwc"
+  UBUNTU_HWC_TAG: "20250218_hwc"
