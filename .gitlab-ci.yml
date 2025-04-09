@@ -34,6 +34,17 @@ build_arm64:
       - "${CI_PROJECT_DIR}/install/arm64"
     expire_in: 1 week
 
+build_x86_64:
+  stage: build
+  extends:
+    .use-ubuntu/x86_64_aospless
+  script:
+    "${CI_PROJECT_DIR}/.ci/build-x86_64.sh"
+  artifacts:
+    paths:
+      - "${CI_PROJECT_DIR}/install/x86_64"
+    expire_in: 1 week
+
 tidy:
   stage: tidy
   extends:
