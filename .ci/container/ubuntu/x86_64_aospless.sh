@@ -88,6 +88,23 @@ set +x
 source build/envsetup.sh
 section_end repo_init
 
+section_start build_aospless_x86_64 "build_aospless_x86_64"
+set -x
+cd "${TOP}/aospext"
+export TARGET_BUILD_VARIANT=userdebug # needed for adb root and remount
+export TARGET_PRODUCT=aosp_cf_x86_64_slim
+export TARGET_RELEASE=trunk_staging
+lunch "${TARGET_PRODUCT}-${TARGET_RELEASE}-${TARGET_BUILD_VARIANT}"
+mm
+cd "${TOP}/out/target/product/vsoc_x86_64_only/obj/AOSPEXT/DRMHWCOMPOSER/"
+make gen_aospless
+tar --no-same-owner -xf aospless.tar.gz
+# Rename and move the artifacts needed for subsequent jobs to the root directory
+cp -r "./aospless" "/aospless_x86_64"
+set +x
+section_end build_aospless_x86_64
+
+
 section_start build_aospless_arm64 "build_aospless_arm64"
 set -x
 cd "${TOP}/aospext"
