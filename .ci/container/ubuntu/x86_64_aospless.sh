@@ -7,40 +7,54 @@ set -e
 source "./.ci/setup-test-env.sh"
 
 DEPS=(
-    clang
-    llvm
-    clang-19
-    clang-tidy-19
-    clang-format-19
-    ca-certificates
-    git
-    libdrm-dev
-    blueprint-tools
-    libgtest-dev
-    make
-    python3
-    wget
-    sudo
-    rsync
-    lld
-    pkg-config
-    ninja-build
-    meson
-    python3-mako
-    python3-jinja2
-    python3-ply
-    python3-yaml
-    wget
-    gnupg
-    xz-utils
+  ca-certificates
+  git
+  wget
+  xz-utils
+)
+
+DEPS_FOR_AOSP=(
+  curl
+  gpg
+  gpg-agent
+  ssh
+)
+
+DEPS_FOR_BUILD=(
+  clang
+  clang-19
+  git
+  lld
+  llvm
+  make
+  meson
+  pkg-config
+  rsync
+)
+
+DEPS_FOR_TIDY=(
+  clang-tidy-19
+)
+
+DEPS_FOR_CHECK=(
+  blueprint-tools
+  clang-format-19
 )
 
 export DEBIAN_FRONTEND=noninteractive
 
+section_start install_packages "install_packages"
+set -x
 apt-get update
 apt-get upgrade -y
-
 apt-get install -y --no-remove --no-install-recommends "${DEPS[@]}"
+apt-get install -y --no-remove --no-install-recommends "${DEPS_FOR_AOSP[@]}"
+apt-get install -y --no-remove --no-install-recommends "${DEPS_FOR_BUILD[@]}"
+apt-get install -y --no-remove --no-install-recommends "${DEPS_FOR_TIDY[@]}"
+apt-get install -y --no-remove --no-install-recommends "${DEPS_FOR_CHECK[@]}"
+
+set +x
+section_end install_packages
 
 wget https://gitlab.freedesktop.org/-/project/5/uploads/cafa930dad28acf7ee44d50101d5e8f0/aospless_drm_hwcomposer_arm64.tar.xz
 
