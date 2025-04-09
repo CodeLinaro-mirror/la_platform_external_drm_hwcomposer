@@ -12,6 +12,25 @@
     # no need to pull the whole repo to build the container image
     GIT_STRATEGY: none
 
+debian/x86_64_cuttlefish:
+  extends:
+    - .fdo.container-build@debian
+    - .container
+  timeout: 6h
+  variables:
+    FDO_DISTRIBUTION_VERSION: "bookworm-slim"
+    FDO_DISTRIBUTION_EXEC: 'bash .ci/container/debian/x86_64_cuttlefish.sh'
+    HWC_TAG: $DEBIAN_CUTTLEFISH_TAG
+  after_script:
+    - cp "/cache/${CI_PROJECT_PATH}/cuttlefish.log.txt.gz" "${CI_PROJECT_DIR}/"
+    - cp "/cache/${CI_PROJECT_PATH}/${CUTTLEFISH_TARBALL}" "${CI_PROJECT_DIR}/"
+  artifacts:
+    when: on_failure
+    paths:
+      - "${CI_PROJECT_DIR}/cuttlefish.log.txt.gz"
+      - "${CI_PROJECT_DIR}/${CUTTLEFISH_TARBALL}"
+    expire_in: 1 week
+
 .ubuntu/x86_64_hwc:
   extends:
     - .fdo.container-build@ubuntu
