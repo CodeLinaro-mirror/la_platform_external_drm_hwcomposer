@@ -90,3 +90,20 @@ ubuntu/x86_64_android:
     HWC_TAG: $UBUNTU_ANDROID_TAG
   needs:
     - ubuntu/x86_64_android
+
+use-debian/x86_64_cuttlefish:
+  extends:
+    - .fdo.container-build@debian
+    - .set-image
+  variables:
+    HWC_IMAGE: $DEBIAN_CUTTLEFISH_IMAGE
+    HWC_TAG: $DEBIAN_CUTTLEFISH_TAG
+  needs:
+    - debian/x86_64_cuttlefish
+  script:
+    - cp -a "/${CUTTLEFISH_TARBALL}" "${CI_PROJECT_DIR}"
+  artifacts:
+    when: always
+    paths:
+      - "${CI_PROJECT_DIR}/${CUTTLEFISH_TARBALL}"
+    expire_in: 1 week
