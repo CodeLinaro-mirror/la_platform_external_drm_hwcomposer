@@ -753,7 +753,7 @@ void ComposerClient::ExecuteDisplayCommand(const DisplayCommand& command) {
     }
     cmd_result_writer_->AddChanges(changes);
     auto hwc3_display = DrmHwcThree::GetHwc3Display(*display);
-    hwc3_display->must_validate = false;
+    hwc_->ClearMustValidateDisplay(display_id);
     hwc3_display->desired_present_time = AidlToPresentTimeNs(
         command.expectedPresentTime);
 
@@ -776,7 +776,7 @@ void ComposerClient::ExecuteDisplayCommand(const DisplayCommand& command) {
 
   if (command.presentDisplay || shall_present_now) {
     auto hwc3_display = DrmHwcThree::GetHwc3Display(*display);
-    if (hwc3_display->must_validate) {
+    if (hwc_->GetMustValidateDisplay(display_id)) {
       cmd_result_writer_->AddError(hwc3::Error::kNotValidated);
       return;
     }
