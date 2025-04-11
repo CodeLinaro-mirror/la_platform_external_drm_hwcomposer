@@ -1147,15 +1147,59 @@ ndk::ScopedAStatus ComposerClient::getPerFrameMetadataKeys(
 }
 
 ndk::ScopedAStatus ComposerClient::getReadbackBufferAttributes(
-    int64_t /*display_id*/, ReadbackBufferAttributes* /*attrs*/) {
+    int64_t display_id, ReadbackBufferAttributes* attrs) {
   DEBUG_FUNC();
-  return ToBinderStatus(hwc3::Error::kUnsupported);
+  const std::unique_lock lock(hwc_->GetResMan().GetMainLock());
+
+  HwcDisplay* display = GetDisplay(display_id);
+  if (display == nullptr) {
+    return ToBinderStatus(hwc3::Error::kBadDisplay);
+  }
+
+  if (!display->IsWritebackSupported()) {
+    return ToBinderStatus(hwc3::Error::kUnsupported);
+  }
+
+  // TODO(markyacoub): Query the writeback connector to determine the supported
+  // readback buffer attributes (format, dataspace, etc.) Currently, default
+  // values are used.
+  attrs->format = common::PixelFormat::RGBA_8888;
+  attrs->dataspace = common::Dataspace::SRGB;
+  return ndk::ScopedAStatus::ok();
 }
 
 ndk::ScopedAStatus ComposerClient::getReadbackBufferFence(
-    int64_t /*display_id*/, ndk::ScopedFileDescriptor* /*acquireFence*/) {
+    int64_t display_id, ndk::ScopedFileDescriptor* acquire_fence) {
   DEBUG_FUNC();
-  return ToBinderStatus(hwc3::Error::kUnsupported);
+  const std::unique_lock lock(hwc_->GetResMan().GetMainLock());
+
+  *acquire_fence = ndk::ScopedFileDescriptor(-1);
+
+  HwcDisplay* display = GetDisplay(display_id);
+  if (display == nullptr) {
+    return ToBinderStatus(hwc3::Error::kBadDisplay);
+  }
+
+  // Check if this display supports readback operations
+  if (!display->IsWritebackSupported()) {
+    ALOGI("ComposerClient: Display %" PRId64 " does not support readback",
+          display_id);
+    return ToBinderStatus(hwc3::Error::kUnsupported);
+  }
+
+  ::android::SharedFd fence = display->GetWritebackBufferFence();
+  display->SetWritebackEnabled(false);
+  display->GetWritebackLayer()->ClearSlots();
+  if (!fence) {
+    ALOGE("ComposerClient: Failed to get readback buffer fence");
+    return ToBinderStatus(hwc3::Error::kBadParameter);
+  }
+
+  if (fence && *fence >= 0) {
+    *acquire_fence = ndk::ScopedFileDescriptor(::android::DupFd(fence));
+  }
+
+  return ndk::ScopedAStatus::ok();
 }
 
 ndk::ScopedAStatus ComposerClient::getRenderIntents(
@@ -1413,10 +1457,61 @@ ndk::ScopedAStatus ComposerClient::setPowerMode(int64_t display_id,
 }
 
 ndk::ScopedAStatus ComposerClient::setReadbackBuffer(
-    int64_t /*display_id*/, const AidlNativeHandle& /*aidlBuffer*/,
-    const ndk::ScopedFileDescriptor& /*releaseFence*/) {
+    int64_t display_id, const AidlNativeHandle& aidl_buffer,
+    const ndk::ScopedFileDescriptor& release_fence_in) {
   DEBUG_FUNC();
-  return ToBinderStatus(hwc3::Error::kUnsupported);
+  const std::unique_lock lock(hwc_->GetResMan().GetMainLock());
+
+  HwcDisplay* display = GetDisplay(display_id);
+  if (display == nullptr) {
+    return ToBinderStatus(hwc3::Error::kBadDisplay);
+  }
+
+  if (!display->IsWritebackSupported()) {
+    return ToBinderStatus(hwc3::Error::kUnsupported);
+  }
+
+  if (!display->SetWritebackEnabled(true)) {
+    ALOGE("ComposerClient: Failed to enable writeback");
+    return ToBinderStatus(hwc3::Error::kUnsupported);
+  }
+
+  buffer_handle_t raw_buffer = ::android::makeFromAidl(aidl_buffer);
+  if (raw_buffer == nullptr) {
+    ALOGE("ComposerClient: Failed to convert AIDL handle to buffer_handle_t");
+    return ToBinderStatus(hwc3::Error::kBadParameter);
+  }
+
+  buffer_handle_t imported_handle = nullptr;
+  auto result = ::android::GraphicBufferMapper::get()
+                    .importBufferNoValidate(raw_buffer, &imported_handle);
+  if (result != ::android::OK) {
+    ALOGE("ComposerClient: Failed to import readback buffer handle: %d",
+          result);
+    return ToBinderStatus(hwc3::Error::kBadParameter);
+  }
+  HwcLayer::LayerProperties properties;
+  properties.slot_buffer = {
+      .slot_id = 0,
+      .bi = ::android::BufferInfoGetter::GetInstance()->GetBoInfo(
+          imported_handle),
+  };
+  ndk::ScopedFileDescriptor release_fence = ndk::ScopedFileDescriptor(
+      release_fence_in.get());
+  properties.active_slot = {
+      .slot_id = 0,
+      .fence = ::android::MakeSharedFd(release_fence.release()),
+  };
+  properties.blend_mode = BufferBlendMode::kNone;
+
+  std::unique_ptr<HwcLayer>& writeback_layer = display->GetWritebackLayer();
+  if (!writeback_layer) {
+    ALOGE("HwcDisplay: Writeback layer not available");
+    return ToBinderStatus(hwc3::Error::kBadParameter);
+  }
+  writeback_layer->SetLayerProperties(properties);
+
+  return ndk::ScopedAStatus::ok();
 }
 
 ndk::ScopedAStatus ComposerClient::setVsyncEnabled(int64_t display_id,
