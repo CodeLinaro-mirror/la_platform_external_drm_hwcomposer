@@ -8,5 +8,22 @@
     {
       "name": "VtsHalGraphicsComposer3_TargetTest"
     }
+  ],
+  "desktop-postsubmit": [
+    {
+      "name": "Vkms2VtsHalGraphicsComposer3"
+    },
+    {
+      "name": "Vkms5WithConfig_VtsHalGraphicsComposer3"
+    },
+    {
+      "name": "test_hotplugs"
+    },
+    {
+      "name": "CfVkmsConnectorsTest"
+    },
+    {
+      "name": "CfVkmsDisplaysTest"
+    }
   ]
 }
