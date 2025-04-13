@@ -278,7 +278,9 @@ HwcDisplay::ConfigError HwcDisplay::SetConfig(hwc2_config_t config) {
   }
 
   ALOGV("Create modeset commit.");
-  SetOutputType(new_config->output_type);
+  // Disable HDR for internal panels due to b/404620167
+  if (GetPipe().connector->Get()->IsExternal())
+    SetOutputType(new_config->output_type);
 
   // Create atomic commit args for a blocking modeset. There's no need to do a
   // separate test commit, since the commit does a test anyways.
@@ -367,6 +369,9 @@ auto HwcDisplay::ValidateStagedComposition() -> std::vector<ChangedLayer> {
 }
 
 auto HwcDisplay::GetDisplayBoundsMm() -> std::pair<int32_t, int32_t> {
+  if (IsInHeadlessMode()) {
+    return {configs_.mm_width, -1};
+  }
 
   const auto bounds = GetEdid()->GetBoundsMm();
   if (bounds.first > 0 || bounds.second > 0) {
@@ -621,7 +626,7 @@ HWC2::Error HwcDisplay::GetDisplayAttribute(hwc2_config_t config,
       *value = hwc_config.mode.GetVSyncPeriodNs();
       break;
     case HWC2::Attribute::DpiY:
-      *value = GetEdid()->GetDpiY();
+      *value = IsInHeadlessMode() ? -1 : GetEdid()->GetDpiY();
       if (*value < 0) {
         // default to raw mode DpiX for both x and y when no good value
         // can be provided from edid.
@@ -632,7 +637,7 @@ HWC2::Error HwcDisplay::GetDisplayAttribute(hwc2_config_t config,
       break;
     case HWC2::Attribute::DpiX:
       // Dots per 1000 inches
-      *value = GetEdid()->GetDpiX();
+      *value = IsInHeadlessMode() ? -1 : GetEdid()->GetDpiX();
       if (*value < 0) {
         // default to raw mode DpiX for both x and y when no good value
         // can be provided from edid.
