@@ -508,6 +508,24 @@ static int32_t GetDisplayConfigs(hwc2_device_t *device, hwc2_display_t display,
   return 0;
 }
 
+static int32_t GetDisplayName(hwc2_device_t *device, hwc2_display_t display,
+                              uint32_t *size, char *name) {
+  ALOGV("GetDisplayName");
+  LOCK_COMPOSER(device);
+  GET_DISPLAY(display);
+
+  std::string name_str = idisplay->GetDisplayName();
+
+  auto length = name_str.length();
+  if (name == nullptr) {
+    *size = length;
+    return 0;
+  }
+
+  *size = std::min<uint32_t>(static_cast<uint32_t>(length - 1), *size);
+  strncpy(name, name_str.c_str(), *size);
+  return 0;
+}
 static int32_t SetOutputBuffer(hwc2_device_t *device, hwc2_display_t display,
                                buffer_handle_t buffer, int32_t release_fence) {
   ALOGV("SetOutputBuffer");
@@ -1147,9 +1165,7 @@ static hwc2_function_pointer_t HookDevGetFunction(struct hwc2_device * /*dev*/,
     case HWC2::FunctionDescriptor::GetDisplayConfigs:
       return (hwc2_function_pointer_t)GetDisplayConfigs;
     case HWC2::FunctionDescriptor::GetDisplayName:
-      return ToHook<HWC2_PFN_GET_DISPLAY_NAME>(
-          DisplayHook<decltype(&HwcDisplay::GetDisplayName),
-                      &HwcDisplay::GetDisplayName, uint32_t *, char *>);
+      return (hwc2_function_pointer_t)GetDisplayName;
     case HWC2::FunctionDescriptor::GetDisplayRequests:
       return (hwc2_function_pointer_t)GetDisplayRequests;
     case HWC2::FunctionDescriptor::GetDisplayType:

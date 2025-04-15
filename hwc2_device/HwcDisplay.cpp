@@ -145,6 +145,16 @@ std::string HwcDisplay::Dump() {
   return ss.str();
 }
 
+auto HwcDisplay::GetDisplayName() -> std::string {
+  std::ostringstream stream;
+  if (IsInHeadlessMode()) {
+    stream << "null-display";
+  } else {
+    stream << "display-" << GetPipe().connector->Get()->GetId();
+  }
+  return stream.str();
+}
+
 HwcDisplay::HwcDisplay(hwc2_display_t handle, bool is_virtual, DrmHwc *hwc)
     : hwc_(hwc), handle_(handle), is_virtual_(is_virtual), client_layer_(this) {
   // Create writeback layer for both virtual displays and potential readback
@@ -664,25 +674,6 @@ HWC2::Error HwcDisplay::GetColorModes(uint32_t *num_modes, int32_t *modes) {
   for (auto &c : temp_modes)
     out_modes.emplace_back(static_cast<int32_t>(c));
 
-  return HWC2::Error::None;
-}
-
-HWC2::Error HwcDisplay::GetDisplayName(uint32_t *size, char *name) {
-  std::ostringstream stream;
-  if (IsInHeadlessMode()) {
-    stream << "null-display";
-  } else {
-    stream << "display-" << GetPipe().connector->Get()->GetId();
-  }
-  auto string = stream.str();
-  auto length = string.length();
-  if (!name) {
-    *size = length;
-    return HWC2::Error::None;
-  }
-
-  *size = std::min<uint32_t>(static_cast<uint32_t>(length - 1), *size);
-  strncpy(name, string.c_str(), *size);
   return HWC2::Error::None;
 }
 
