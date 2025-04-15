@@ -667,67 +667,6 @@ HWC2::Error HwcDisplay::GetColorModes(uint32_t *num_modes, int32_t *modes) {
   return HWC2::Error::None;
 }
 
-HWC2::Error HwcDisplay::GetDisplayAttribute(hwc2_config_t config,
-                                            int32_t attribute_in,
-                                            int32_t *value) {
-  int conf = static_cast<int>(config);
-
-  if (configs_.hwc_configs.count(conf) == 0) {
-    ALOGE("Could not find mode #%d", conf);
-    return HWC2::Error::BadConfig;
-  }
-
-  auto &hwc_config = configs_.hwc_configs[conf];
-
-  static const int32_t kUmPerInch = 25400;
-  auto mm_width = configs_.mm_width;
-  auto attribute = static_cast<HWC2::Attribute>(attribute_in);
-  switch (attribute) {
-    case HWC2::Attribute::Width:
-      *value = static_cast<int>(hwc_config.mode.GetRawMode().hdisplay);
-      break;
-    case HWC2::Attribute::Height:
-      *value = static_cast<int>(hwc_config.mode.GetRawMode().vdisplay);
-      break;
-    case HWC2::Attribute::VsyncPeriod:
-      // in nanoseconds
-      *value = hwc_config.mode.GetVSyncPeriodNs();
-      break;
-    case HWC2::Attribute::DpiY:
-      *value = IsInHeadlessMode() ? -1 : GetEdid()->GetDpiY();
-      if (*value < 0) {
-        // default to raw mode DpiX for both x and y when no good value
-        // can be provided from edid.
-        *value = mm_width ? int(hwc_config.mode.GetRawMode().hdisplay *
-                                kUmPerInch / mm_width)
-                          : -1;
-      }
-      break;
-    case HWC2::Attribute::DpiX:
-      // Dots per 1000 inches
-      *value = IsInHeadlessMode() ? -1 : GetEdid()->GetDpiX();
-      if (*value < 0) {
-        // default to raw mode DpiX for both x and y when no good value
-        // can be provided from edid.
-        *value = mm_width ? int(hwc_config.mode.GetRawMode().hdisplay *
-                                kUmPerInch / mm_width)
-                          : -1;
-      }
-      break;
-#if __ANDROID_API__ > 29
-    case HWC2::Attribute::ConfigGroup:
-      /* Dispite ConfigGroup is a part of HWC2.4 API, framework
-       * able to request it even if service @2.1 is used */
-      *value = int(hwc_config.group_id);
-      break;
-#endif
-    default:
-      *value = -1;
-      return HWC2::Error::BadConfig;
-  }
-  return HWC2::Error::None;
-}
-
 HWC2::Error HwcDisplay::LegacyGetDisplayConfigs(uint32_t *num_configs,
                                                 hwc2_config_t *configs) {
   uint32_t idx = 0;

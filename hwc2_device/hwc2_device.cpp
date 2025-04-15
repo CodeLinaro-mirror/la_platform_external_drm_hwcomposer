@@ -416,6 +416,71 @@ static int32_t SetClientTarget(hwc2_device_t *device, hwc2_display_t display,
   return 0;
 }
 
+static int32_t GetDisplayAttribute(hwc2_device_t *device,
+                                   hwc2_display_t display, hwc2_config_t config,
+                                   int32_t attribute, int32_t *value) {
+  ALOGV("GetDisplayAttribute");
+  LOCK_COMPOSER(device);
+  GET_DISPLAY(display);
+
+  const auto* hwc_config = idisplay->GetConfig(config);
+
+  if (hwc_config == nullptr) {
+    ALOGE("Could not find mode #%d", config);
+    return static_cast<int32_t>(HWC2::Error::BadConfig);
+  }
+
+  int mm_width = -1;
+  int mm_height = -1;
+  std::tie(mm_width, mm_height) = idisplay->GetDisplayBoundsMm();
+  std::optional<std::pair<float, float>> dpi_inches = {};
+
+  if (mm_width > 0) {
+    static const float kMmPerInch = 25.4;
+    float dpi_x = float(hwc_config->mode.GetRawMode().hdisplay) * kMmPerInch /
+                  float(mm_width);
+    float dpi_y = mm_height <= 0
+                      ? dpi_x
+                      : float(hwc_config->mode.GetRawMode().vdisplay) *
+                            kMmPerInch / float(mm_height);
+    dpi_inches = std::make_pair(dpi_x, dpi_y);
+  }
+
+  static const int kLegacyDpiUnit = 1000;
+  switch (static_cast<HWC2::Attribute>(attribute)) {
+    case HWC2::Attribute::Width:
+      *value = static_cast<int>(hwc_config->mode.GetRawMode().hdisplay);
+      break;
+    case HWC2::Attribute::Height:
+      *value = static_cast<int>(hwc_config->mode.GetRawMode().vdisplay);
+      break;
+    case HWC2::Attribute::VsyncPeriod:
+      // in nanoseconds
+      *value = hwc_config->mode.GetVSyncPeriodNs();
+      break;
+    case HWC2::Attribute::DpiY:
+      *value = dpi_inches
+                   ? static_cast<int>(dpi_inches->second * kLegacyDpiUnit)
+                   : -1;
+      break;
+    case HWC2::Attribute::DpiX:
+      *value = dpi_inches ? static_cast<int>(dpi_inches->first * kLegacyDpiUnit)
+                          : -1;
+      break;
+#if __ANDROID_API__ > 29
+    case HWC2::Attribute::ConfigGroup:
+      /* Dispite ConfigGroup is a part of HWC2.4 API, framework
+       * able to request it even if service @2.1 is used */
+      *value = int(hwc_config->group_id);
+      break;
+#endif
+    default:
+      *value = -1;
+      return static_cast<int32_t>(HWC2::Error::BadConfig);
+  }
+  return 0;
+}
+
 static int32_t SetOutputBuffer(hwc2_device_t *device, hwc2_display_t display,
                                buffer_handle_t buffer, int32_t release_fence) {
   ALOGV("SetOutputBuffer");
@@ -1051,10 +1116,7 @@ static hwc2_function_pointer_t HookDevGetFunction(struct hwc2_device * /*dev*/,
           DisplayHook<decltype(&HwcDisplay::GetColorModes),
                       &HwcDisplay::GetColorModes, uint32_t *, int32_t *>);
     case HWC2::FunctionDescriptor::GetDisplayAttribute:
-      return ToHook<HWC2_PFN_GET_DISPLAY_ATTRIBUTE>(
-          DisplayHook<decltype(&HwcDisplay::GetDisplayAttribute),
-                      &HwcDisplay::GetDisplayAttribute, hwc2_config_t, int32_t,
-                      int32_t *>);
+      return (hwc2_function_pointer_t)GetDisplayAttribute;
     case HWC2::FunctionDescriptor::GetDisplayConfigs:
       return ToHook<HWC2_PFN_GET_DISPLAY_CONFIGS>(
           DisplayHook<decltype(&HwcDisplay::LegacyGetDisplayConfigs),
