@@ -481,6 +481,33 @@ static int32_t GetDisplayAttribute(hwc2_device_t *device,
   return 0;
 }
 
+static int32_t GetDisplayConfigs(hwc2_device_t *device, hwc2_display_t display,
+                                 uint32_t *num_configs,
+                                 hwc2_config_t *configs) {
+  ALOGV("GetDisplayConfigs");
+  LOCK_COMPOSER(device);
+  GET_DISPLAY(display);
+
+  uint32_t idx = 0;
+  for (const auto &hwc_config : idisplay->GetDisplayConfigs().hwc_configs) {
+    if (hwc_config.second.disabled) {
+      continue;
+    }
+
+    if (configs != nullptr) {
+      if (idx >= *num_configs) {
+        break;
+      }
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic):
+      configs[idx] = hwc_config.second.id;
+    }
+
+    idx++;
+  }
+  *num_configs = idx;
+  return 0;
+}
+
 static int32_t SetOutputBuffer(hwc2_device_t *device, hwc2_display_t display,
                                buffer_handle_t buffer, int32_t release_fence) {
   ALOGV("SetOutputBuffer");
@@ -1118,10 +1145,7 @@ static hwc2_function_pointer_t HookDevGetFunction(struct hwc2_device * /*dev*/,
     case HWC2::FunctionDescriptor::GetDisplayAttribute:
       return (hwc2_function_pointer_t)GetDisplayAttribute;
     case HWC2::FunctionDescriptor::GetDisplayConfigs:
-      return ToHook<HWC2_PFN_GET_DISPLAY_CONFIGS>(
-          DisplayHook<decltype(&HwcDisplay::LegacyGetDisplayConfigs),
-                      &HwcDisplay::LegacyGetDisplayConfigs, uint32_t *,
-                      hwc2_config_t *>);
+      return (hwc2_function_pointer_t)GetDisplayConfigs;
     case HWC2::FunctionDescriptor::GetDisplayName:
       return ToHook<HWC2_PFN_GET_DISPLAY_NAME>(
           DisplayHook<decltype(&HwcDisplay::GetDisplayName),

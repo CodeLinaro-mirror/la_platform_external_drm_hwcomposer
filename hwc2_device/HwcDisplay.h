@@ -152,8 +152,6 @@ class HwcDisplay {
 
   // HWC2 Hooks - these should not be used outside of the hwc2 device.
   HWC2::Error GetColorModes(uint32_t *num_modes, int32_t *modes);
-  HWC2::Error LegacyGetDisplayConfigs(uint32_t *num_configs,
-                                      hwc2_config_t *configs);
   HWC2::Error GetDisplayName(uint32_t *size, char *name);
 #if __ANDROID_API__ > 27
   HWC2::Error GetRenderIntents(int32_t mode, uint32_t *outNumIntents,

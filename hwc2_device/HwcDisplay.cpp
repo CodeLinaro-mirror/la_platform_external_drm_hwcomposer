@@ -667,27 +667,6 @@ HWC2::Error HwcDisplay::GetColorModes(uint32_t *num_modes, int32_t *modes) {
   return HWC2::Error::None;
 }
 
-HWC2::Error HwcDisplay::LegacyGetDisplayConfigs(uint32_t *num_configs,
-                                                hwc2_config_t *configs) {
-  uint32_t idx = 0;
-  for (auto &hwc_config : configs_.hwc_configs) {
-    if (hwc_config.second.disabled) {
-      continue;
-    }
-
-    if (configs != nullptr) {
-      if (idx >= *num_configs) {
-        break;
-      }
-      configs[idx] = hwc_config.second.id;
-    }
-
-    idx++;
-  }
-  *num_configs = idx;
-  return HWC2::Error::None;
-}
-
 HWC2::Error HwcDisplay::GetDisplayName(uint32_t *size, char *name) {
   std::ostringstream stream;
   if (IsInHeadlessMode()) {
