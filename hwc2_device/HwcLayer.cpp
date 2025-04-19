@@ -71,9 +71,16 @@ void HwcLayer::SetLayerProperties(const LayerProperties& layer_properties) {
   if (layer_properties.z_order) {
     z_order_ = layer_properties.z_order.value();
   }
+  if (layer_properties.damage) {
+    layer_data_.pi.damage = layer_properties.damage.value();
+  }
 }
 
 bool HwcLayer::ImportFb(BufferSlot& slot) const {
+  if (parent_->IsInHeadlessMode()) {
+    return true;
+  }
+
   if (slot.fb == nullptr) {
     auto& fb_importer = parent_->GetPipe().device->GetDrmFbImporter();
     slot.fb = fb_importer.GetOrCreateFbId(&slot.bi);
