@@ -44,11 +44,12 @@ class DrmHwc : public PipelineToFrontendBindingInterface {
   virtual void SendHotplugEventToClient(hwc2_display_t displayid,
                                         enum DisplayStatus display_status) = 0;
 
+  std::string DumpState();
+
   // Device functions
   HWC2::Error CreateVirtualDisplay(uint32_t width, uint32_t height,
                                    int32_t *format, hwc2_display_t *display);
   HWC2::Error DestroyVirtualDisplay(hwc2_display_t display);
-  void Dump(uint32_t *out_size, char *out_buffer);
   uint32_t GetMaxVirtualDisplayCount();
 
   auto GetDisplay(hwc2_display_t display_handle) {
@@ -87,8 +88,6 @@ class DrmHwc : public PipelineToFrontendBindingInterface {
   std::map<hwc2_display_t, std::unique_ptr<HwcDisplay>> displays_;
   std::map<std::shared_ptr<DrmDisplayPipeline>, hwc2_display_t>
       display_handles_;
-
-  std::string dump_string_;
 
   std::map<hwc2_display_t, enum DisplayStatus> deferred_hotplug_events_;
   std::vector<hwc2_display_t> displays_for_removal_list_;

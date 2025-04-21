@@ -178,13 +178,7 @@ HWC2::Error DrmHwc::DestroyVirtualDisplay(hwc2_display_t display) {
   return HWC2::Error::None;
 }
 
-void DrmHwc::Dump(uint32_t *out_size, char *out_buffer) {
-  if (out_buffer != nullptr) {
-    auto copied_bytes = dump_string_.copy(out_buffer, *out_size);
-    *out_size = static_cast<uint32_t>(copied_bytes);
-    return;
-  }
-
+std::string DrmHwc::DumpState() {
   std::stringstream output;
 
   output << "-- drm_hwcomposer --\n\n";
@@ -192,8 +186,7 @@ void DrmHwc::Dump(uint32_t *out_size, char *out_buffer) {
   for (auto &disp : displays_)
     output << disp.second->Dump();
 
-  dump_string_ = output.str();
-  *out_size = static_cast<uint32_t>(dump_string_.size());
+  return output.str();
 }
 
 uint32_t DrmHwc::GetMaxVirtualDisplayCount() {
