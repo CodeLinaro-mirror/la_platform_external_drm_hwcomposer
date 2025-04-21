@@ -281,8 +281,6 @@ class HwcDisplay {
 
   uint32_t frame_no_ = 0;
   CompositionStats total_stats_;
-  CompositionStats prev_stats_;
-  std::string DumpDelta(CompositionStats delta);
 
   void SetColorMatrixToIdentity();
 

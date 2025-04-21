@@ -19,10 +19,12 @@
 #include "drm/DrmDisplayPipeline.h"
 #include "drm/ResourceManager.h"
 #include "hwc2_device/HwcDisplay.h"
+#include "stats/CompositionStats.h"
 
 namespace android {
 
-class DrmHwc : public PipelineToFrontendBindingInterface {
+class DrmHwc : public PipelineToFrontendBindingInterface,
+               public CompositionStatsProvider {
  public:
   DrmHwc();
   ~DrmHwc() override = default;
@@ -43,6 +45,9 @@ class DrmHwc : public PipelineToFrontendBindingInterface {
   virtual void SendRefreshEventToClient(uint64_t displayid) = 0;
   virtual void SendHotplugEventToClient(hwc2_display_t displayid,
                                         enum DisplayStatus display_status) = 0;
+
+  // CompositionStatsProvider:
+  auto PullCompositionStats() -> std::map<int64_t, CompositionStats> override;
 
   std::string DumpState();
 
@@ -93,5 +98,6 @@ class DrmHwc : public PipelineToFrontendBindingInterface {
   std::vector<hwc2_display_t> displays_for_removal_list_;
 
   uint32_t last_display_handle_ = kPrimaryDisplay;
+  CompositionStatsTracker dump_stats_tracker_;
 };
 }  // namespace android

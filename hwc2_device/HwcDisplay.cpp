@@ -106,45 +106,6 @@ auto ToColorTransform(const std::array<float, 16> &color_transform_matrix) {
 
 }  // namespace
 
-std::string HwcDisplay::DumpDelta(CompositionStats delta) {
-  if (delta.total_pixops == 0)
-    return "No stats yet";
-  auto ratio = 1.0 - (double(delta.gpu_pixops) / double(delta.total_pixops));
-
-  std::stringstream ss;
-  ss << " Total frames count: " << delta.total_frames << "\n"
-     << " Failed cursor test commit frames: "
-     << delta.failed_kms_cursor_validate << "\n"
-     << " Failed to test commit frames: " << delta.failed_kms_validate << "\n"
-     << " Failed to commit frames: " << delta.failed_kms_present << "\n"
-     << ((delta.failed_kms_present > 0)
-             ? " !!! Internal failure, FIX it please\n"
-             : "")
-     << " Flattened frames: " << delta.frames_flattened << "\n"
-     << " Cursor plane frames: " << delta.cursor_plane_frames << "\n"
-     << " Pixel operations (free units) : [TOTAL: " << delta.total_pixops
-     << " / GPU: " << delta.gpu_pixops << "]\n"
-     << " Composition efficiency: " << ratio;
-
-  return ss.str();
-}
-
-std::string HwcDisplay::Dump() {
-  auto connector_name = IsInHeadlessMode()
-                            ? std::string("NULL-DISPLAY")
-                            : GetPipe().connector->Get()->GetName();
-
-  std::stringstream ss;
-  ss << "- Display on: " << connector_name << "\n"
-     << "Statistics since system boot:\n"
-     << DumpDelta(total_stats_) << "\n\n"
-     << "Statistics since last dumpsys request:\n"
-     << DumpDelta(total_stats_ - prev_stats_) << "\n\n";
-
-  memcpy(&prev_stats_, &total_stats_, sizeof(CompositionStats));
-  return ss.str();
-}
-
 auto HwcDisplay::GetDisplayName() -> std::string {
   std::ostringstream stream;
   if (IsInHeadlessMode()) {
