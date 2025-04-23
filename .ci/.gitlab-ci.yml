@@ -26,6 +26,27 @@ ubuntu/x86_64_aospless:
     FDO_DISTRIBUTION_EXEC: 'bash .ci/container/ubuntu/x86_64_aospless.sh'
     HWC_TAG: $UBUNTU_AOSPLESS_TAG
 
+ubuntu/x86_64_android:
+  extends:
+    - .ubuntu/x86_64_hwc
+  timeout: 2h
+  variables:
+    ANDROID_VERSION: 15
+    ANDROID_SDK_VERSION: 35
+    ANDROID_CTS_DEVICE_ARCH: "x86"
+    ANDROID_CTS_MODULES: >-
+      CtsGraphicsTestCases
+      CtsDisplayTestCases
+    FDO_DISTRIBUTION_EXEC: 'bash .ci/container/ubuntu/x86_64_android.sh'
+    HWC_TAG: $UBUNTU_ANDROID_TAG
+  after_script:
+    - cp /vts.log.txt "${CI_PROJECT_DIR}/vts.log.txt"
+  artifacts:
+    when: always
+    paths:
+      - "${CI_PROJECT_DIR}/vts.log.txt"
+    expire_in: 1 week
+
 .set-image:
   extends:
     - .incorporate-templates-commit
@@ -40,3 +61,13 @@ ubuntu/x86_64_aospless:
     HWC_TAG: $UBUNTU_AOSPLESS_TAG
   needs:
     - ubuntu/x86_64_aospless
+
+.use-ubuntu/x86_64_android:
+  extends:
+    - .fdo.container-build@ubuntu
+    - .set-image
+  variables:
+    HWC_IMAGE: $UBUNTU_ANDROID_IMAGE
+    HWC_TAG: $UBUNTU_ANDROID_TAG
+  needs:
+    - ubuntu/x86_64_android
