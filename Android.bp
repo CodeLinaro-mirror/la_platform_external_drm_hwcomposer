@@ -98,6 +98,7 @@ filegroup {
         "hwc/HwcLayer.cpp",
 
         "stats/CompositionStats.cpp",
+        "stats/CompositionStatsPoller.cpp",
 
         "utils/LibdisplayEdidWrapper.cpp",
         "utils/fd.cpp",
@@ -278,4 +279,50 @@ cc_test_host {
         "libgmock",
         "libgtest",
     ],
+}
+
+soong_config_module_type {
+    name: "drm_hwcomposer_atom_reporter_library",
+    module_type: "cc_library",
+    config_namespace: "DRMHWC",
+    variables: [
+        "atom_reporter",
+    ],
+    properties: [
+        "shared_libs",
+        "srcs",
+    ],
+}
+
+soong_config_string_variable {
+    name: "atom_reporter",
+    values: ["desktop"],
+}
+
+drm_hwcomposer_atom_reporter_library {
+    name: "drm_hwcomposer_atom_reporter",
+    shared_libs: [
+        "libc++",
+        "liblog",
+    ],
+    soong_config_variables: {
+        atom_reporter: {
+            desktop: {
+                srcs: [
+                    "stats/CompositionStatsAtomReporterDesktop.cpp",
+                ],
+                shared_libs: [
+                    "android.frameworks.stats-V2-ndk",
+                    "libbinder_ndk",
+                    "libdesktopatoms",
+                ],
+            },
+            conditions_default: {
+                srcs: [
+                    "stats/CompositionStatsAtomReporter.cpp",
+                ],
+            },
+        },
+    },
+    vendor: true,
 }
