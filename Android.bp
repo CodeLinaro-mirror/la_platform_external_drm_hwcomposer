@@ -159,6 +159,8 @@ cc_defaults {
     ],
 
     shared_libs: [
+        "drm_hwcomposer_atom_reporter",
+
         "libbase",
         "libbinder_ndk",
         "liblog",
