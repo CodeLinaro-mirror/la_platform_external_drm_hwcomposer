@@ -47,6 +47,7 @@ struct AtomicCommitArgs {
   SharedFd writeback_release_fence;
 
   /* out */
+  SharedFd out_writeback_complete_fence;
   SharedFd out_fence;
 
   /* helpers */
@@ -87,6 +88,7 @@ class DrmAtomicStateManager {
     DrmModeUserPropertyBlobUnique mode_blob;
     DrmModeUserPropertyBlobUnique ctm_blob;
     DrmModeUserPropertyBlobUnique hdr_metadata_blob;
+    std::vector<DrmModeUserPropertyBlobUnique> damage_blobs;
 
     int release_fence_pt_index{};
 

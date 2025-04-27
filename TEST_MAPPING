@@ -1,15 +1,60 @@
 {
-  "presubmit": [
-    {
-      "name": "VtsHalGraphicsComposer3_TargetTest"
-    }
-  ],
   "desktop-presubmit": [
     {
       "name": "VtsHalGraphicsComposer3_TargetTest"
     }
   ],
   "desktop-postsubmit": [
+    {
+      "name": "CtsDisplayTestCases"
+    },
+    {
+      "name": "CtsGraphicsTestCases",
+      "options": [
+          {
+            "include-filter": "android.graphics.cts.ANativeWindowTest"
+          },
+          {
+            "include-filter": "android.graphics.cts.ASurfaceTextureTest"
+          },
+          {
+            "include-filter": "android.graphics.cts.BasicVulkanGpuTest0"
+          },
+          {
+            "include-filter": "android.graphics.cts.BitmapColorSpaceTest"
+          },
+          {
+            "include-filter": "android.graphics.cts.ColorSpaceTest"
+          },
+          {
+            "include-filter": "android.graphics.cts.EGL14Test"
+          },
+          {
+            "include-filter": "android.graphics.cts.EGL15Test"
+          },
+          {
+            "include-filter": "android.graphics.cts.FrameRateOverrideTest"
+          },
+          {
+            "include-filter": "android.graphics.cts.HardwareRendererTest"
+          },
+          {
+            "include-filter": "android.graphics.cts.MatchContentFrameRateTest"
+          },
+          {
+            "include-filter": "android.graphics.cts.PixelFormatTest"
+          },
+          {
+            "include-filter": "android.graphics.cts.SetFrameRateTest"
+          },
+          {
+            "include-filter": "android.graphics.cts.VulkanFeaturesTest0"
+          },
+          {
+            "include-filter": "android.graphics.cts.VulkanPreTransformTest"
+          }
+      ]
+    },
     {
       "name": "Vkms2VtsHalGraphicsComposer3"
     },
