@@ -16,7 +16,6 @@
 
 #pragma once
 
-#include <aidl/android/hardware/graphics/common/Transform.h>
 #include <memory>
 
 #include "bufferinfo/BufferInfo.h"
