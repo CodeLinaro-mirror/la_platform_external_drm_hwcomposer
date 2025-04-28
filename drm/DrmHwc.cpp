@@ -172,32 +172,30 @@ void DrmHwc::NotifyDisplayLinkStatus(
                        DisplayStatus::kLinkTrainingFailed);
 }
 
-HWC2::Error DrmHwc::CreateVirtualDisplay(
-    uint32_t width, uint32_t height,
-    int32_t *format,  // NOLINT(readability-non-const-parameter)
-    hwc2_display_t *display) {
-  ALOGI("Creating virtual display %dx%d format %d", width, height, *format);
+std::optional<hwc2_display_t> DrmHwc::CreateVirtualDisplay(uint32_t width,
+                                                           uint32_t height) {
+  ALOGI("Creating virtual display %dx%d", width, height);
 
   auto virtual_pipeline = resource_manager_.GetVirtualDisplayPipeline();
   if (!virtual_pipeline)
-    return HWC2::Error::Unsupported;
+    return std::nullopt;
 
-  *display = ++last_display_handle_;
-  auto disp = std::make_unique<HwcDisplay>(*display, /* is_virtual */ true,
-                                           this);
+  hwc2_display_t new_display_id = ++last_display_handle_;
+  auto disp = std::make_unique<HwcDisplay>(new_display_id,
+                                           /* is_virtual */ true, this);
 
   disp->SetVirtualDisplayResolution(width, height);
   disp->SetPipeline(virtual_pipeline);
-  displays_[*display] = std::move(disp);
-  return HWC2::Error::None;
+  displays_[new_display_id] = std::move(disp);
+  return new_display_id;
 }
 
-HWC2::Error DrmHwc::DestroyVirtualDisplay(hwc2_display_t display) {
+void DrmHwc::DestroyVirtualDisplay(hwc2_display_t display) {
   ALOGI("Destroying virtual display %" PRIu64, display);
 
   if (displays_.count(display) == 0) {
     ALOGE("Trying to destroy non-existent display %" PRIu64, display);
-    return HWC2::Error::BadDisplay;
+    return;
   }
 
   displays_[display]->SetPipeline({});
@@ -211,8 +209,6 @@ HWC2::Error DrmHwc::DestroyVirtualDisplay(hwc2_display_t display) {
   mutex.lock();
 
   displays_.erase(display);
-
-  return HWC2::Error::None;
 }
 
 auto DrmHwc::PullCompositionStats() -> std::map<int64_t, CompositionStats> {
