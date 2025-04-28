@@ -71,8 +71,6 @@ class HwcDisplay {
   HWC2::Error CreateComposition(AtomicCommitArgs &a_args);
   std::vector<HwcLayer *> GetOrderLayersByZPos();
 
-  void ClearDisplay();
-
   std::string Dump();
 
   auto GetDisplayName() -> std::string;
