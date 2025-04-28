@@ -565,8 +565,7 @@ bool HwcDisplay::Init() {
     pipeline_->writeback_connector = pipeline_->connector;
   } else if (IsInHeadlessMode()) {
     configs_.GenFakeMode(0, 0);
-  } else if (configs_.Update(*pipeline_->connector->Get()) !=
-             HWC2::Error::None) {
+  } else if (!configs_.Update(*pipeline_->connector->Get())) {
     return false;
   }
   return SetConfig(configs_.preferred_config_id) ==
