@@ -54,7 +54,7 @@ class DrmHwc : public PipelineToFrontendBindingInterface,
   // Virtual Display functions.
   std::optional<hwc2_display_t> CreateVirtualDisplay(uint32_t width,
                                                      uint32_t height);
-  void DestroyVirtualDisplay(hwc2_display_t display);
+  bool DestroyVirtualDisplay(hwc2_display_t display);
   uint32_t GetMaxVirtualDisplayCount();
 
   auto GetDisplay(hwc2_display_t display_handle) {

@@ -190,12 +190,18 @@ std::optional<hwc2_display_t> DrmHwc::CreateVirtualDisplay(uint32_t width,
   return new_display_id;
 }
 
-void DrmHwc::DestroyVirtualDisplay(hwc2_display_t display) {
+bool DrmHwc::DestroyVirtualDisplay(hwc2_display_t display) {
   ALOGI("Destroying virtual display %" PRIu64, display);
 
   if (displays_.count(display) == 0) {
     ALOGE("Trying to destroy non-existent display %" PRIu64, display);
-    return;
+    return false;
+  }
+
+  if (displays_[display]->GetDisplayType() !=
+      HwcDisplay::DisplayType::kVirtual) {
+    ALOGE("Trying to destroy non-virtual display %" PRIu64, display);
+    return false;
   }
 
   displays_[display]->SetPipeline({});
@@ -209,6 +215,7 @@ void DrmHwc::DestroyVirtualDisplay(hwc2_display_t display) {
   mutex.lock();
 
   displays_.erase(display);
+  return true;
 }
 
 auto DrmHwc::PullCompositionStats() -> std::map<int64_t, CompositionStats> {

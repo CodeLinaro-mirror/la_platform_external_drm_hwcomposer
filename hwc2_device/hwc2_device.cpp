@@ -320,8 +320,9 @@ static int32_t DestroyVirtualDisplay(hwc2_device_t *device,
   ALOGV("DestroyVirtualDisplay");
   LOCK_COMPOSER(device);
   GET_DISPLAY(display);
-
-  ihwc->DestroyVirtualDisplay(display);
+  if (!ihwc->DestroyVirtualDisplay(display)) {
+    return static_cast<int32_t>(HWC2::Error::BadParameter);
+  }
   return 0;
 }
 
