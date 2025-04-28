@@ -147,9 +147,9 @@ std::string HwcDisplay::Dump() {
 
 HwcDisplay::HwcDisplay(hwc2_display_t handle, bool is_virtual, DrmHwc *hwc)
     : hwc_(hwc), handle_(handle), is_virtual_(is_virtual), client_layer_(this) {
-  if (is_virtual_) {
-    writeback_layer_ = std::make_unique<HwcLayer>(this);
-  }
+  // Create writeback layer for both virtual displays and potential readback
+  // operations
+  writeback_layer_ = std::make_unique<HwcLayer>(this);
 
   identity_color_matrix_ = ToColorTransform(kIdentityMatrix);
 }
@@ -241,6 +241,10 @@ HwcDisplay::ConfigError HwcDisplay::SetConfig(hwc2_config_t config) {
   if (new_config == nullptr) {
     ALOGE("Could not find active mode for %u", config);
     return ConfigError::kBadConfig;
+  }
+  if (IsInHeadlessMode()) {
+    configs_.active_config_id = config;
+    return ConfigError::kNone;
   }
 
   const HwcDisplayConfig *current_config = GetCurrentConfig();
@@ -572,7 +576,8 @@ void HwcDisplay::SetPipeline(std::shared_ptr<DrmDisplayPipeline> pipeline) {
   pipeline_ = std::move(pipeline);
 
   if (pipeline_ != nullptr || handle_ == kPrimaryDisplay) {
-    Init();
+    bool success = Init();
+    ALOGE_IF(!success, "Failed to init HwcDisplay after setting pipeline.");
     hwc_->ScheduleHotplugEvent(handle_, DrmHwc::kConnected);
   } else {
     hwc_->ScheduleHotplugEvent(handle_, DrmHwc::kDisconnected);
@@ -604,14 +609,12 @@ void HwcDisplay::Deinit() {
   client_layer_.ClearSlots();
 }
 
-HWC2::Error HwcDisplay::Init() {
-  ChosePreferredConfig();
-
+bool HwcDisplay::Init() {
   if (!is_virtual_) {
     vsync_worker_ = VSyncWorker::CreateInstance(pipeline_);
     if (!vsync_worker_) {
       ALOGE("Failed to create event worker for d=%d\n", int(handle_));
-      return HWC2::Error::BadDisplay;
+      return false;
     }
   }
 
@@ -619,7 +622,7 @@ HWC2::Error HwcDisplay::Init() {
     auto ret = BackendManager::GetInstance().SetBackendForDisplay(this);
     if (ret) {
       ALOGE("Failed to set backend for d=%d %d\n", int(handle_), ret);
-      return HWC2::Error::BadDisplay;
+      return false;
     }
     auto flatcbk = (struct FlatConCallbacks){
         .trigger = [this]() { hwc_->SendRefreshEventToClient(handle_); }};
@@ -632,7 +635,18 @@ HWC2::Error HwcDisplay::Init() {
 
   SetColorMatrixToIdentity();
 
-  return HWC2::Error::None;
+  if (is_virtual_) {
+    configs_.GenFakeMode(virtual_disp_width_, virtual_disp_height_);
+    pipeline_->writeback_connector = pipeline_->connector;
+  } else if (IsInHeadlessMode()) {
+    configs_.GenFakeMode(0, 0);
+  } else if (configs_.Update(*pipeline_->connector->Get()) !=
+             HWC2::Error::None) {
+    return false;
+  }
+
+  return SetConfig(configs_.preferred_config_id) ==
+         HwcDisplay::ConfigError::kNone;
 }
 
 std::optional<PanelOrientation> HwcDisplay::getDisplayPhysicalOrientation() {
@@ -650,22 +664,6 @@ std::optional<PanelOrientation> HwcDisplay::getDisplayPhysicalOrientation() {
   }
 
   return pipeline.connector->Get()->GetPanelOrientation();
-}
-
-HWC2::Error HwcDisplay::ChosePreferredConfig() {
-  HWC2::Error err{};
-  if (is_virtual_) {
-    configs_.GenFakeMode(virtual_disp_width_, virtual_disp_height_);
-  } else if (!IsInHeadlessMode()) {
-    err = configs_.Update(*pipeline_->connector->Get());
-  } else {
-    configs_.GenFakeMode(0, 0);
-  }
-  if (!IsInHeadlessMode() && err != HWC2::Error::None) {
-    return HWC2::Error::BadDisplay;
-  }
-
-  return SetActiveConfig(configs_.preferred_config_id);
 }
 
 auto HwcDisplay::CreateLayer(ILayerId new_layer_id) -> bool {
@@ -1022,11 +1020,16 @@ HWC2::Error HwcDisplay::CreateComposition(AtomicCommitArgs &a_args) {
   current_plan_ = DrmKmsPlan::CreateDrmKmsPlan(GetPipe(),
                                                std::move(composition_layers),
                                                cursor_layer);
+  if (!current_plan_) {
+    ALOGE_IF(!a_args.test_only, "Failed to create DrmKmsPlan");
+    return HWC2::Error::BadConfig;
+  }
+  a_args.composition = current_plan_;
 
-  if (is_virtual_) {
+  if (pipeline_->writeback_connector) {
     writeback_layer_->PopulateLayerData();
     if (!writeback_layer_->IsLayerUsableAsDevice()) {
-      ALOGE("Output layer must be always usable by DRM/KMS");
+      ALOGE("Writeback layer not usable by DRM/KMS - no valid buffer set");
       return HWC2::Error::BadLayer;
     }
     a_args.writeback_fb = writeback_layer_->GetLayerData().fb;
@@ -1034,18 +1037,14 @@ HWC2::Error HwcDisplay::CreateComposition(AtomicCommitArgs &a_args) {
                                          .acquire_fence;
   }
 
-  if (!current_plan_) {
-    ALOGE_IF(!a_args.test_only, "Failed to create DrmKmsPlan");
-    return HWC2::Error::BadConfig;
-  }
-
-  a_args.composition = current_plan_;
-
   auto ret = GetPipe().atomic_state_manager->ExecuteAtomicCommit(a_args);
-
   if (ret) {
     ALOGE_IF(!a_args.test_only, "Failed to apply the frame composition ret=%d", ret);
     return HWC2::Error::BadParameter;
+  }
+
+  if (!a_args.test_only) {
+    writeback_complete_fence_ = a_args.out_writeback_complete_fence;
   }
 
   if (new_vsync_period_ns) {
@@ -1062,30 +1061,6 @@ HWC2::Error HwcDisplay::CreateComposition(AtomicCommitArgs &a_args) {
   }
 
   return HWC2::Error::None;
-}
-
-HWC2::Error HwcDisplay::SetActiveConfigInternal(uint32_t config,
-                                                int64_t change_time) {
-  if (configs_.hwc_configs.count(config) == 0) {
-    ALOGE("Could not find active mode for %u", config);
-    return HWC2::Error::BadConfig;
-  }
-
-  staged_mode_change_time_ = change_time;
-  staged_mode_config_id_ = config;
-
-  // Disable HDR for internal panels due to b/404620167
-  const HwcDisplayConfig *new_config = GetConfig(config);
-  if (new_config && !IsInHeadlessMode() &&
-      GetPipe().connector->Get()->IsExternal()) {
-    SetOutputType(new_config->output_type);
-  }
-
-  return HWC2::Error::None;
-}
-
-HWC2::Error HwcDisplay::SetActiveConfig(hwc2_config_t config) {
-  return SetActiveConfigInternal(config, ResourceManager::GetTimeMonotonicNs());
 }
 
 HWC2::Error HwcDisplay::SetColorMode(int32_t mode) {
@@ -1177,6 +1152,46 @@ bool HwcDisplay::CtmByGpu() {
     return false;
 
   return true;
+}
+
+bool HwcDisplay::IsWritebackSupported() {
+  return !is_virtual_ &&
+         pipeline_->FindWritebackConnectorForPipeline() != nullptr;
+}
+
+bool HwcDisplay::SetWritebackEnabled(bool enabled) {
+  // Handle Disable
+  if (!enabled) {
+    pipeline_->writeback_connector = nullptr;
+    return true;
+  }
+
+  // Handle Enable
+  if (pipeline_->writeback_connector != nullptr) {
+    return true;
+  }
+
+  auto *wb_connector = pipeline_->FindWritebackConnectorForPipeline();
+  if (!wb_connector) {
+    ALOGE("HwcDisplay: No writeback connector found");
+    return false;
+  }
+  auto bound_connector = wb_connector->BindPipeline(pipeline_.get());
+  if (!bound_connector) {
+    ALOGE("HwcDisplay: Failed to bind writeback connector");
+    return false;
+  }
+  pipeline_->writeback_connector = bound_connector;
+  return true;
+}
+
+SharedFd HwcDisplay::GetWritebackBufferFence() {
+  if (!writeback_complete_fence_) {
+    ALOGE("HwcDisplay: No readback fence available for display");
+    return nullptr;
+  }
+
+  return std::move(writeback_complete_fence_);
 }
 
 std::vector<HwcLayer *> HwcDisplay::GetOrderLayersByZPos() {
