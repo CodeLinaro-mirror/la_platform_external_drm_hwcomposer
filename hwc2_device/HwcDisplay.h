@@ -151,18 +151,14 @@ class HwcDisplay {
   auto CreateLayer(ILayerId new_layer_id) -> bool;
   auto DestroyLayer(ILayerId layer_id) -> bool;
 
+  auto GetColorModes() -> std::vector<ColorMode>;
+  void SetColorMode(ColorMode color_mode);
+
   // HWC2 Hooks - these should not be used outside of the hwc2 device.
-  HWC2::Error GetColorModes(uint32_t *num_modes, int32_t *modes);
-#if __ANDROID_API__ > 27
-  HWC2::Error GetRenderIntents(int32_t mode, uint32_t *outNumIntents,
-                               int32_t *outIntents);
-  HWC2::Error SetColorModeWithIntent(int32_t mode, int32_t intent);
-#endif
   HWC2::Error GetHdrCapabilities(uint32_t *num_types, int32_t *types,
                                  float *max_luminance,
                                  float *max_average_luminance,
                                  float *min_luminance);
-  HWC2::Error SetColorMode(int32_t mode);
   HWC2::Error SetColorTransform(const float *matrix, int32_t hint);
 
   bool IsWritebackSupported();
@@ -264,7 +260,6 @@ class HwcDisplay {
   std::unique_ptr<HwcLayer> writeback_layer_;
   uint16_t virtual_disp_width_{};
   uint16_t virtual_disp_height_{};
-  int32_t color_mode_{};
   std::shared_ptr<drm_color_ctm> color_matrix_;
   std::shared_ptr<drm_color_ctm> identity_color_matrix_;
   android_color_transform_t color_transform_hint_{};

@@ -22,7 +22,7 @@
  * Display colorimetry enums.
  */
 // NOLINTBEGIN(readability-identifier-naming)
-enum class Colormode : int32_t {
+enum class ColorMode : int32_t {
   kNative,
   kBt601_625,
   kBt601_625Unadjusted,

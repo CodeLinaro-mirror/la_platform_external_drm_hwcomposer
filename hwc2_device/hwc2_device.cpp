@@ -17,6 +17,7 @@
 // NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
 // #define LOG_NDEBUG 0 // Uncomment to see HWC2 API calls in logcat
 
+#include "system/graphics-base-v1.1.h"
 #define LOG_TAG "drmhwc"
 
 #include <cassert>
@@ -467,6 +468,24 @@ static int32_t SetClientTarget(hwc2_device_t *device, hwc2_display_t display,
   return 0;
 }
 
+static int32_t GetColorModes(hwc2_device_t *device, hwc2_display_t display,
+                             uint32_t *num_modes, int32_t *out_modes) {
+  ALOGV("GetColorModes");
+  LOCK_COMPOSER(device);
+  GET_DISPLAY(display);
+
+  const std::vector<ColorMode> modes = idisplay->GetColorModes();
+  if (modes.empty())
+    return static_cast<int32_t>(HWC2::Error::BadConfig);
+
+  for (uint32_t i = 0; i < modes.size(); ++i) {
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic):
+    out_modes[i] = static_cast<int32_t>(modes[i]);
+  }
+  *num_modes = modes.size();
+  return 0;
+}
+
 static int32_t GetDisplayAttribute(hwc2_device_t *device,
                                    hwc2_display_t display, hwc2_config_t config,
                                    int32_t attribute, int32_t *value) {
@@ -577,6 +596,32 @@ static int32_t GetDisplayName(hwc2_device_t *device, hwc2_display_t display,
   strncpy(name, name_str.c_str(), *size);
   return 0;
 }
+
+static int32_t SetColorMode(hwc2_device_t *device, hwc2_display_t display, int32_t mode) {
+  ALOGV("SetColorMode");
+  if (mode < HAL_COLOR_MODE_NATIVE || mode > HAL_COLOR_MODE_DISPLAY_BT2020)
+    return static_cast<int32_t>(HWC2::Error::BadParameter);
+
+  // HDR color modes should be requested during modeset
+  if (mode == HAL_COLOR_MODE_DISPLAY_BT2020 ||
+      mode == HAL_COLOR_MODE_ADOBE_RGB ||
+      mode == HAL_COLOR_MODE_BT2020 ||
+      mode == HAL_COLOR_MODE_BT2100_PQ ||
+      mode == HAL_COLOR_MODE_BT2100_HLG) {
+    return static_cast<int32_t>(HWC2::Error::Unsupported);
+  }
+
+  LOCK_COMPOSER(device);
+  GET_DISPLAY(display);
+
+  // Values for color modes match across HWC versions, so static cast is safe:
+  // https://android.googlesource.com/platform/hardware/interfaces/+/refs/heads/main/graphics/composer/aidl/android/hardware/graphics/composer3/ColorMode.aidl
+  // https://cs.android.com/android/platform/superproject/main/+/main:system/core/libsystem/include/system/graphics-base-v1.0.h;drc=7d940ae4afa450696afa25e07982f3a95e17e9b2;l=118
+  // https://cs.android.com/android/platform/superproject/main/+/main:system/core/libsystem/include/system/graphics-base-v1.1.h;drc=7d940ae4afa450696afa25e07982f3a95e17e9b2;l=35
+  idisplay->SetColorMode(static_cast<ColorMode>(mode));
+  return 0;
+}
+
 static int32_t SetOutputBuffer(hwc2_device_t *device, hwc2_display_t display,
                                buffer_handle_t buffer, int32_t release_fence) {
   ALOGV("SetOutputBuffer");
@@ -784,6 +829,36 @@ static int32_t SetDisplayBrightness(hwc2_device_t * /*device*/,
                                     float /*brightness*/) {
   ALOGV("SetDisplayBrightness");
   return static_cast<int32_t>(HWC2::Error::Unsupported);
+}
+
+static int32_t GetRenderIntents(hwc2_device_t * /*device*/,
+                                hwc2_display_t /*display*/, int32_t mode,
+                                uint32_t *num_intents, int32_t *intents) {
+  ALOGV("GetRenderIntents");
+
+  if (mode < HAL_COLOR_MODE_NATIVE || mode > HAL_COLOR_MODE_DISPLAY_BT2020)
+    return static_cast<int32_t>(HWC2::Error::BadParameter);
+
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic):
+  intents[0] = static_cast<int32_t>(HAL_RENDER_INTENT_COLORIMETRIC);
+  *num_intents = 1;
+
+  return 0;
+}
+
+static int32_t SetColorModeWithRenderIntent(hwc2_device_t *device,
+                                            hwc2_display_t display,
+                                            int32_t mode, int32_t intent) {
+  ALOGV("SetColorModeWithRenderIntent");
+  if (mode < HAL_RENDER_INTENT_COLORIMETRIC ||
+      mode > HAL_RENDER_INTENT_TONE_MAP_ENHANCE) {
+    return static_cast<int32_t>(HWC2::Error::BadParameter);
+  }
+
+  if (intent != HAL_RENDER_INTENT_COLORIMETRIC)
+    return static_cast<int32_t>(HWC2::Error::Unsupported);
+
+  return SetColorMode(device, display, mode);
 }
 
 static int32_t GetDisplayIdentificationData(hwc2_device_t *device,
@@ -1216,9 +1291,7 @@ static hwc2_function_pointer_t HookDevGetFunction(struct hwc2_device * /*dev*/,
     case HWC2::FunctionDescriptor::GetClientTargetSupport:
       return (hwc2_function_pointer_t)GetClientTargetSupport;
     case HWC2::FunctionDescriptor::GetColorModes:
-      return ToHook<HWC2_PFN_GET_COLOR_MODES>(
-          DisplayHook<decltype(&HwcDisplay::GetColorModes),
-                      &HwcDisplay::GetColorModes, uint32_t *, int32_t *>);
+      return (hwc2_function_pointer_t)GetColorModes;
     case HWC2::FunctionDescriptor::GetDisplayAttribute:
       return (hwc2_function_pointer_t)GetDisplayAttribute;
     case HWC2::FunctionDescriptor::GetDisplayConfigs:
@@ -1245,9 +1318,7 @@ static hwc2_function_pointer_t HookDevGetFunction(struct hwc2_device * /*dev*/,
     case HWC2::FunctionDescriptor::SetClientTarget:
       return (hwc2_function_pointer_t)SetClientTarget;
     case HWC2::FunctionDescriptor::SetColorMode:
-      return ToHook<HWC2_PFN_SET_COLOR_MODE>(
-          DisplayHook<decltype(&HwcDisplay::SetColorMode),
-                      &HwcDisplay::SetColorMode, int32_t>);
+      return (hwc2_function_pointer_t)SetColorMode;
     case HWC2::FunctionDescriptor::SetColorTransform:
       return ToHook<HWC2_PFN_SET_COLOR_TRANSFORM>(
           DisplayHook<decltype(&HwcDisplay::SetColorTransform),
@@ -1262,14 +1333,9 @@ static hwc2_function_pointer_t HookDevGetFunction(struct hwc2_device * /*dev*/,
       return (hwc2_function_pointer_t)ValidateDisplay;
 #if __ANDROID_API__ > 27
     case HWC2::FunctionDescriptor::GetRenderIntents:
-      return ToHook<HWC2_PFN_GET_RENDER_INTENTS>(
-          DisplayHook<decltype(&HwcDisplay::GetRenderIntents),
-                      &HwcDisplay::GetRenderIntents, int32_t, uint32_t *,
-                      int32_t *>);
+      return (hwc2_function_pointer_t)GetRenderIntents;
     case HWC2::FunctionDescriptor::SetColorModeWithRenderIntent:
-      return ToHook<HWC2_PFN_SET_COLOR_MODE_WITH_RENDER_INTENT>(
-          DisplayHook<decltype(&HwcDisplay::SetColorModeWithIntent),
-                      &HwcDisplay::SetColorModeWithIntent, int32_t, int32_t>);
+      return (hwc2_function_pointer_t)SetColorModeWithRenderIntent;
 #endif
 #if __ANDROID_API__ > 28
     case HWC2::FunctionDescriptor::GetDisplayIdentificationData:

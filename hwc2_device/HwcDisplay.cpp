@@ -639,33 +639,51 @@ auto HwcDisplay::DestroyLayer(ILayerId layer_id) -> bool {
   return count != 0;
 }
 
-HWC2::Error HwcDisplay::GetColorModes(uint32_t *num_modes, int32_t *modes) {
-  if (IsInHeadlessMode()) {
-    *num_modes = 1;
-    if (modes)
-      modes[0] = HAL_COLOR_MODE_NATIVE;
-    return HWC2::Error::None;
+auto HwcDisplay::GetColorModes() -> std::vector<ColorMode> {
+  if (IsInHeadlessMode())
+    return {ColorMode::kNative};
+
+  std::vector<ColorMode> modes;
+  GetEdid()->GetColorModes(modes);
+
+  if (modes.empty())
+    modes.emplace_back(ColorMode::kNative);
+
+  return modes;
+}
+
+void HwcDisplay::SetColorMode(ColorMode mode) {
+  /* Maps to the Colorspace DRM connector property:
+   * https://elixir.bootlin.com/linux/v6.11/source/include/drm/drm_connector.h#L538
+   */
+  switch (mode) {
+    case ColorMode::kNative:
+      colorspace_ = Colorspace::kDefault;
+      break;
+    case ColorMode::kBt601_625:
+    case ColorMode::kBt601_625Unadjusted:
+    case ColorMode::kBt601_525:
+    case ColorMode::kBt601_525Unadjusted:
+      // The DP spec does not say whether this is the 525 or the 625 line version.
+      colorspace_ = Colorspace::kBt601Ycc;
+      break;
+    case ColorMode::kBt709:
+    case ColorMode::kSrgb:
+      colorspace_ = Colorspace::kBt709Ycc;
+      break;
+    case ColorMode::kDciP3:
+    case ColorMode::kDisplayP3:
+      colorspace_ = Colorspace::kDciP3RgbD65;
+      break;
+    case ColorMode::kDisplayBt2020:
+    case ColorMode::kAdobeRgb:
+    case ColorMode::kBt2020:
+    case ColorMode::kBt2100Pq:
+    case ColorMode::kBt2100Hlg:
+      // HDR color modes should be requested during modeset
+      ALOGW("HDR color modes are not supported with this API.");
+      return;
   }
-
-  if (!modes) {
-    std::vector<Colormode> temp_modes;
-    GetEdid()->GetColorModes(temp_modes);
-    *num_modes = temp_modes.size();
-    return HWC2::Error::None;
-  }
-
-  std::vector<Colormode> temp_modes;
-  std::vector<int32_t> out_modes(modes, modes + *num_modes);
-  GetEdid()->GetColorModes(temp_modes);
-  if (temp_modes.empty()) {
-    out_modes.emplace_back(HAL_COLOR_MODE_NATIVE);
-    return HWC2::Error::None;
-  }
-
-  for (auto &c : temp_modes)
-    out_modes.emplace_back(static_cast<int32_t>(c));
-
-  return HWC2::Error::None;
 }
 
 HWC2::Error HwcDisplay::GetHdrCapabilities(uint32_t *num_types, int32_t *types,
@@ -924,45 +942,6 @@ bool HwcDisplay::CreateComposition(AtomicCommitArgs &a_args) {
   return true;
 }
 
-HWC2::Error HwcDisplay::SetColorMode(int32_t mode) {
-  /* Maps to the Colorspace DRM connector property:
-   * https://elixir.bootlin.com/linux/v6.11/source/include/drm/drm_connector.h#L538
-   */
-  if (mode < HAL_COLOR_MODE_NATIVE || mode > HAL_COLOR_MODE_DISPLAY_BT2020)
-    return HWC2::Error::BadParameter;
-
-  switch (mode) {
-    case HAL_COLOR_MODE_NATIVE:
-      colorspace_ = Colorspace::kDefault;
-      break;
-    case HAL_COLOR_MODE_STANDARD_BT601_625:
-    case HAL_COLOR_MODE_STANDARD_BT601_625_UNADJUSTED:
-    case HAL_COLOR_MODE_STANDARD_BT601_525:
-    case HAL_COLOR_MODE_STANDARD_BT601_525_UNADJUSTED:
-      // The DP spec does not say whether this is the 525 or the 625 line version.
-      colorspace_ = Colorspace::kBt601Ycc;
-      break;
-    case HAL_COLOR_MODE_STANDARD_BT709:
-    case HAL_COLOR_MODE_SRGB:
-      colorspace_ = Colorspace::kBt709Ycc;
-      break;
-    case HAL_COLOR_MODE_DCI_P3:
-    case HAL_COLOR_MODE_DISPLAY_P3:
-      colorspace_ = Colorspace::kDciP3RgbD65;
-      break;
-    case HAL_COLOR_MODE_DISPLAY_BT2020:
-    case HAL_COLOR_MODE_ADOBE_RGB:
-    case HAL_COLOR_MODE_BT2020:
-    case HAL_COLOR_MODE_BT2100_PQ:
-    case HAL_COLOR_MODE_BT2100_HLG:
-    default:
-      return HWC2::Error::Unsupported;
-  }
-
-  color_mode_ = mode;
-  return HWC2::Error::None;
-}
-
 HWC2::Error HwcDisplay::SetColorTransform(const float *matrix, int32_t hint) {
   if (hint < HAL_COLOR_TRANSFORM_IDENTITY ||
       hint > HAL_COLOR_TRANSFORM_CORRECT_TRITANOPIA)
@@ -1131,40 +1110,6 @@ HWC2::Error HwcDisplay::SetHdrOutputMetadata(ui::Hdr type) {
 
   return HWC2::Error::None;
 }
-
-#if __ANDROID_API__ > 27
-
-HWC2::Error HwcDisplay::GetRenderIntents(
-    int32_t mode, uint32_t *outNumIntents,
-    int32_t * /*android_render_intent_v1_1_t*/ outIntents) {
-  if (mode != HAL_COLOR_MODE_NATIVE) {
-    return HWC2::Error::BadParameter;
-  }
-
-  if (outIntents == nullptr) {
-    *outNumIntents = 1;
-    return HWC2::Error::None;
-  }
-  *outNumIntents = 1;
-  outIntents[0] = HAL_RENDER_INTENT_COLORIMETRIC;
-  return HWC2::Error::None;
-}
-
-HWC2::Error HwcDisplay::SetColorModeWithIntent(int32_t mode, int32_t intent) {
-  if (intent < HAL_RENDER_INTENT_COLORIMETRIC ||
-      intent > HAL_RENDER_INTENT_TONE_MAP_ENHANCE)
-    return HWC2::Error::BadParameter;
-
-  if (intent != HAL_RENDER_INTENT_COLORIMETRIC)
-    return HWC2::Error::Unsupported;
-
-  auto err = SetColorMode(mode);
-  if (err != HWC2::Error::None) return err;
-
-  return HWC2::Error::None;
-}
-
-#endif /* __ANDROID_API__ > 27 */
 
 const Backend *HwcDisplay::backend() const {
   return backend_.get();
