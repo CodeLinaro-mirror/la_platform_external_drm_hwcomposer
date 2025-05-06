@@ -43,11 +43,6 @@ namespace {
 constexpr int kCtmRows = 3;
 constexpr int kCtmCols = 3;
 
-constexpr std::array<float, 16> kIdentityMatrix = {
-    1.0F, 0.0F, 0.0F, 0.0F, 0.0F, 1.0F, 0.0F, 0.0F,
-    0.0F, 0.0F, 1.0F, 0.0F, 0.0F, 0.0F, 0.0F, 1.0F,
-};
-
 bool float_equals(float a, float b) {
   const float epsilon = 0.001F;
   return std::abs(a - b) < epsilon;
@@ -127,26 +122,30 @@ HwcDisplay::HwcDisplay(hwc2_display_t handle, bool is_virtual, DrmHwc *hwc)
 
 void HwcDisplay::SetColorTransformMatrix(
     const std::array<float, 16> &color_transform_matrix) {
-  const bool is_identity = std::equal(color_transform_matrix.begin(),
-                                      color_transform_matrix.end(),
-                                      kIdentityMatrix.begin(), float_equals);
-  color_transform_hint_ = is_identity ? HAL_COLOR_TRANSFORM_IDENTITY
-                                      : HAL_COLOR_TRANSFORM_ARBITRARY_MATRIX;
+  color_transform_is_identity_ = std::equal(color_transform_matrix.begin(),
+                                            color_transform_matrix.end(),
+                                            kIdentityMatrix.begin(),
+                                            float_equals);
   ctm_has_offset_ = false;
 
-  if (color_transform_hint_ == is_identity) {
-    SetColorMatrixToIdentity();
-  } else {
-    if (TransformHasOffsetValue(color_transform_matrix.data()))
-      ctm_has_offset_ = true;
+  if (IsInHeadlessMode())
+    return;
 
-    color_matrix_ = ToColorTransform(color_transform_matrix);
+  if (color_transform_is_identity_) {
+    SetColorMatrixToIdentity();
+    return;
   }
+
+  if (TransformHasOffsetValue(color_transform_matrix.data()))
+    ctm_has_offset_ = true;
+
+  color_matrix_ = ToColorTransform(color_transform_matrix);
 }
 
 void HwcDisplay::SetColorMatrixToIdentity() {
+  ctm_has_offset_ = false;
   color_matrix_ = identity_color_matrix_;
-  color_transform_hint_ = HAL_COLOR_TRANSFORM_IDENTITY;
+  color_transform_is_identity_ = true;
 }
 
 HwcDisplay::~HwcDisplay() {
@@ -942,47 +941,8 @@ bool HwcDisplay::CreateComposition(AtomicCommitArgs &a_args) {
   return true;
 }
 
-HWC2::Error HwcDisplay::SetColorTransform(const float *matrix, int32_t hint) {
-  if (hint < HAL_COLOR_TRANSFORM_IDENTITY ||
-      hint > HAL_COLOR_TRANSFORM_CORRECT_TRITANOPIA)
-    return HWC2::Error::BadParameter;
-
-  if (!matrix && hint == HAL_COLOR_TRANSFORM_ARBITRARY_MATRIX)
-    return HWC2::Error::BadParameter;
-
-  color_transform_hint_ = static_cast<android_color_transform_t>(hint);
-  ctm_has_offset_ = false;
-
-  if (IsInHeadlessMode())
-    return HWC2::Error::None;
-
-  if (!GetPipe().crtc->Get()->GetCtmProperty())
-    return HWC2::Error::None;
-
-  switch (color_transform_hint_) {
-    case HAL_COLOR_TRANSFORM_IDENTITY:
-      SetColorMatrixToIdentity();
-      break;
-    case HAL_COLOR_TRANSFORM_ARBITRARY_MATRIX:
-      // Without HW support, we cannot correctly process matrices with an offset.
-      {
-        if (TransformHasOffsetValue(matrix))
-          ctm_has_offset_ = true;
-
-        std::array<float, 16> aidl_matrix = kIdentityMatrix;
-        memcpy(aidl_matrix.data(), matrix, aidl_matrix.size() * sizeof(float));
-        color_matrix_ = ToColorTransform(aidl_matrix);
-      }
-      break;
-    default:
-      return HWC2::Error::Unsupported;
-  }
-
-  return HWC2::Error::None;
-}
-
 bool HwcDisplay::CtmByGpu() {
-  if (color_transform_hint_ == HAL_COLOR_TRANSFORM_IDENTITY)
+  if (color_transform_is_identity_)
     return false;
 
   if (GetPipe().crtc->Get()->GetCtmProperty() && !ctm_has_offset_)

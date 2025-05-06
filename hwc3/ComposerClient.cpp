@@ -67,15 +67,6 @@ constexpr int kCtmRows = 4;
 constexpr int kCtmColumns = 4;
 constexpr int kCtmSize = kCtmRows * kCtmColumns;
 
-// clang-format off
-constexpr std::array<float, kCtmSize> kIdentityMatrix = {
-    1.0F, 0.0F, 0.0F, 0.0F,
-    0.0F, 1.0F, 0.0F, 0.0F,
-    0.0F, 0.0F, 1.0F, 0.0F,
-    0.0F, 0.0F, 0.0F, 1.0F,
-};
-// clang-format on
-
 std::optional<BufferBlendMode> AidlToBlendMode(
     const std::optional<ParcelableBlendMode>& aidl_blend_mode) {
   if (!aidl_blend_mode) {

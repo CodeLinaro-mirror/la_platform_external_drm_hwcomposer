@@ -29,6 +29,7 @@
 
 #include "DrmHwcTwo.h"
 #include "backend/Backend.h"
+#include "compositor/DisplayInfo.h"
 #include "hwc2_device/HwcLayer.h"
 #include "utils/log.h"
 
@@ -619,6 +620,38 @@ static int32_t SetColorMode(hwc2_device_t *device, hwc2_display_t display, int32
   // https://cs.android.com/android/platform/superproject/main/+/main:system/core/libsystem/include/system/graphics-base-v1.0.h;drc=7d940ae4afa450696afa25e07982f3a95e17e9b2;l=118
   // https://cs.android.com/android/platform/superproject/main/+/main:system/core/libsystem/include/system/graphics-base-v1.1.h;drc=7d940ae4afa450696afa25e07982f3a95e17e9b2;l=35
   idisplay->SetColorMode(static_cast<ColorMode>(mode));
+  return 0;
+}
+
+static int32_t SetColorTransform(hwc2_device_t *device, hwc2_display_t display,
+                                 const float *matrix, int32_t hint) {
+  ALOGV("SetColorTransform");
+  if (hint < HAL_COLOR_TRANSFORM_IDENTITY ||
+      hint > HAL_COLOR_TRANSFORM_CORRECT_TRITANOPIA) {
+    return static_cast<int32_t>(HWC2::Error::BadParameter);
+  }
+
+  if (hint != HAL_COLOR_TRANSFORM_ARBITRARY_MATRIX &&
+      hint != HAL_COLOR_TRANSFORM_IDENTITY) {
+    return static_cast<int32_t>(HWC2::Error::Unsupported);
+  }
+
+  LOCK_COMPOSER(device);
+  GET_DISPLAY(display);
+
+  if (matrix == nullptr) {
+    if (hint == HAL_COLOR_TRANSFORM_IDENTITY) {
+      idisplay->SetColorTransformMatrix(kIdentityMatrix);
+      return 0;
+    }
+
+    return static_cast<int32_t>(HWC2::Error::BadParameter);
+  }
+
+  std::array<float, kColorMatrixSize> aidl_matrix = kIdentityMatrix;
+  memcpy(aidl_matrix.data(), matrix, aidl_matrix.size() * sizeof(float));
+  idisplay->SetColorTransformMatrix(aidl_matrix);
+
   return 0;
 }
 
@@ -1320,9 +1353,7 @@ static hwc2_function_pointer_t HookDevGetFunction(struct hwc2_device * /*dev*/,
     case HWC2::FunctionDescriptor::SetColorMode:
       return (hwc2_function_pointer_t)SetColorMode;
     case HWC2::FunctionDescriptor::SetColorTransform:
-      return ToHook<HWC2_PFN_SET_COLOR_TRANSFORM>(
-          DisplayHook<decltype(&HwcDisplay::SetColorTransform),
-                      &HwcDisplay::SetColorTransform, const float *, int32_t>);
+      return (hwc2_function_pointer_t)SetColorTransform;
     case HWC2::FunctionDescriptor::SetOutputBuffer:
       return (hwc2_function_pointer_t)SetOutputBuffer;
     case HWC2::FunctionDescriptor::SetPowerMode:

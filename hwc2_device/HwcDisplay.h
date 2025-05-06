@@ -159,7 +159,6 @@ class HwcDisplay {
                                  float *max_luminance,
                                  float *max_average_luminance,
                                  float *min_luminance);
-  HWC2::Error SetColorTransform(const float *matrix, int32_t hint);
 
   bool IsWritebackSupported();
   bool SetWritebackEnabled(bool enabled);
@@ -262,7 +261,7 @@ class HwcDisplay {
   uint16_t virtual_disp_height_{};
   std::shared_ptr<drm_color_ctm> color_matrix_;
   std::shared_ptr<drm_color_ctm> identity_color_matrix_;
-  android_color_transform_t color_transform_hint_{};
+  bool color_transform_is_identity_{};
   bool ctm_has_offset_ = false;
   ContentType content_type_ = ContentType::kNoData;
   Colorspace colorspace_{};
