@@ -699,6 +699,40 @@ static int32_t AcceptDisplayChanges(hwc2_device_t *device,
   return 0;
 }
 
+static int32_t GetHdrCapabilities(hwc2_device_t *device, hwc2_display_t display,
+                                  uint32_t *num_types, int32_t *types,
+                                  float *max_luminance,
+                                  float *max_average_luminance,
+                                  float *min_luminance) {
+  ALOGV("GetHdrCapabilities");
+  LOCK_COMPOSER(device);
+  GET_DISPLAY(display);
+
+  std::vector<ui::Hdr> temp_types;
+  idisplay->GetHdrCapabilities(&temp_types, max_luminance,
+                               max_average_luminance, min_luminance);
+  uint32_t i = 0;
+  for (auto &t : temp_types) {
+    switch (t) {
+      case ui::Hdr::HDR10:
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic):
+        types[i++] = HAL_HDR_HDR10;
+        break;
+      case ui::Hdr::HLG:
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic):
+        types[i++] = HAL_HDR_HLG;
+        break;
+      default:
+        // Ignore any other HDR types
+        break;
+    }
+  }
+
+  *num_types = i;
+
+  return 0;
+}
+
 static int32_t GetReleaseFences(hwc2_device_t *device, hwc2_display_t display,
                                 uint32_t *out_num_elements,
                                 hwc2_layer_t *out_layers, int32_t *out_fences) {
@@ -1338,10 +1372,7 @@ static hwc2_function_pointer_t HookDevGetFunction(struct hwc2_device * /*dev*/,
     case HWC2::FunctionDescriptor::GetDozeSupport:
       return (hwc2_function_pointer_t)GetDozeSupport;
     case HWC2::FunctionDescriptor::GetHdrCapabilities:
-      return ToHook<HWC2_PFN_GET_HDR_CAPABILITIES>(
-          DisplayHook<decltype(&HwcDisplay::GetHdrCapabilities),
-                      &HwcDisplay::GetHdrCapabilities, uint32_t *, int32_t *,
-                      float *, float *, float *>);
+      return (hwc2_function_pointer_t)GetHdrCapabilities;
     case HWC2::FunctionDescriptor::GetReleaseFences:
       return (hwc2_function_pointer_t)GetReleaseFences;
     case HWC2::FunctionDescriptor::PresentDisplay:

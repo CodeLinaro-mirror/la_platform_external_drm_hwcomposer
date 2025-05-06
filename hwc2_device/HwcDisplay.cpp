@@ -169,12 +169,10 @@ auto HwcDisplay::GetLastRequestedConfig() const -> const HwcDisplayConfig * {
   return GetConfig(staged_mode_config_id_.value_or(configs_.active_config_id));
 }
 
-HWC2::Error HwcDisplay::SetOutputType(uint32_t hdr_output_type) {
+void HwcDisplay::SetOutputType(uint32_t hdr_output_type) {
   switch (hdr_output_type) {
     case 3: {  // HDR10
-      auto ret = SetHdrOutputMetadata(ui::Hdr::HDR10);
-      if (ret != HWC2::Error::None)
-        return ret;
+      SetHdrOutputMetadata(ui::Hdr::HDR10);
       min_bpc_ = 8;
       colorspace_ = Colorspace::kBt2020Rgb;
       break;
@@ -183,9 +181,7 @@ HWC2::Error HwcDisplay::SetOutputType(uint32_t hdr_output_type) {
       std::vector<ui::Hdr> hdr_types;
       GetEdid()->GetSupportedHdrTypes(hdr_types);
       if (!hdr_types.empty()) {
-        auto ret = SetHdrOutputMetadata(hdr_types.front());
-        if (ret != HWC2::Error::None)
-          return ret;
+        SetHdrOutputMetadata(hdr_types.front());
         min_bpc_ = 8;
         colorspace_ = Colorspace::kBt2020Rgb;
         break;
@@ -201,8 +197,6 @@ HWC2::Error HwcDisplay::SetOutputType(uint32_t hdr_output_type) {
       min_bpc_ = 6;
       colorspace_ = Colorspace::kDefault;
   }
-
-  return HWC2::Error::None;
 }
 
 HwcDisplay::ConfigError HwcDisplay::SetConfig(hwc2_config_t config) {
@@ -685,41 +679,15 @@ void HwcDisplay::SetColorMode(ColorMode mode) {
   }
 }
 
-HWC2::Error HwcDisplay::GetHdrCapabilities(uint32_t *num_types, int32_t *types,
-                                           float *max_luminance,
-                                           float *max_average_luminance,
-                                           float *min_luminance) {
-  if (IsInHeadlessMode()) {
-    *num_types = 0;
-    return HWC2::Error::None;
-  }
+void HwcDisplay::GetHdrCapabilities(std::vector<ui::Hdr> *types,
+                                    float *max_luminance,
+                                    float *max_average_luminance,
+                                    float *min_luminance) {
+  if (IsInHeadlessMode())
+    return;
 
-  if (!types) {
-    std::vector<ui::Hdr> temp_types;
-    float lums[3] = {0.F};
-    GetEdid()->GetHdrCapabilities(temp_types, &lums[0], &lums[1], &lums[2]);
-    *num_types = temp_types.size();
-    return HWC2::Error::None;
-  }
-
-  std::vector<ui::Hdr> temp_types;
-  std::vector<int32_t> out_types(types, types + *num_types);
-  GetEdid()->GetHdrCapabilities(temp_types, max_luminance,
-                                max_average_luminance, min_luminance);
-  for (auto &t : temp_types) {
-    switch (t) {
-      case ui::Hdr::HDR10:
-        out_types.emplace_back(HAL_HDR_HDR10);
-        break;
-      case ui::Hdr::HLG:
-        out_types.emplace_back(HAL_HDR_HLG);
-        break;
-      default:
-        // Ignore any other HDR types
-        break;
-    }
-  }
-  return HWC2::Error::None;
+  GetEdid()->GetHdrCapabilities(*types, max_luminance, max_average_luminance,
+                                min_luminance);
 }
 
 AtomicCommitArgs HwcDisplay::CreateModesetCommit(
@@ -1023,7 +991,7 @@ static uint64_t ToU16ColorValue(float in) {
   return static_cast<uint64_t>(kPrimariesFixedPoint * in);
 }
 
-HWC2::Error HwcDisplay::SetHdrOutputMetadata(ui::Hdr type) {
+void HwcDisplay::SetHdrOutputMetadata(ui::Hdr type) {
   hdr_metadata_ = std::make_shared<hdr_output_metadata>();
   hdr_metadata_->metadata_type = 0;
   auto *m = &hdr_metadata_->hdmi_metadata_type1;
@@ -1037,7 +1005,8 @@ HWC2::Error HwcDisplay::SetHdrOutputMetadata(ui::Hdr type) {
       m->eotf = 3;  // HLG
       break;
     default:
-      return HWC2::Error::Unsupported;
+      ALOGW("HDR type %d is not supported.", type);
+      return;
   }
 
   // Most luminance values are coded as an unsigned 16-bit value in units of 1
@@ -1067,8 +1036,6 @@ HWC2::Error HwcDisplay::SetHdrOutputMetadata(ui::Hdr type) {
   auto whitePoint = gamut.getWhitePoint();
   m->white_point.x = ToU16ColorValue(whitePoint.x);
   m->white_point.y = ToU16ColorValue(whitePoint.y);
-
-  return HWC2::Error::None;
 }
 
 const Backend *HwcDisplay::backend() const {

@@ -154,11 +154,8 @@ class HwcDisplay {
   auto GetColorModes() -> std::vector<ColorMode>;
   void SetColorMode(ColorMode color_mode);
 
-  // HWC2 Hooks - these should not be used outside of the hwc2 device.
-  HWC2::Error GetHdrCapabilities(uint32_t *num_types, int32_t *types,
-                                 float *max_luminance,
-                                 float *max_average_luminance,
-                                 float *min_luminance);
+  void GetHdrCapabilities(std::vector<ui::Hdr> *types, float *max_luminance,
+                          float *max_average_luminance, float *min_luminance);
 
   bool IsWritebackSupported();
   bool SetWritebackEnabled(bool enabled);
@@ -279,8 +276,8 @@ class HwcDisplay {
 
   bool Init();
 
-  HWC2::Error SetHdrOutputMetadata(ui::Hdr hdrType);
-  HWC2::Error SetOutputType(uint32_t hdr_output_type);
+  void SetHdrOutputMetadata(ui::Hdr hdrType);
+  void SetOutputType(uint32_t hdr_output_type);
 
   auto GetEdid() -> EdidWrapperUnique & {
     return GetPipe().connector->Get()->GetParsedEdid();
