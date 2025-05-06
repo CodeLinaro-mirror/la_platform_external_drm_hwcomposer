@@ -72,8 +72,6 @@ class HwcDisplay {
   HWC2::Error CreateComposition(AtomicCommitArgs &a_args);
   std::vector<HwcLayer *> GetOrderLayersByZPos();
 
-  void ClearDisplay();
-
   std::string Dump();
 
   auto GetDisplayName() -> std::string;
@@ -107,7 +105,7 @@ class HwcDisplay {
   // To be called after SetDisplayProperties. Returns an empty vector if the
   // requested layers have been validated, otherwise the vector describes
   // the requested composition type changes.
-  using ChangedLayer = std::pair<ILayerId, HWC2::Composition>;
+  using ChangedLayer = std::pair<ILayerId, HwcLayer::CompositionType>;
   auto ValidateStagedComposition() -> std::vector<ChangedLayer>;
 
   // Mark previously validated properties as ready to present.
