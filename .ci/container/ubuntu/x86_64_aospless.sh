@@ -86,6 +86,7 @@ rm external/libdisplay_info -rf
 git clone --depth=1 https://android.googlesource.com/platform/external/libdisplay-info/ external/libdisplay_info
 
 git clone https://github.com/GloDroid/aospext.git
+sed -i "s|cpp_args = \['\[CPP_ARGS\]'\]|cpp_args = ['[CPP_ARGS]', '-D__ANDROID_API__=${ANDROID_SDK_VERSION}']|" "${TOP}/aospext/tools/meson_aosp_cross.cfg"
 cat >> "${TOP}/device/google/cuttlefish/shared/device.mk" <<EOF
 BOARD_BUILD_AOSPEXT_DRMHWCOMPOSER := true
 BOARD_DRMHWCOMPOSER_SRC_DIR := external/drm_hwcomposer
