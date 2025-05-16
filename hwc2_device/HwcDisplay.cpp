@@ -403,15 +403,10 @@ auto HwcDisplay::PresentStagedComposition(
   AtomicCommitArgs a_args{};
   ret = CreateComposition(a_args);
 
-  if (ret != HWC2::Error::None)
+  if (ret != HWC2::Error::None) {
     ++total_stats_.failed_kms_present;
-
-  if (ret == HWC2::Error::BadLayer) {
-    // Can we really have no client or device layers?
-    return true;
-  }
-  if (ret != HWC2::Error::None)
     return false;
+  }
 
   out_present_fence = a_args.out_fence;
 
