@@ -42,9 +42,9 @@
 
 #include "bufferinfo/BufferInfo.h"
 #include "compositor/DisplayInfo.h"
-#include "hwc2_device/HwcDisplay.h"
-#include "hwc2_device/HwcDisplayConfigs.h"
-#include "hwc2_device/HwcLayer.h"
+#include "hwc/HwcDisplay.h"
+#include "hwc/HwcDisplayConfigs.h"
+#include "hwc/HwcLayer.h"
 #include "hwc3/DrmHwcThree.h"
 #include "hwc3/Utils.h"
 

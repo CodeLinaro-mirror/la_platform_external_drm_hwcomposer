@@ -18,7 +18,7 @@
 
 #include <vector>
 
-#include "hwc2_device/HwcDisplay.h"
+#include "hwc/HwcDisplay.h"
 
 namespace android {
 

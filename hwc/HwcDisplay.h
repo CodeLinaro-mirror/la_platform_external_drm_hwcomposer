@@ -23,13 +23,13 @@
 #include <ui/GraphicTypes.h>
 
 #include "HwcDisplayConfigs.h"
+#include "HwcLayer.h"
 #include "compositor/DisplayInfo.h"
 #include "compositor/FlatteningController.h"
 #include "compositor/LayerData.h"
 #include "drm/DrmAtomicStateManager.h"
 #include "drm/ResourceManager.h"
 #include "drm/VSyncWorker.h"
-#include "hwc2_device/HwcLayer.h"
 #include "stats/CompositionStats.h"
 
 namespace android {

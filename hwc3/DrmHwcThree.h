@@ -19,7 +19,7 @@
 #include <aidl/android/hardware/graphics/composer3/IComposerCallback.h>
 
 #include "drm/DrmHwc.h"
-#include "hwc2_device/HwcDisplay.h"
+#include "hwc/HwcDisplay.h"
 #include "utils/thread_annotations.h"
 
 namespace aidl::android::hardware::graphics::composer3::impl {

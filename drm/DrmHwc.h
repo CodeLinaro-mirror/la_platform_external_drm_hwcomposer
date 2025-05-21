@@ -18,7 +18,7 @@
 
 #include "drm/DrmDisplayPipeline.h"
 #include "drm/ResourceManager.h"
-#include "hwc2_device/HwcDisplay.h"
+#include "hwc/HwcDisplay.h"
 #include "stats/CompositionStats.h"
 
 namespace android {

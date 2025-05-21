@@ -30,7 +30,7 @@
 #include "DrmHwcTwo.h"
 #include "backend/Backend.h"
 #include "compositor/DisplayInfo.h"
-#include "hwc2_device/HwcLayer.h"
+#include "hwc/HwcLayer.h"
 #include "utils/log.h"
 
 namespace android {

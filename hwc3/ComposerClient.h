@@ -20,7 +20,7 @@
 
 #include "aidl/android/hardware/graphics/composer3/BnComposerClient.h"
 #include "aidl/android/hardware/graphics/composer3/LayerCommand.h"
-#include "hwc2_device/HwcLayer.h"
+#include "hwc/HwcLayer.h"
 #include "hwc3/CommandResultWriter.h"
 #include "hwc3/Utils.h"
 #include "utils/Mutex.h"

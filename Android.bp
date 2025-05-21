@@ -93,9 +93,9 @@ filegroup {
         "backend/BackendClient.cpp",
         "backend/BackendManager.cpp",
 
-        "hwc2_device/HwcDisplay.cpp",
-        "hwc2_device/HwcDisplayConfigs.cpp",
-        "hwc2_device/HwcLayer.cpp",
+        "hwc/HwcDisplay.cpp",
+        "hwc/HwcDisplayConfigs.cpp",
+        "hwc/HwcLayer.cpp",
 
         "stats/CompositionStats.cpp",
 
