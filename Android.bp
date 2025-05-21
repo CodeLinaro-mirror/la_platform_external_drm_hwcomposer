@@ -115,7 +115,6 @@ filegroup {
         "hwc3/Composer.cpp",
         "hwc3/ComposerClient.cpp",
         "hwc3/DrmHwcThree.cpp",
-        "hwc3/Utils.cpp",
     ],
 }
 
