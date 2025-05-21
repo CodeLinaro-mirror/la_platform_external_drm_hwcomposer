@@ -38,8 +38,6 @@
 #include <android/binder_auto_utils.h>
 #include <android/binder_ibinder_platform.h>
 #include <cutils/native_handle.h>
-#include <hardware/hwcomposer2.h>
-#include <hardware/hwcomposer_defs.h>
 #include <ui/GraphicBufferMapper.h>
 
 #include "bufferinfo/BufferInfo.h"

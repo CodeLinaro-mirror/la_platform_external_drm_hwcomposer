@@ -16,8 +16,6 @@
 
 #pragma once
 
-#include <hardware/hwcomposer2.h>
-
 #include <atomic>
 #include <optional>
 #include <sstream>

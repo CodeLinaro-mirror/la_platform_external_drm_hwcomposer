@@ -16,9 +16,7 @@
 
 #pragma once
 
-#include <aidl/android/hardware/graphics/common/Hdr.h>
 #include <aidl/android/hardware/graphics/composer3/IComposerClient.h>
-#include <hardware/hwcomposer2.h>
 #include <log/log.h>
 
 #include <cstdint>
