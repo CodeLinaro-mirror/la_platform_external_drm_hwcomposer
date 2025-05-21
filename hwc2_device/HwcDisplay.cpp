@@ -111,7 +111,7 @@ auto HwcDisplay::GetDisplayName() -> std::string {
   return stream.str();
 }
 
-HwcDisplay::HwcDisplay(hwc2_display_t handle, bool is_virtual, DrmHwc *hwc)
+HwcDisplay::HwcDisplay(DisplayHandle handle, bool is_virtual, DrmHwc *hwc)
     : hwc_(hwc), handle_(handle), is_virtual_(is_virtual), client_layer_(this) {
   // Create writeback layer for both virtual displays and potential readback
   // operations
@@ -491,7 +491,7 @@ void HwcDisplay::SetVsyncCallbacksEnabled(bool enabled) {
   std::optional<VSyncWorker::VsyncTimestampCallback> callback = std::nullopt;
   if (vsync_event_en_) {
     DrmHwc *hwc = hwc_;
-    hwc2_display_t id = handle_;
+    DisplayHandle id = handle_;
     // Callback will be called from the vsync thread.
     callback = [hwc, id](int64_t timestamp, uint32_t period_ns) {
       hwc->SendVsyncEventToClient(id, timestamp, period_ns);

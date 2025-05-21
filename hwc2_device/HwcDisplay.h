@@ -36,6 +36,8 @@
 
 namespace android {
 
+using DisplayHandle = int64_t;
+
 class Backend;
 class DrmHwc;
 
@@ -58,7 +60,7 @@ class HwcDisplay {
 
   enum DisplayType { kInternal, kExternal, kVirtual };
 
-  HwcDisplay(hwc2_display_t handle, bool is_virtual, DrmHwc *hwc);
+  HwcDisplay(DisplayHandle handle, bool is_virtual, DrmHwc *hwc);
   HwcDisplay(const HwcDisplay &) = delete;
   ~HwcDisplay();
 
@@ -248,7 +250,7 @@ class HwcDisplay {
   std::unique_ptr<VSyncWorker> vsync_worker_;
   bool vsync_event_en_{};
 
-  const hwc2_display_t handle_;
+  const DisplayHandle handle_;
   bool is_virtual_;
 
   std::map<ILayerId, HwcLayer> layers_;
