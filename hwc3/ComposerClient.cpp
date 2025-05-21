@@ -834,7 +834,7 @@ ndk::ScopedAStatus ComposerClient::getActiveConfig(int64_t display_handle,
     return ToBinderStatus(hwc3::Error::kBadConfig);
   }
 
-  *config_id = Hwc2ConfigIdToHwc3(config->id);
+  *config_id = config->id;
   return ndk::ScopedAStatus::ok();
 }
 

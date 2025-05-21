@@ -92,14 +92,14 @@ class HwcDisplay {
   // Set a config synchronously. If the requested config fails to be committed,
   // this will return with an error. Otherwise, the config will have been
   // committed to the kernel on successful return.
-  ConfigError SetConfig(hwc2_config_t config);
+  ConfigError SetConfig(ConfigId config);
 
   // Queue a configuration change to take effect in the future.
-  auto QueueConfig(hwc2_config_t config, int64_t desired_time, bool seamless,
+  auto QueueConfig(ConfigId config, int64_t desired_time, bool seamless,
                    QueuedConfigTiming *out_timing) -> ConfigError;
 
   // Get the HwcDisplayConfig, or nullptor if none.
-  auto GetConfig(hwc2_config_t config_id) const -> const HwcDisplayConfig *;
+  auto GetConfig(ConfigId config_id) const -> const HwcDisplayConfig *;
 
   auto GetDisplayBoundsMm() -> std::pair<int32_t, int32_t>;
 
@@ -240,7 +240,7 @@ class HwcDisplay {
   DrmHwc *const hwc_;
 
   int64_t staged_mode_change_time_{};
-  std::optional<uint32_t> staged_mode_config_id_{};
+  std::optional<ConfigId> staged_mode_config_id_{};
 
   std::shared_ptr<DrmDisplayPipeline> pipeline_;
 

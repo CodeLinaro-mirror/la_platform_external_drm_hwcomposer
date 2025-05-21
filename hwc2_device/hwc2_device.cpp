@@ -494,7 +494,7 @@ static int32_t GetDisplayAttribute(hwc2_device_t *device,
   LOCK_COMPOSER(device);
   GET_DISPLAY(display);
 
-  const auto* hwc_config = idisplay->GetConfig(config);
+  const auto *hwc_config = idisplay->GetConfig(static_cast<ConfigId>(config));
 
   if (hwc_config == nullptr) {
     ALOGE("Could not find mode #%d", config);
@@ -875,7 +875,7 @@ static int32_t SetActiveConfig(hwc2_device_t *device, hwc2_display_t display,
   GET_DISPLAY(display);
 
   QueuedConfigTiming out_timing{};
-  auto result = idisplay->QueueConfig(config,
+  auto result = idisplay->QueueConfig(static_cast<ConfigId>(config),
                                       ResourceManager::GetTimeMonotonicNs(),
                                       false, &out_timing);
   return ConfigErrorToHWC2(result);
@@ -1034,7 +1034,7 @@ static int32_t SetActiveConfigWithConstraints(
   }
 
   QueuedConfigTiming out_timing{};
-  auto result = idisplay->QueueConfig(config,
+  auto result = idisplay->QueueConfig(static_cast<ConfigId>(config),
                                       vsync_period_change_constraints
                                           ->desiredTimeNanos,
                                       false, &out_timing);
