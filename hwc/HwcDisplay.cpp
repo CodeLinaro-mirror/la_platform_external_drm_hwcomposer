@@ -43,11 +43,6 @@ namespace {
 constexpr int kCtmRows = 3;
 constexpr int kCtmCols = 3;
 
-constexpr std::array<float, 16> kIdentityMatrix = {
-    1.0F, 0.0F, 0.0F, 0.0F, 0.0F, 1.0F, 0.0F, 0.0F,
-    0.0F, 0.0F, 1.0F, 0.0F, 0.0F, 0.0F, 0.0F, 1.0F,
-};
-
 bool float_equals(float a, float b) {
   const float epsilon = 0.001F;
   return std::abs(a - b) < epsilon;
@@ -116,7 +111,7 @@ auto HwcDisplay::GetDisplayName() -> std::string {
   return stream.str();
 }
 
-HwcDisplay::HwcDisplay(hwc2_display_t handle, bool is_virtual, DrmHwc *hwc)
+HwcDisplay::HwcDisplay(DisplayHandle handle, bool is_virtual, DrmHwc *hwc)
     : hwc_(hwc), handle_(handle), is_virtual_(is_virtual), client_layer_(this) {
   // Create writeback layer for both virtual displays and potential readback
   // operations
@@ -127,33 +122,37 @@ HwcDisplay::HwcDisplay(hwc2_display_t handle, bool is_virtual, DrmHwc *hwc)
 
 void HwcDisplay::SetColorTransformMatrix(
     const std::array<float, 16> &color_transform_matrix) {
-  const bool is_identity = std::equal(color_transform_matrix.begin(),
-                                      color_transform_matrix.end(),
-                                      kIdentityMatrix.begin(), float_equals);
-  color_transform_hint_ = is_identity ? HAL_COLOR_TRANSFORM_IDENTITY
-                                      : HAL_COLOR_TRANSFORM_ARBITRARY_MATRIX;
+  color_transform_is_identity_ = std::equal(color_transform_matrix.begin(),
+                                            color_transform_matrix.end(),
+                                            kIdentityMatrix.begin(),
+                                            float_equals);
   ctm_has_offset_ = false;
 
-  if (color_transform_hint_ == is_identity) {
-    SetColorMatrixToIdentity();
-  } else {
-    if (TransformHasOffsetValue(color_transform_matrix.data()))
-      ctm_has_offset_ = true;
+  if (IsInHeadlessMode())
+    return;
 
-    color_matrix_ = ToColorTransform(color_transform_matrix);
+  if (color_transform_is_identity_) {
+    SetColorMatrixToIdentity();
+    return;
   }
+
+  if (TransformHasOffsetValue(color_transform_matrix.data()))
+    ctm_has_offset_ = true;
+
+  color_matrix_ = ToColorTransform(color_transform_matrix);
 }
 
 void HwcDisplay::SetColorMatrixToIdentity() {
+  ctm_has_offset_ = false;
   color_matrix_ = identity_color_matrix_;
-  color_transform_hint_ = HAL_COLOR_TRANSFORM_IDENTITY;
+  color_transform_is_identity_ = true;
 }
 
 HwcDisplay::~HwcDisplay() {
   Deinit();
 };
 
-auto HwcDisplay::GetConfig(hwc2_config_t config_id) const
+auto HwcDisplay::GetConfig(ConfigId config_id) const
     -> const HwcDisplayConfig * {
   auto config_iter = configs_.hwc_configs.find(config_id);
   if (config_iter == configs_.hwc_configs.end()) {
@@ -170,44 +169,37 @@ auto HwcDisplay::GetLastRequestedConfig() const -> const HwcDisplayConfig * {
   return GetConfig(staged_mode_config_id_.value_or(configs_.active_config_id));
 }
 
-HWC2::Error HwcDisplay::SetOutputType(uint32_t hdr_output_type) {
+void HwcDisplay::SetOutputType(uint32_t hdr_output_type) {
   switch (hdr_output_type) {
-    case 3: { // HDR10
-      auto ret = SetHdrOutputMetadata(ui::Hdr::HDR10);
-      if (ret != HWC2::Error::None)
-        return ret;
+    case 3: {  // HDR10
+      SetHdrOutputMetadata(ui::Hdr::HDR10);
       min_bpc_ = 8;
       colorspace_ = Colorspace::kBt2020Rgb;
       break;
     }
-    case 1: { // SYSTEM
+    case 1: {  // SYSTEM
       std::vector<ui::Hdr> hdr_types;
       GetEdid()->GetSupportedHdrTypes(hdr_types);
       if (!hdr_types.empty()) {
-        auto ret = SetHdrOutputMetadata(hdr_types.front());
-        if (ret != HWC2::Error::None)
-          return ret;
+        SetHdrOutputMetadata(hdr_types.front());
         min_bpc_ = 8;
         colorspace_ = Colorspace::kBt2020Rgb;
         break;
-      } else {
-        [[fallthrough]];
       }
+      [[fallthrough]];
     }
     case 0:  // INVALID
       [[fallthrough]];
     case 2:  // SDR
       [[fallthrough]];
     default:
-      hdr_metadata_ = std::make_shared<hdr_output_metadata>();
+      hdr_metadata_.reset();
       min_bpc_ = 6;
       colorspace_ = Colorspace::kDefault;
   }
-
-  return HWC2::Error::None;
 }
 
-HwcDisplay::ConfigError HwcDisplay::SetConfig(hwc2_config_t config) {
+HwcDisplay::ConfigError HwcDisplay::SetConfig(ConfigId config) {
   const HwcDisplayConfig *new_config = GetConfig(config);
   if (new_config == nullptr) {
     ALOGE("Could not find active mode for %u", config);
@@ -278,7 +270,7 @@ HwcDisplay::ConfigError HwcDisplay::SetConfig(hwc2_config_t config) {
   return ConfigError::kNone;
 }
 
-auto HwcDisplay::QueueConfig(hwc2_config_t config, int64_t desired_time,
+auto HwcDisplay::QueueConfig(ConfigId config, int64_t desired_time,
                              bool seamless, QueuedConfigTiming *out_timing)
     -> ConfigError {
   if (configs_.hwc_configs.count(config) == 0) {
@@ -304,6 +296,12 @@ auto HwcDisplay::QueueConfig(hwc2_config_t config, int64_t desired_time,
   // refresh time.
   staged_mode_change_time_ = out_timing->refresh_time_ns;
   staged_mode_config_id_ = config;
+
+  // Allow HDR only on external displays
+  if (current_config && !IsInHeadlessMode() &&
+      GetPipe().connector->Get()->IsExternal()) {
+    SetOutputType(current_config->output_type);
+  }
 
   // Enable vsync events until the mode has been applied.
   vsync_worker_->SetVsyncTimestampTracking(true);
@@ -384,8 +382,6 @@ auto HwcDisplay::PresentStagedComposition(
     return true;
   }
 
-  HWC2::Error ret{};
-
   ++total_stats_.total_frames;
 
   uint32_t vperiod_ns = GetCurrentVsyncPeriodNs();
@@ -398,17 +394,10 @@ auto HwcDisplay::PresentStagedComposition(
   }
 
   AtomicCommitArgs a_args{};
-  ret = CreateComposition(a_args);
-
-  if (ret != HWC2::Error::None)
+  if (!CreateComposition(a_args)) {
     ++total_stats_.failed_kms_present;
-
-  if (ret == HWC2::Error::BadLayer) {
-    // Can we really have no client or device layers?
-    return true;
-  }
-  if (ret != HWC2::Error::None)
     return false;
+  }
 
   out_present_fence = a_args.out_fence;
 
@@ -504,7 +493,7 @@ void HwcDisplay::SetVsyncCallbacksEnabled(bool enabled) {
   std::optional<VSyncWorker::VsyncTimestampCallback> callback = std::nullopt;
   if (vsync_event_en_) {
     DrmHwc *hwc = hwc_;
-    hwc2_display_t id = handle_;
+    DisplayHandle id = handle_;
     // Callback will be called from the vsync thread.
     callback = [hwc, id](int64_t timestamp, uint32_t period_ns) {
       hwc->SendVsyncEventToClient(id, timestamp, period_ns);
@@ -610,7 +599,6 @@ bool HwcDisplay::Init() {
   } else if (!configs_.Update(*pipeline_->connector->Get())) {
     return false;
   }
-
   return SetConfig(configs_.preferred_config_id) ==
          HwcDisplay::ConfigError::kNone;
 }
@@ -646,70 +634,62 @@ auto HwcDisplay::DestroyLayer(ILayerId layer_id) -> bool {
   return count != 0;
 }
 
-HWC2::Error HwcDisplay::GetColorModes(uint32_t *num_modes, int32_t *modes) {
-  if (IsInHeadlessMode()) {
-    *num_modes = 1;
-    if (modes)
-      modes[0] = HAL_COLOR_MODE_NATIVE;
-    return HWC2::Error::None;
-  }
+auto HwcDisplay::GetColorModes() -> std::vector<ColorMode> {
+  if (IsInHeadlessMode())
+    return {ColorMode::kNative};
 
-  if (!modes) {
-    std::vector<Colormode> temp_modes;
-    GetEdid()->GetColorModes(temp_modes);
-    *num_modes = temp_modes.size();
-    return HWC2::Error::None;
-  }
+  std::vector<ColorMode> modes;
+  GetEdid()->GetColorModes(modes);
 
-  std::vector<Colormode> temp_modes;
-  std::vector<int32_t> out_modes(modes, modes + *num_modes);
-  GetEdid()->GetColorModes(temp_modes);
-  if (temp_modes.empty()) {
-    out_modes.emplace_back(HAL_COLOR_MODE_NATIVE);
-    return HWC2::Error::None;
-  }
+  if (modes.empty())
+    modes.emplace_back(ColorMode::kNative);
 
-  for (auto &c : temp_modes)
-    out_modes.emplace_back(static_cast<int32_t>(c));
-
-  return HWC2::Error::None;
+  return modes;
 }
 
-HWC2::Error HwcDisplay::GetHdrCapabilities(uint32_t *num_types, int32_t *types,
-                                           float *max_luminance,
-                                           float *max_average_luminance,
-                                           float *min_luminance) {
-  if (IsInHeadlessMode()) {
-    *num_types = 0;
-    return HWC2::Error::None;
+void HwcDisplay::SetColorMode(ColorMode mode) {
+  /* Maps to the Colorspace DRM connector property:
+   * https://elixir.bootlin.com/linux/v6.11/source/include/drm/drm_connector.h#L538
+   */
+  switch (mode) {
+    case ColorMode::kNative:
+      colorspace_ = Colorspace::kDefault;
+      break;
+    case ColorMode::kBt601_625:
+    case ColorMode::kBt601_625Unadjusted:
+    case ColorMode::kBt601_525:
+    case ColorMode::kBt601_525Unadjusted:
+      // The DP spec does not say whether this is the 525 or the 625 line version.
+      colorspace_ = Colorspace::kBt601Ycc;
+      break;
+    case ColorMode::kBt709:
+    case ColorMode::kSrgb:
+      colorspace_ = Colorspace::kBt709Ycc;
+      break;
+    case ColorMode::kDciP3:
+    case ColorMode::kDisplayP3:
+      colorspace_ = Colorspace::kDciP3RgbD65;
+      break;
+    case ColorMode::kDisplayBt2020:
+    case ColorMode::kAdobeRgb:
+    case ColorMode::kBt2020:
+    case ColorMode::kBt2100Pq:
+    case ColorMode::kBt2100Hlg:
+      // HDR color modes should be requested during modeset
+      ALOGW("HDR color modes are not supported with this API.");
+      return;
   }
+}
 
-  if (!types) {
-    std::vector<ui::Hdr> temp_types;
-    float lums[3] = {0.F};
-    GetEdid()->GetHdrCapabilities(temp_types, &lums[0], &lums[1], &lums[2]);
-    *num_types = temp_types.size();
-    return HWC2::Error::None;
-  }
+void HwcDisplay::GetHdrCapabilities(std::vector<ui::Hdr> *types,
+                                    float *max_luminance,
+                                    float *max_average_luminance,
+                                    float *min_luminance) {
+  if (IsInHeadlessMode())
+    return;
 
-  std::vector<ui::Hdr> temp_types;
-  std::vector<int32_t> out_types(types, types + *num_types);
-  GetEdid()->GetHdrCapabilities(temp_types, max_luminance,
-                                max_average_luminance, min_luminance);
-  for (auto &t : temp_types) {
-    switch (t) {
-      case ui::Hdr::HDR10:
-        out_types.emplace_back(HAL_HDR_HDR10);
-        break;
-      case ui::Hdr::HLG:
-        out_types.emplace_back(HAL_HDR_HLG);
-        break;
-      default:
-        // Ignore any other HDR types
-        break;
-    }
-  }
-  return HWC2::Error::None;
+  GetEdid()->GetHdrCapabilities(*types, max_luminance, max_average_luminance,
+                                min_luminance);
 }
 
 AtomicCommitArgs HwcDisplay::CreateModesetCommit(
@@ -784,10 +764,10 @@ uint32_t HwcDisplay::GetCurrentVsyncPeriodNs() const {
 }
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
-HWC2::Error HwcDisplay::CreateComposition(AtomicCommitArgs &a_args) {
+bool HwcDisplay::CreateComposition(AtomicCommitArgs &a_args) {
   if (IsInHeadlessMode()) {
     ALOGE("%s: Display is in headless mode, should never reach here", __func__);
-    return HWC2::Error::None;
+    return true;
   }
 
   a_args.color_matrix = color_matrix_;
@@ -803,7 +783,7 @@ HWC2::Error HwcDisplay::CreateComposition(AtomicCommitArgs &a_args) {
     const HwcDisplayConfig *staged_config = GetConfig(
         staged_mode_config_id_.value());
     if (staged_config == nullptr) {
-      return HWC2::Error::BadConfig;
+      return false;
     }
 
     configs_.active_config_id = staged_mode_config_id_.value();
@@ -866,7 +846,7 @@ HWC2::Error HwcDisplay::CreateComposition(AtomicCommitArgs &a_args) {
        * imported. For example when non-contiguous buffer is imported into
        * contiguous-only DRM/KMS driver.
        */
-      return HWC2::Error::BadLayer;
+      return false;
     }
   }
 
@@ -877,7 +857,7 @@ HWC2::Error HwcDisplay::CreateComposition(AtomicCommitArgs &a_args) {
   // now that they're ordered by z, add them to the composition
   for (std::pair<const uint32_t, HwcLayer *> &l : z_map) {
     if (!l.second->IsLayerUsableAsDevice()) {
-      return HWC2::Error::BadLayer;
+      return false;
     }
     composition_layers.emplace_back(l.second->GetLayerData());
   }
@@ -890,7 +870,7 @@ HWC2::Error HwcDisplay::CreateComposition(AtomicCommitArgs &a_args) {
                                                cursor_layer);
   if (!current_plan_) {
     ALOGE_IF(!a_args.test_only, "Failed to create DrmKmsPlan");
-    return HWC2::Error::BadConfig;
+    return false;
   }
   a_args.composition = current_plan_;
 
@@ -898,7 +878,7 @@ HWC2::Error HwcDisplay::CreateComposition(AtomicCommitArgs &a_args) {
     writeback_layer_->PopulateLayerData();
     if (!writeback_layer_->IsLayerUsableAsDevice()) {
       ALOGE("Writeback layer not usable by DRM/KMS - no valid buffer set");
-      return HWC2::Error::BadLayer;
+      return false;
     }
     a_args.writeback_fb = writeback_layer_->GetLayerData().fb;
     a_args.writeback_release_fence = writeback_layer_->GetLayerData()
@@ -908,7 +888,7 @@ HWC2::Error HwcDisplay::CreateComposition(AtomicCommitArgs &a_args) {
   auto ret = GetPipe().atomic_state_manager->ExecuteAtomicCommit(a_args);
   if (ret) {
     ALOGE_IF(!a_args.test_only, "Failed to apply the frame composition ret=%d", ret);
-    return HWC2::Error::BadParameter;
+    return false;
   }
 
   if (!a_args.test_only) {
@@ -928,89 +908,11 @@ HWC2::Error HwcDisplay::CreateComposition(AtomicCommitArgs &a_args) {
     vsync_worker_->SetVsyncPeriodNs(new_vsync_period_ns.value());
   }
 
-  return HWC2::Error::None;
-}
-
-HWC2::Error HwcDisplay::SetColorMode(int32_t mode) {
-  /* Maps to the Colorspace DRM connector property:
-   * https://elixir.bootlin.com/linux/v6.11/source/include/drm/drm_connector.h#L538
-   */
-  if (mode < HAL_COLOR_MODE_NATIVE || mode > HAL_COLOR_MODE_DISPLAY_BT2020)
-    return HWC2::Error::BadParameter;
-
-  switch (mode) {
-    case HAL_COLOR_MODE_NATIVE:
-      colorspace_ = Colorspace::kDefault;
-      break;
-    case HAL_COLOR_MODE_STANDARD_BT601_625:
-    case HAL_COLOR_MODE_STANDARD_BT601_625_UNADJUSTED:
-    case HAL_COLOR_MODE_STANDARD_BT601_525:
-    case HAL_COLOR_MODE_STANDARD_BT601_525_UNADJUSTED:
-      // The DP spec does not say whether this is the 525 or the 625 line version.
-      colorspace_ = Colorspace::kBt601Ycc;
-      break;
-    case HAL_COLOR_MODE_STANDARD_BT709:
-    case HAL_COLOR_MODE_SRGB:
-      colorspace_ = Colorspace::kBt709Ycc;
-      break;
-    case HAL_COLOR_MODE_DCI_P3:
-    case HAL_COLOR_MODE_DISPLAY_P3:
-      colorspace_ = Colorspace::kDciP3RgbD65;
-      break;
-    case HAL_COLOR_MODE_DISPLAY_BT2020:
-    case HAL_COLOR_MODE_ADOBE_RGB:
-    case HAL_COLOR_MODE_BT2020:
-    case HAL_COLOR_MODE_BT2100_PQ:
-    case HAL_COLOR_MODE_BT2100_HLG:
-    default:
-      return HWC2::Error::Unsupported;
-  }
-
-  color_mode_ = mode;
-  return HWC2::Error::None;
-}
-
-HWC2::Error HwcDisplay::SetColorTransform(const float *matrix, int32_t hint) {
-  if (hint < HAL_COLOR_TRANSFORM_IDENTITY ||
-      hint > HAL_COLOR_TRANSFORM_CORRECT_TRITANOPIA)
-    return HWC2::Error::BadParameter;
-
-  if (!matrix && hint == HAL_COLOR_TRANSFORM_ARBITRARY_MATRIX)
-    return HWC2::Error::BadParameter;
-
-  color_transform_hint_ = static_cast<android_color_transform_t>(hint);
-  ctm_has_offset_ = false;
-
-  if (IsInHeadlessMode())
-    return HWC2::Error::None;
-
-  if (!GetPipe().crtc->Get()->GetCtmProperty())
-    return HWC2::Error::None;
-
-  switch (color_transform_hint_) {
-    case HAL_COLOR_TRANSFORM_IDENTITY:
-      SetColorMatrixToIdentity();
-      break;
-    case HAL_COLOR_TRANSFORM_ARBITRARY_MATRIX:
-      // Without HW support, we cannot correctly process matrices with an offset.
-      {
-        if (TransformHasOffsetValue(matrix))
-          ctm_has_offset_ = true;
-
-        std::array<float, 16> aidl_matrix = kIdentityMatrix;
-        memcpy(aidl_matrix.data(), matrix, aidl_matrix.size() * sizeof(float));
-        color_matrix_ = ToColorTransform(aidl_matrix);
-      }
-      break;
-    default:
-      return HWC2::Error::Unsupported;
-  }
-
-  return HWC2::Error::None;
+  return true;
 }
 
 bool HwcDisplay::CtmByGpu() {
-  if (color_transform_hint_ == HAL_COLOR_TRANSFORM_IDENTITY)
+  if (color_transform_is_identity_)
     return false;
 
   if (GetPipe().crtc->Get()->GetCtmProperty() && !ctm_has_offset_)
@@ -1091,7 +993,7 @@ static uint64_t ToU16ColorValue(float in) {
   return static_cast<uint64_t>(kPrimariesFixedPoint * in);
 }
 
-HWC2::Error HwcDisplay::SetHdrOutputMetadata(ui::Hdr type) {
+void HwcDisplay::SetHdrOutputMetadata(ui::Hdr type) {
   hdr_metadata_ = std::make_shared<hdr_output_metadata>();
   hdr_metadata_->metadata_type = 0;
   auto *m = &hdr_metadata_->hdmi_metadata_type1;
@@ -1105,7 +1007,8 @@ HWC2::Error HwcDisplay::SetHdrOutputMetadata(ui::Hdr type) {
       m->eotf = 3;  // HLG
       break;
     default:
-      return HWC2::Error::Unsupported;
+      ALOGW("HDR type %d is not supported.", type);
+      return;
   }
 
   // Most luminance values are coded as an unsigned 16-bit value in units of 1
@@ -1135,43 +1038,7 @@ HWC2::Error HwcDisplay::SetHdrOutputMetadata(ui::Hdr type) {
   auto whitePoint = gamut.getWhitePoint();
   m->white_point.x = ToU16ColorValue(whitePoint.x);
   m->white_point.y = ToU16ColorValue(whitePoint.y);
-
-  return HWC2::Error::None;
 }
-
-#if __ANDROID_API__ > 27
-
-HWC2::Error HwcDisplay::GetRenderIntents(
-    int32_t mode, uint32_t *outNumIntents,
-    int32_t * /*android_render_intent_v1_1_t*/ outIntents) {
-  if (mode != HAL_COLOR_MODE_NATIVE) {
-    return HWC2::Error::BadParameter;
-  }
-
-  if (outIntents == nullptr) {
-    *outNumIntents = 1;
-    return HWC2::Error::None;
-  }
-  *outNumIntents = 1;
-  outIntents[0] = HAL_RENDER_INTENT_COLORIMETRIC;
-  return HWC2::Error::None;
-}
-
-HWC2::Error HwcDisplay::SetColorModeWithIntent(int32_t mode, int32_t intent) {
-  if (intent < HAL_RENDER_INTENT_COLORIMETRIC ||
-      intent > HAL_RENDER_INTENT_TONE_MAP_ENHANCE)
-    return HWC2::Error::BadParameter;
-
-  if (intent != HAL_RENDER_INTENT_COLORIMETRIC)
-    return HWC2::Error::Unsupported;
-
-  auto err = SetColorMode(mode);
-  if (err != HWC2::Error::None) return err;
-
-  return HWC2::Error::None;
-}
-
-#endif /* __ANDROID_API__ > 27 */
 
 const Backend *HwcDisplay::backend() const {
   return backend_.get();

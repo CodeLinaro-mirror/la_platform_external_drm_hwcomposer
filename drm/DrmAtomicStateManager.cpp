@@ -192,17 +192,19 @@ auto DrmAtomicStateManager::CommitFrame(AtomicCommitArgs &args) -> int {
   }
 
   if (args.min_bpc && connector->GetMinBpcProperty()) {
-    int err;
-    uint64_t range_min, range_max = 0;
+    int err = 0;
+    uint64_t range_min = 0;
+    uint64_t range_max = 0;
     std::tie(err, range_min) = connector->GetMinBpcProperty().RangeMin();
-    if (err)
+    if (err != 0)
       return err;
     std::tie(err, range_max) = connector->GetMinBpcProperty().RangeMax();
-    if (err)
+    if (err != 0)
       return err;
 
     // Adjust requested min bpc to be within the property range
-    int32_t min_bpc_val = std::max(args.min_bpc.value(), static_cast<int32_t>(range_min));
+    int32_t min_bpc_val = std::max(args.min_bpc.value(),
+                                   static_cast<int32_t>(range_min));
     min_bpc_val = std::min(min_bpc_val, static_cast<int32_t>(range_max));
     if (!connector->GetMinBpcProperty().AtomicSet(*pset, min_bpc_val))
       return -EINVAL;
