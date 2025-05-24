@@ -172,32 +172,36 @@ void DrmHwc::NotifyDisplayLinkStatus(
                        DisplayStatus::kLinkTrainingFailed);
 }
 
-HWC2::Error DrmHwc::CreateVirtualDisplay(
-    uint32_t width, uint32_t height,
-    int32_t *format,  // NOLINT(readability-non-const-parameter)
-    hwc2_display_t *display) {
-  ALOGI("Creating virtual display %dx%d format %d", width, height, *format);
+std::optional<DisplayHandle> DrmHwc::CreateVirtualDisplay(uint32_t width,
+                                                          uint32_t height) {
+  ALOGI("Creating virtual display %dx%d", width, height);
 
   auto virtual_pipeline = resource_manager_.GetVirtualDisplayPipeline();
   if (!virtual_pipeline)
-    return HWC2::Error::Unsupported;
+    return std::nullopt;
 
-  *display = ++last_display_handle_;
-  auto disp = std::make_unique<HwcDisplay>(*display, /* is_virtual */ true,
-                                           this);
+  DisplayHandle new_display_handle = ++last_display_handle_;
+  auto disp = std::make_unique<HwcDisplay>(new_display_handle,
+                                           /* is_virtual */ true, this);
 
   disp->SetVirtualDisplayResolution(width, height);
   disp->SetPipeline(virtual_pipeline);
-  displays_[*display] = std::move(disp);
-  return HWC2::Error::None;
+  displays_[new_display_handle] = std::move(disp);
+  return new_display_handle;
 }
 
-HWC2::Error DrmHwc::DestroyVirtualDisplay(hwc2_display_t display) {
+bool DrmHwc::DestroyVirtualDisplay(DisplayHandle display) {
   ALOGI("Destroying virtual display %" PRIu64, display);
 
   if (displays_.count(display) == 0) {
     ALOGE("Trying to destroy non-existent display %" PRIu64, display);
-    return HWC2::Error::BadDisplay;
+    return false;
+  }
+
+  if (displays_[display]->GetDisplayType() !=
+      HwcDisplay::DisplayType::kVirtual) {
+    ALOGE("Trying to destroy non-virtual display %" PRIu64, display);
+    return false;
   }
 
   displays_[display]->SetPipeline({});
@@ -211,14 +215,14 @@ HWC2::Error DrmHwc::DestroyVirtualDisplay(hwc2_display_t display) {
   mutex.lock();
 
   displays_.erase(display);
-
-  return HWC2::Error::None;
+  return true;
 }
 
-auto DrmHwc::PullCompositionStats() -> std::map<int64_t, CompositionStats> {
+auto DrmHwc::PullCompositionStats()
+    -> std::map<DisplayHandle, CompositionStats> {
   std::map<int64_t, CompositionStats> stats;
-  for (auto &[display_id, display] : displays_) {
-    stats[static_cast<int64_t>(display_id)] = display->total_stats();
+  for (auto &[display_handle, display] : displays_) {
+    stats[static_cast<int64_t>(display_handle)] = display->total_stats();
   }
   return stats;
 }
@@ -228,11 +232,12 @@ std::string DrmHwc::DumpState() {
 
   output << "-- drm_hwcomposer --\n\n";
 
-  auto callback = [this, &output](int64_t display_id,
+  auto callback = [this, &output](int64_t display_handle,
                                   const CompositionStats &stats,
                                   const CompositionStats &delta) {
-    auto *display = GetDisplay(display_id);
-    ALOGE_IF(display == nullptr, "Display %" PRIu64 " not found", display_id);
+    auto *display = GetDisplay(display_handle);
+    ALOGE_IF(display == nullptr, "Display %" PRIu64 " not found",
+             display_handle);
     if (display) {
       output << DumpDisplayStats(display, stats, delta);
     }
