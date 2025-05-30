@@ -69,8 +69,6 @@ cc_defaults {
 
     cppflags: [
         "-DHAS_LIBDISPLAY_INFO",
-        "-DHWC2_INCLUDE_STRINGIFICATION",
-        "-DHWC2_USE_CPP11",
     ],
 
     cpp_std: "gnu++17",
@@ -112,11 +110,9 @@ filegroup {
         "backend/BackendClient.cpp",
         "backend/BackendManager.cpp",
 
-        "hwc2_device/DrmHwcTwo.cpp",
-        "hwc2_device/HwcDisplay.cpp",
-        "hwc2_device/HwcDisplayConfigs.cpp",
-        "hwc2_device/HwcLayer.cpp",
-        "hwc2_device/hwc2_device.cpp",
+        "hwc/HwcDisplay.cpp",
+        "hwc/HwcDisplayConfigs.cpp",
+        "hwc/HwcLayer.cpp",
 
         "stats/CompositionStats.cpp",
 
@@ -127,12 +123,19 @@ filegroup {
 }
 
 filegroup {
+    name: "drm_hwcomposer_hwc2",
+    srcs: [
+        "hwc2_device/DrmHwcTwo.cpp",
+        "hwc2_device/hwc2_device.cpp",
+    ],
+}
+
+filegroup {
     name: "drm_hwcomposer_hwc3",
     srcs: [
         "hwc3/Composer.cpp",
         "hwc3/ComposerClient.cpp",
         "hwc3/DrmHwcThree.cpp",
-        "hwc3/Utils.cpp",
     ],
 }
 
@@ -167,11 +170,11 @@ cc_defaults {
     ],
 
     defaults: [
+        "android.hardware.graphics.composer3-ndk_shared",
         "hwcomposer.drm_defaults",
     ],
 
     shared_libs: [
-        "android.hardware.graphics.composer3-V4-ndk",
         "libbase",
         "libbinder_ndk",
         "liblog",
@@ -182,11 +185,6 @@ cc_defaults {
         "-DUSE_IMAPPER4_METADATA_API",
         "-Wall",
         "-Werror",
-    ],
-
-    cppflags: [
-        "-DHWC2_INCLUDE_STRINGIFICATION",
-        "-DHWC2_USE_CPP11",
     ],
 }
 

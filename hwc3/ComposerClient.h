@@ -20,7 +20,7 @@
 
 #include "aidl/android/hardware/graphics/composer3/BnComposerClient.h"
 #include "aidl/android/hardware/graphics/composer3/LayerCommand.h"
-#include "hwc2_device/HwcLayer.h"
+#include "hwc/HwcLayer.h"
 #include "hwc3/CommandResultWriter.h"
 #include "hwc3/Utils.h"
 #include "utils/Mutex.h"
@@ -34,6 +34,7 @@ class HwcDisplay;
 }  // namespace android
 
 namespace aidl::android::hardware::graphics::composer3::impl {
+using AidlColorMode = ColorMode;
 
 class DrmHwcThree;
 
@@ -94,7 +95,7 @@ class ComposerClient : public BnComposerClient {
   ndk::ScopedAStatus getReadbackBufferFence(
       int64_t display, ndk::ScopedFileDescriptor* acquire_fence) override;
   ndk::ScopedAStatus getRenderIntents(
-      int64_t display, ColorMode mode,
+      int64_t display, AidlColorMode mode,
       std::vector<RenderIntent>* intents) override;
   ndk::ScopedAStatus getSupportedContentTypes(
       int64_t display, std::vector<ContentType>* types) override;
@@ -116,7 +117,7 @@ class ComposerClient : public BnComposerClient {
   ndk::ScopedAStatus setAutoLowLatencyMode(int64_t display, bool on) override;
   ndk::ScopedAStatus setClientTargetSlotCount(int64_t display,
                                               int32_t count) override;
-  ndk::ScopedAStatus setColorMode(int64_t display, ColorMode mode,
+  ndk::ScopedAStatus setColorMode(int64_t display, AidlColorMode mode,
                                   RenderIntent intent) override;
   ndk::ScopedAStatus setContentType(int64_t display, ContentType type) override;
   ndk::ScopedAStatus setDisplayedContentSamplingEnabled(
@@ -152,34 +153,37 @@ class ComposerClient : public BnComposerClient {
   ndk::ScopedAStatus notifyExpectedPresent(
       int64_t display, const ClockMonotonicTimestamp& expected_present_time,
       int32_t frame_interval_ns) override;
-  ndk::ScopedAStatus startHdcpNegotiation(int64_t display,
-      const AidlHdcpLevels& levels) override;
-
 #endif
 
-  ndk::ScopedAStatus getMaxLayerPictureProfiles(
-      int64_t display, int32_t* maxProfiles) override;
+#if __ANDROID_API__ >= 36
+  ndk::ScopedAStatus startHdcpNegotiation(
+      int64_t display, const drm::HdcpLevels& levels) override;
+  ndk::ScopedAStatus getMaxLayerPictureProfiles(int64_t display,
+                                                int32_t* maxProfiles) override;
   ndk::ScopedAStatus getLuts(int64_t, const std::vector<Buffer>&,
                              std::vector<Luts>* out_luts) override;
+#endif
 
  protected:
   ::ndk::SpAIBinder createBinder() override;
 
  private:
-  hwc3::Error ImportLayerBuffer(int64_t display_id, int64_t layer_id,
+  hwc3::Error ImportLayerBuffer(int64_t display_handle, int64_t layer_id,
                                 const Buffer& buffer,
                                 ::android::HwcLayer::Buffer* out_buffer);
 
   // Layer commands
-  void DispatchLayerCommand(int64_t display_id, const LayerCommand& command);
+  void DispatchLayerCommand(int64_t display_handle,
+                            const LayerCommand& command);
 
   // Display commands
   void ExecuteDisplayCommand(const DisplayCommand& command);
-  void ExecuteSetDisplayClientTarget(uint64_t display_id,
+  void ExecuteSetDisplayClientTarget(int64_t display_handle,
                                      const ClientTarget& command);
-  void ExecuteSetDisplayOutputBuffer(uint64_t display_id, const Buffer& buffer);
+  void ExecuteSetDisplayOutputBuffer(int64_t display_handle,
+                                     const Buffer& buffer);
 
-  ::android::HwcDisplay* GetDisplay(uint64_t display_id);
+  ::android::HwcDisplay* GetDisplay(int64_t display_handle);
 
   std::unique_ptr<CommandResultWriter> cmd_result_writer_;
 
