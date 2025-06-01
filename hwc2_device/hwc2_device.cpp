@@ -17,6 +17,7 @@
 // NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
 // #define LOG_NDEBUG 0 // Uncomment to see HWC2 API calls in logcat
 
+#include "system/graphics-base-v1.1.h"
 #define LOG_TAG "drmhwc"
 
 #include <cassert>
@@ -28,7 +29,8 @@
 
 #include "DrmHwcTwo.h"
 #include "backend/Backend.h"
-#include "hwc2_device/HwcLayer.h"
+#include "compositor/DisplayInfo.h"
+#include "hwc/HwcLayer.h"
 #include "utils/log.h"
 
 namespace android {
@@ -218,7 +220,7 @@ static int32_t DisplayHook(hwc2_device_t *dev, hwc2_display_t display_handle,
         GetFuncName(__PRETTY_FUNCTION__).c_str());
   DrmHwcTwo *hwc = ToDrmHwcTwo(dev);
   const std::unique_lock lock(hwc->GetResMan().GetMainLock());
-  auto *display = hwc->GetDisplay(display_handle);
+  auto *display = hwc->GetDisplay(static_cast<DisplayHandle>(display_handle));
   if (display == nullptr)
     return static_cast<int32_t>(HWC2::Error::BadDisplay);
 
@@ -243,9 +245,9 @@ static void HookDevGetCapabilities(hwc2_device_t * /*dev*/, uint32_t *out_count,
   auto *ihwc = ToDrmHwcTwo(dev); \
   const std::unique_lock lock(ihwc->GetResMan().GetMainLock());
 
-#define GET_DISPLAY(display_id)                  \
-  auto *idisplay = ihwc->GetDisplay(display_id); \
-  if (!idisplay)                                 \
+#define GET_DISPLAY(display_handle)                  \
+  auto *idisplay = ihwc->GetDisplay(display_handle); \
+  if (!idisplay)                                     \
     return static_cast<int32_t>(HWC2::Error::BadDisplay);
 
 #define GET_LAYER(layer_id)                     \
@@ -301,6 +303,37 @@ static int32_t Dump(hwc2_device_t *device, uint32_t *out_size,
   const std::string &new_dump = hwc->RefreshStateDump();
   *out_size = static_cast<uint32_t>(new_dump.size());
   return 0;
+}
+
+static int32_t CreateVirtualDisplay(hwc2_device_t *device, uint32_t width,
+                                    uint32_t height, int32_t * /*format*/,
+                                    hwc2_display_t *out_display_handle) {
+  ALOGV("CreateVirtualDisplay");
+  LOCK_COMPOSER(device);
+  auto display_handle = ihwc->CreateVirtualDisplay(width, height);
+  if (!display_handle) {
+    return static_cast<int32_t>(HWC2::Error::Unsupported);
+  }
+
+  *out_display_handle = display_handle.value();
+  return 0;
+}
+
+static int32_t DestroyVirtualDisplay(hwc2_device_t *device,
+                                     hwc2_display_t display) {
+  ALOGV("DestroyVirtualDisplay");
+  LOCK_COMPOSER(device);
+  GET_DISPLAY(display);
+  if (!ihwc->DestroyVirtualDisplay(static_cast<DisplayHandle>(display))) {
+    return static_cast<int32_t>(HWC2::Error::BadParameter);
+  }
+  return 0;
+}
+
+static int32_t GetMaxVirtualDisplayCount(hwc2_device_t *device) {
+  ALOGV("GetMaxVirtualDisplayCount");
+  LOCK_COMPOSER(device);
+  return static_cast<int32_t>(ihwc->GetMaxVirtualDisplayCount());
 }
 
 /* Display functions */
@@ -438,6 +471,24 @@ static int32_t SetClientTarget(hwc2_device_t *device, hwc2_display_t display,
   return 0;
 }
 
+static int32_t GetColorModes(hwc2_device_t *device, hwc2_display_t display,
+                             uint32_t *num_modes, int32_t *out_modes) {
+  ALOGV("GetColorModes");
+  LOCK_COMPOSER(device);
+  GET_DISPLAY(display);
+
+  const std::vector<ColorMode> modes = idisplay->GetColorModes();
+  if (modes.empty())
+    return static_cast<int32_t>(HWC2::Error::BadConfig);
+
+  for (uint32_t i = 0; i < modes.size(); ++i) {
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic):
+    out_modes[i] = static_cast<int32_t>(modes[i]);
+  }
+  *num_modes = modes.size();
+  return 0;
+}
+
 static int32_t GetDisplayAttribute(hwc2_device_t *device,
                                    hwc2_display_t display, hwc2_config_t config,
                                    int32_t attribute, int32_t *value) {
@@ -445,7 +496,7 @@ static int32_t GetDisplayAttribute(hwc2_device_t *device,
   LOCK_COMPOSER(device);
   GET_DISPLAY(display);
 
-  const auto* hwc_config = idisplay->GetConfig(config);
+  const auto *hwc_config = idisplay->GetConfig(static_cast<ConfigId>(config));
 
   if (hwc_config == nullptr) {
     ALOGE("Could not find mode #%d", config);
@@ -548,6 +599,64 @@ static int32_t GetDisplayName(hwc2_device_t *device, hwc2_display_t display,
   strncpy(name, name_str.c_str(), *size);
   return 0;
 }
+
+static int32_t SetColorMode(hwc2_device_t *device, hwc2_display_t display, int32_t mode) {
+  ALOGV("SetColorMode");
+  if (mode < HAL_COLOR_MODE_NATIVE || mode > HAL_COLOR_MODE_DISPLAY_BT2020)
+    return static_cast<int32_t>(HWC2::Error::BadParameter);
+
+  // HDR color modes should be requested during modeset
+  if (mode == HAL_COLOR_MODE_DISPLAY_BT2020 ||
+      mode == HAL_COLOR_MODE_ADOBE_RGB ||
+      mode == HAL_COLOR_MODE_BT2020 ||
+      mode == HAL_COLOR_MODE_BT2100_PQ ||
+      mode == HAL_COLOR_MODE_BT2100_HLG) {
+    return static_cast<int32_t>(HWC2::Error::Unsupported);
+  }
+
+  LOCK_COMPOSER(device);
+  GET_DISPLAY(display);
+
+  // Values for color modes match across HWC versions, so static cast is safe:
+  // https://android.googlesource.com/platform/hardware/interfaces/+/refs/heads/main/graphics/composer/aidl/android/hardware/graphics/composer3/ColorMode.aidl
+  // https://cs.android.com/android/platform/superproject/main/+/main:system/core/libsystem/include/system/graphics-base-v1.0.h;drc=7d940ae4afa450696afa25e07982f3a95e17e9b2;l=118
+  // https://cs.android.com/android/platform/superproject/main/+/main:system/core/libsystem/include/system/graphics-base-v1.1.h;drc=7d940ae4afa450696afa25e07982f3a95e17e9b2;l=35
+  idisplay->SetColorMode(static_cast<ColorMode>(mode));
+  return 0;
+}
+
+static int32_t SetColorTransform(hwc2_device_t *device, hwc2_display_t display,
+                                 const float *matrix, int32_t hint) {
+  ALOGV("SetColorTransform");
+  if (hint < HAL_COLOR_TRANSFORM_IDENTITY ||
+      hint > HAL_COLOR_TRANSFORM_CORRECT_TRITANOPIA) {
+    return static_cast<int32_t>(HWC2::Error::BadParameter);
+  }
+
+  if (hint != HAL_COLOR_TRANSFORM_ARBITRARY_MATRIX &&
+      hint != HAL_COLOR_TRANSFORM_IDENTITY) {
+    return static_cast<int32_t>(HWC2::Error::Unsupported);
+  }
+
+  LOCK_COMPOSER(device);
+  GET_DISPLAY(display);
+
+  if (matrix == nullptr) {
+    if (hint == HAL_COLOR_TRANSFORM_IDENTITY) {
+      idisplay->SetColorTransformMatrix(kIdentityMatrix);
+      return 0;
+    }
+
+    return static_cast<int32_t>(HWC2::Error::BadParameter);
+  }
+
+  std::array<float, kColorMatrixSize> aidl_matrix = kIdentityMatrix;
+  memcpy(aidl_matrix.data(), matrix, aidl_matrix.size() * sizeof(float));
+  idisplay->SetColorTransformMatrix(aidl_matrix);
+
+  return 0;
+}
+
 static int32_t SetOutputBuffer(hwc2_device_t *device, hwc2_display_t display,
                                buffer_handle_t buffer, int32_t release_fence) {
   ALOGV("SetOutputBuffer");
@@ -588,6 +697,40 @@ static int32_t AcceptDisplayChanges(hwc2_device_t *device,
   GET_DISPLAY(display);
 
   idisplay->AcceptValidatedComposition();
+
+  return 0;
+}
+
+static int32_t GetHdrCapabilities(hwc2_device_t *device, hwc2_display_t display,
+                                  uint32_t *num_types, int32_t *types,
+                                  float *max_luminance,
+                                  float *max_average_luminance,
+                                  float *min_luminance) {
+  ALOGV("GetHdrCapabilities");
+  LOCK_COMPOSER(device);
+  GET_DISPLAY(display);
+
+  std::vector<ui::Hdr> temp_types;
+  idisplay->GetHdrCapabilities(&temp_types, max_luminance,
+                               max_average_luminance, min_luminance);
+  uint32_t i = 0;
+  for (auto &t : temp_types) {
+    switch (t) {
+      case ui::Hdr::HDR10:
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic):
+        types[i++] = HAL_HDR_HDR10;
+        break;
+      case ui::Hdr::HLG:
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic):
+        types[i++] = HAL_HDR_HLG;
+        break;
+      default:
+        // Ignore any other HDR types
+        break;
+    }
+  }
+
+  *num_types = i;
 
   return 0;
 }
@@ -734,7 +877,7 @@ static int32_t SetActiveConfig(hwc2_device_t *device, hwc2_display_t display,
   GET_DISPLAY(display);
 
   QueuedConfigTiming out_timing{};
-  auto result = idisplay->QueueConfig(config,
+  auto result = idisplay->QueueConfig(static_cast<ConfigId>(config),
                                       ResourceManager::GetTimeMonotonicNs(),
                                       false, &out_timing);
   return ConfigErrorToHWC2(result);
@@ -755,6 +898,36 @@ static int32_t SetDisplayBrightness(hwc2_device_t * /*device*/,
                                     float /*brightness*/) {
   ALOGV("SetDisplayBrightness");
   return static_cast<int32_t>(HWC2::Error::Unsupported);
+}
+
+static int32_t GetRenderIntents(hwc2_device_t * /*device*/,
+                                hwc2_display_t /*display*/, int32_t mode,
+                                uint32_t *num_intents, int32_t *intents) {
+  ALOGV("GetRenderIntents");
+
+  if (mode < HAL_COLOR_MODE_NATIVE || mode > HAL_COLOR_MODE_DISPLAY_BT2020)
+    return static_cast<int32_t>(HWC2::Error::BadParameter);
+
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic):
+  intents[0] = static_cast<int32_t>(HAL_RENDER_INTENT_COLORIMETRIC);
+  *num_intents = 1;
+
+  return 0;
+}
+
+static int32_t SetColorModeWithRenderIntent(hwc2_device_t *device,
+                                            hwc2_display_t display,
+                                            int32_t mode, int32_t intent) {
+  ALOGV("SetColorModeWithRenderIntent");
+  if (mode < HAL_RENDER_INTENT_COLORIMETRIC ||
+      mode > HAL_RENDER_INTENT_TONE_MAP_ENHANCE) {
+    return static_cast<int32_t>(HWC2::Error::BadParameter);
+  }
+
+  if (intent != HAL_RENDER_INTENT_COLORIMETRIC)
+    return static_cast<int32_t>(HWC2::Error::Unsupported);
+
+  return SetColorMode(device, display, mode);
 }
 
 static int32_t GetDisplayIdentificationData(hwc2_device_t *device,
@@ -863,7 +1036,7 @@ static int32_t SetActiveConfigWithConstraints(
   }
 
   QueuedConfigTiming out_timing{};
-  auto result = idisplay->QueueConfig(config,
+  auto result = idisplay->QueueConfig(static_cast<ConfigId>(config),
                                       vsync_period_change_constraints
                                           ->desiredTimeNanos,
                                       false, &out_timing);
@@ -1160,20 +1333,13 @@ static hwc2_function_pointer_t HookDevGetFunction(struct hwc2_device * /*dev*/,
   switch (func) {
     // Device functions
     case HWC2::FunctionDescriptor::CreateVirtualDisplay:
-      return ToHook<HWC2_PFN_CREATE_VIRTUAL_DISPLAY>(
-          DeviceHook<int32_t, decltype(&DrmHwcTwo::CreateVirtualDisplay),
-                     &DrmHwcTwo::CreateVirtualDisplay, uint32_t, uint32_t,
-                     int32_t *, hwc2_display_t *>);
+      return (hwc2_function_pointer_t)CreateVirtualDisplay;
     case HWC2::FunctionDescriptor::DestroyVirtualDisplay:
-      return ToHook<HWC2_PFN_DESTROY_VIRTUAL_DISPLAY>(
-          DeviceHook<int32_t, decltype(&DrmHwcTwo::DestroyVirtualDisplay),
-                     &DrmHwcTwo::DestroyVirtualDisplay, hwc2_display_t>);
+      return (hwc2_function_pointer_t)DestroyVirtualDisplay;
     case HWC2::FunctionDescriptor::Dump:
       return (hwc2_function_pointer_t)Dump;
     case HWC2::FunctionDescriptor::GetMaxVirtualDisplayCount:
-      return ToHook<HWC2_PFN_GET_MAX_VIRTUAL_DISPLAY_COUNT>(
-          DeviceHook<uint32_t, decltype(&DrmHwcTwo::GetMaxVirtualDisplayCount),
-                     &DrmHwcTwo::GetMaxVirtualDisplayCount>);
+      return (hwc2_function_pointer_t)GetMaxVirtualDisplayCount;
     case HWC2::FunctionDescriptor::RegisterCallback:
       return ToHook<HWC2_PFN_REGISTER_CALLBACK>(
           DeviceHook<int32_t, decltype(&DrmHwcTwo::RegisterCallback),
@@ -1194,9 +1360,7 @@ static hwc2_function_pointer_t HookDevGetFunction(struct hwc2_device * /*dev*/,
     case HWC2::FunctionDescriptor::GetClientTargetSupport:
       return (hwc2_function_pointer_t)GetClientTargetSupport;
     case HWC2::FunctionDescriptor::GetColorModes:
-      return ToHook<HWC2_PFN_GET_COLOR_MODES>(
-          DisplayHook<decltype(&HwcDisplay::GetColorModes),
-                      &HwcDisplay::GetColorModes, uint32_t *, int32_t *>);
+      return (hwc2_function_pointer_t)GetColorModes;
     case HWC2::FunctionDescriptor::GetDisplayAttribute:
       return (hwc2_function_pointer_t)GetDisplayAttribute;
     case HWC2::FunctionDescriptor::GetDisplayConfigs:
@@ -1210,10 +1374,7 @@ static hwc2_function_pointer_t HookDevGetFunction(struct hwc2_device * /*dev*/,
     case HWC2::FunctionDescriptor::GetDozeSupport:
       return (hwc2_function_pointer_t)GetDozeSupport;
     case HWC2::FunctionDescriptor::GetHdrCapabilities:
-      return ToHook<HWC2_PFN_GET_HDR_CAPABILITIES>(
-          DisplayHook<decltype(&HwcDisplay::GetHdrCapabilities),
-                      &HwcDisplay::GetHdrCapabilities, uint32_t *, int32_t *,
-                      float *, float *, float *>);
+      return (hwc2_function_pointer_t)GetHdrCapabilities;
     case HWC2::FunctionDescriptor::GetReleaseFences:
       return (hwc2_function_pointer_t)GetReleaseFences;
     case HWC2::FunctionDescriptor::PresentDisplay:
@@ -1223,13 +1384,9 @@ static hwc2_function_pointer_t HookDevGetFunction(struct hwc2_device * /*dev*/,
     case HWC2::FunctionDescriptor::SetClientTarget:
       return (hwc2_function_pointer_t)SetClientTarget;
     case HWC2::FunctionDescriptor::SetColorMode:
-      return ToHook<HWC2_PFN_SET_COLOR_MODE>(
-          DisplayHook<decltype(&HwcDisplay::SetColorMode),
-                      &HwcDisplay::SetColorMode, int32_t>);
+      return (hwc2_function_pointer_t)SetColorMode;
     case HWC2::FunctionDescriptor::SetColorTransform:
-      return ToHook<HWC2_PFN_SET_COLOR_TRANSFORM>(
-          DisplayHook<decltype(&HwcDisplay::SetColorTransform),
-                      &HwcDisplay::SetColorTransform, const float *, int32_t>);
+      return (hwc2_function_pointer_t)SetColorTransform;
     case HWC2::FunctionDescriptor::SetOutputBuffer:
       return (hwc2_function_pointer_t)SetOutputBuffer;
     case HWC2::FunctionDescriptor::SetPowerMode:
@@ -1240,14 +1397,9 @@ static hwc2_function_pointer_t HookDevGetFunction(struct hwc2_device * /*dev*/,
       return (hwc2_function_pointer_t)ValidateDisplay;
 #if __ANDROID_API__ > 27
     case HWC2::FunctionDescriptor::GetRenderIntents:
-      return ToHook<HWC2_PFN_GET_RENDER_INTENTS>(
-          DisplayHook<decltype(&HwcDisplay::GetRenderIntents),
-                      &HwcDisplay::GetRenderIntents, int32_t, uint32_t *,
-                      int32_t *>);
+      return (hwc2_function_pointer_t)GetRenderIntents;
     case HWC2::FunctionDescriptor::SetColorModeWithRenderIntent:
-      return ToHook<HWC2_PFN_SET_COLOR_MODE_WITH_RENDER_INTENT>(
-          DisplayHook<decltype(&HwcDisplay::SetColorModeWithIntent),
-                      &HwcDisplay::SetColorModeWithIntent, int32_t, int32_t>);
+      return (hwc2_function_pointer_t)SetColorModeWithRenderIntent;
 #endif
 #if __ANDROID_API__ > 28
     case HWC2::FunctionDescriptor::GetDisplayIdentificationData:
