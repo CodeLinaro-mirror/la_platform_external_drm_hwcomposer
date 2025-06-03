@@ -42,13 +42,6 @@ class HwcLayer {
     int32_t slot_id;
     SharedFd fence;
   };
-  enum class CompositionType {
-    kInvalid,
-    kClient,
-    kDevice,
-    kSolidColor,
-    kCursor
-  };
   // A set of properties to be validated.
   struct LayerProperties {
     std::optional<Buffer> slot_buffer;

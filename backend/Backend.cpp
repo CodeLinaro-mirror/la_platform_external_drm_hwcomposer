@@ -31,7 +31,7 @@ HwcLayer *GetCursorLayer(const std::vector<HwcLayer *> &layers) {
   auto it = std::find_if(layers.begin(), layers.end(),
                          [&](auto *layer) -> bool {
                            return layer->GetSfType() ==
-                                  HwcLayer::CompositionType::kCursor;
+                                  CompositionType::kCursor;
                          });
   if (it == layers.end()) {
     return nullptr;
@@ -148,9 +148,9 @@ bool Backend::IsClientLayer(HwcDisplay *display, HwcLayer *layer) {
           display->GetHwc()->GetResMan().ForcedScalingWithGpu());
 }
 
-bool Backend::HardwareSupportsLayerType(HwcLayer::CompositionType comp_type) {
-  return comp_type == HwcLayer::CompositionType::kDevice ||
-         comp_type == HwcLayer::CompositionType::kCursor;
+bool Backend::HardwareSupportsLayerType(CompositionType comp_type) {
+  return comp_type == CompositionType::kDevice ||
+         comp_type == CompositionType::kCursor;
 }
 
 uint32_t Backend::CalcPixOps(const std::vector<HwcLayer *> &layers,
@@ -179,12 +179,12 @@ void Backend::MarkValidated(std::vector<HwcLayer *> &layers,
                             bool use_cursor_plane) {
   for (size_t z_order = 0; z_order < layers.size(); ++z_order) {
     if (z_order >= client_first_z && z_order < client_first_z + client_size) {
-      layers[z_order]->SetValidatedType(HwcLayer::CompositionType::kClient);
-    } else if (use_cursor_plane && layers[z_order]->GetSfType() ==
-                                       HwcLayer::CompositionType::kCursor) {
-      layers[z_order]->SetValidatedType(HwcLayer::CompositionType::kCursor);
+      layers[z_order]->SetValidatedType(CompositionType::kClient);
+    } else if (use_cursor_plane &&
+               layers[z_order]->GetSfType() == CompositionType::kCursor) {
+      layers[z_order]->SetValidatedType(CompositionType::kCursor);
     } else {
-      layers[z_order]->SetValidatedType(HwcLayer::CompositionType::kDevice);
+      layers[z_order]->SetValidatedType(CompositionType::kDevice);
     }
   }
 }
@@ -198,8 +198,8 @@ std::tuple<int, int> Backend::GetExtraClientRange(
   // Cursor plane is not counted among |avail_planes|, so the cursor layer
   // shouldn't be counted in |layers_size|.
   if (use_cursor_plane) {
-    ALOGE_IF(layers.empty() || layers.back()->GetSfType() !=
-                                   HwcLayer::CompositionType::kCursor,
+    ALOGE_IF(layers.empty() ||
+                 layers.back()->GetSfType() != CompositionType::kCursor,
              "Cursor layer was not found at highest z-order");
     --layers_size;
   }
@@ -213,7 +213,7 @@ std::tuple<int, int> Backend::GetExtraClientRange(
   // If the cursor plane isn't being used, reserve a plane for the cursor to be
   // device composited.
   if (!use_cursor_plane && avail_planes > 0 && layers_size > 0 &&
-      layers.back()->GetSfType() == HwcLayer::CompositionType::kCursor) {
+      layers.back()->GetSfType() == CompositionType::kCursor) {
     avail_planes--;
     layers_size--;
   }

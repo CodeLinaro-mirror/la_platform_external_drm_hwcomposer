@@ -32,7 +32,7 @@ class Backend {
   virtual bool IsClientLayer(HwcDisplay *display, HwcLayer *layer);
 
  protected:
-  static bool HardwareSupportsLayerType(HwcLayer::CompositionType comp_type);
+  static bool HardwareSupportsLayerType(CompositionType comp_type);
   static uint32_t CalcPixOps(const std::vector<HwcLayer *> &layers,
                              size_t first_z, size_t size,
                              std::pair<uint32_t, uint32_t> display_size);
