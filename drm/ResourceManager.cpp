@@ -83,18 +83,7 @@ void ResourceManager::Init() {
 
   scale_with_gpu_ = Properties::ScaleWithGpu();
 
-  char proptext[PROPERTY_VALUE_MAX];
-  constexpr char kDrmOrGpu[] = "DRM_OR_GPU";
-  constexpr char kDrmOrIgnore[] = "DRM_OR_IGNORE";
-  property_get("vendor.hwc.drm.ctm", proptext, kDrmOrGpu);
-  if (strncmp(proptext, kDrmOrGpu, sizeof(kDrmOrGpu)) == 0) {
-    ctm_handling_ = CtmHandling::kDrmOrGpu;
-  } else if (strncmp(proptext, kDrmOrIgnore, sizeof(kDrmOrIgnore)) == 0) {
-    ctm_handling_ = CtmHandling::kDrmOrIgnore;
-  } else {
-    ALOGE("Invalid value for vendor.hwc.drm.ctm: %s", proptext);
-    ctm_handling_ = CtmHandling::kDrmOrGpu;
-  }
+  ctm_handling_ = Properties::GetCtmHandling();
 
   if (BufferInfoGetter::GetInstance() == nullptr) {
     ALOGE("Failed to initialize BufferInfoGetter");

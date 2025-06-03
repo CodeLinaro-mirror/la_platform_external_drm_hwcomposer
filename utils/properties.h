@@ -74,9 +74,15 @@ auto inline property_get_bool(const char *key, int8_t default_value) -> int8_t {
 
 #endif
 
+#include <optional>
 #include <string>
 
 namespace android {
+
+enum class CtmHandling {
+  kDrmOrGpu,    /* Handled by DRM is possible, otherwise by GPU */
+  kDrmOrIgnore, /* Handled by DRM is possible, otherwise displayed as is */
+};
 
 class Properties {
  public:
@@ -86,6 +92,7 @@ class Properties {
   static auto UseOverlayPlanes() -> bool;
   static auto ScaleWithGpu() -> bool;
   static auto EnableVirtualDisplay() -> bool;
+  static auto GetCtmHandling() -> CtmHandling;
 };
 
 }  // namespace android

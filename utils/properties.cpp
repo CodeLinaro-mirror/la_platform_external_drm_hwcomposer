@@ -15,8 +15,12 @@
  */
 
 #include "properties.h"
-#include <android-base/properties.h>
+
 #include <string>
+
+#include <android-base/properties.h>
+
+#include "utils/log.h"
 
 namespace android {
 
@@ -50,6 +54,24 @@ auto Properties::ScaleWithGpu() -> bool {
 
 auto Properties::EnableVirtualDisplay() -> bool {
   return (property_get_bool("vendor.hwc.drm.enable_virtual_display", 0) != 0);
+}
+
+auto Properties::GetCtmHandling() -> CtmHandling {
+  char proptext[PROPERTY_VALUE_MAX];
+  constexpr char kDrmOrGpu[] = "DRM_OR_GPU";
+  constexpr char kDrmOrIgnore[] = "DRM_OR_IGNORE";
+  property_get("vendor.hwc.drm.ctm", proptext, "");
+  if (strncmp(proptext, kDrmOrGpu, sizeof(kDrmOrGpu)) == 0) {
+    return CtmHandling::kDrmOrGpu;
+  }
+  if (strncmp(proptext, kDrmOrIgnore, sizeof(kDrmOrIgnore)) == 0) {
+    return CtmHandling::kDrmOrIgnore;
+  }
+
+  ALOGE_IF(proptext[0] != '\0', "Invalid value for vendor.hwc.drm.ctm: %s",
+           proptext);
+  // Default value.
+  return CtmHandling::kDrmOrGpu;
 }
 
 }  // namespace android
