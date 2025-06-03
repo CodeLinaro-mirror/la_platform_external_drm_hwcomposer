@@ -80,4 +80,12 @@ auto Properties::GetBackendOverride() -> std::string {
   return {backend_override};
 }
 
+auto Properties::GetDevicePath() -> std::string {
+  char path_pattern[PROPERTY_VALUE_MAX];
+  // Could be a valid path or it can have at the end of it the wildcard %
+  // which means that it will try open all devices until an error is met.
+  property_get("vendor.hwc.drm.device", path_pattern, "");
+  return {path_pattern};
+}
+
 }  // namespace android

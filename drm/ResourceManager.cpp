@@ -50,18 +50,19 @@ void ResourceManager::Init() {
     return;
   }
 
-  char path_pattern[PROPERTY_VALUE_MAX];
   // Could be a valid path or it can have at the end of it the wildcard %
   // which means that it will try open all devices until an error is met.
-  auto path_len = property_get("vendor.hwc.drm.device", path_pattern,
-                               "/dev/dri/card%");
-  if (path_pattern[path_len - 1] != '%') {
+  std::string path_pattern = Properties::GetDevicePath();
+  if (path_pattern.empty()) {
+    path_pattern = "/dev/dri/card%";
+  }
+  if (path_pattern.back() != '%') {
     auto dev = DrmDevice::CreateInstance(path_pattern, this, 0);
     if (dev) {
       drms_.emplace_back(std::move(dev));
     }
   } else {
-    path_pattern[path_len - 1] = '\0';
+    path_pattern.resize(path_pattern.size() - 1);
     for (int idx = 0;; ++idx) {
       std::ostringstream path;
       path << path_pattern << idx;

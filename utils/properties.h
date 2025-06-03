@@ -94,6 +94,7 @@ class Properties {
   static auto EnableVirtualDisplay() -> bool;
   static auto GetCtmHandling() -> CtmHandling;
   static auto GetBackendOverride() -> std::string;
+  static auto GetDevicePath() -> std::string;
 };
 
 }  // namespace android
