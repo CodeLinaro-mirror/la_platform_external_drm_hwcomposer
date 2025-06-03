@@ -315,7 +315,12 @@ auto HwcDisplay::ValidateStagedComposition() -> std::vector<ChangedLayer> {
 
   // ValidateDisplay modifies the composition type in layers_ which can be
   // checked to see which layers' composition strategies have changed.
-  backend_->ValidateDisplay(this);
+  auto result = backend_->ValidateDisplay(this);
+
+  // Set the validated type
+  for (auto &[layer, type] : result) {
+    layer->SetValidatedType(type);
+  }
 
   // Iterate through the layers to find which layers actually changed.
   std::vector<ChangedLayer> changed_layers;
@@ -372,8 +377,13 @@ auto HwcDisplay::PresentStagedComposition(
     WaitForPresentTime(desired_present_time.value(), vperiod_ns);
   }
 
+  Backend::CompositionTypeMap composition;
+  for (auto &l : layers_) {
+    composition.emplace(&l.second, l.second.GetValidatedType());
+  }
+
   AtomicCommitArgs a_args{};
-  if (!CreateComposition(a_args)) {
+  if (!CreateComposition(a_args, composition)) {
     ++total_stats_.failed_kms_present;
     return false;
   }
@@ -760,7 +770,8 @@ uint32_t HwcDisplay::GetCurrentVsyncPeriodNs() const {
 }
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
-bool HwcDisplay::CreateComposition(AtomicCommitArgs &a_args) {
+bool HwcDisplay::CreateComposition(
+    AtomicCommitArgs &a_args, const Backend::CompositionTypeMap &composition) {
   if (IsInHeadlessMode()) {
     ALOGE("%s: Display is in headless mode, should never reach here", __func__);
     return true;
@@ -797,7 +808,10 @@ bool HwcDisplay::CreateComposition(AtomicCommitArgs &a_args) {
   std::map<uint32_t, HwcLayer *> z_map;
   std::optional<LayerData> cursor_layer = std::nullopt;
   for (auto &[_, layer] : layers_) {
-    switch (layer.GetValidatedType()) {
+    auto it = composition.find(&layer);
+    CompositionType type = it != composition.end() ? it->second
+                                                   : CompositionType::kInvalid;
+    switch (type) {
       case CompositionType::kDevice:
         z_map.emplace(layer.GetZOrder(), &layer);
         break;
@@ -817,8 +831,7 @@ bool HwcDisplay::CreateComposition(AtomicCommitArgs &a_args) {
         break;
       case CompositionType::kSolidColor:
       case CompositionType::kInvalid:
-        ALOGE("Invalid layer type: %d",
-              static_cast<int>(layer.GetValidatedType()));
+        ALOGE("Invalid layer type: %d", static_cast<int>(type));
         continue;
     }
   }

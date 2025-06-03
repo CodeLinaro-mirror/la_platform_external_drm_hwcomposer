@@ -22,6 +22,7 @@
 #include "BackendManager.h"
 #include "bufferinfo/BufferInfoGetter.h"
 #include "drm/DrmHwc.h"
+#include "hwc/HwcDisplay.h"
 
 namespace android {
 
@@ -51,7 +52,7 @@ std::pair<uint32_t, uint32_t> GetDisplaySize(const HwcDisplay *display) {
 
 }  // namespace
 
-void Backend::ValidateDisplay(HwcDisplay *display) {
+auto Backend::ValidateDisplay(HwcDisplay *display) -> CompositionTypeMap {
   auto layers = display->GetOrderLayersByZPos();
 
   auto flatcon = display->GetFlatCon();
@@ -64,8 +65,8 @@ void Backend::ValidateDisplay(HwcDisplay *display) {
 
     if (should_flatten) {
       display->total_stats().frames_flattened++;
-      MarkValidated(layers, 0, layers.size(), /*use_cursor_plane=*/false);
-      return;
+      return MarkValidated(layers, 0, layers.size(),
+                           /*use_cursor_plane=*/false);
     }
   }
 
@@ -77,19 +78,21 @@ void Backend::ValidateDisplay(HwcDisplay *display) {
                           !IsClientLayer(display, cursor_layer) &&
                           cursor_plane->Get()->IsValidForLayer(
                               &cursor_layer->GetLayerData());
+  CompositionTypeMap composition_types;
 
   // Validates layers and creates a test composition, returning whether it
   // succeeded.
   auto validate_and_test = [&]() -> bool {
     std::tie(client_start, client_size) = GetClientLayers(display, layers,
                                                           use_cursor_plane);
-    MarkValidated(layers, client_start, client_size, use_cursor_plane);
+    composition_types = MarkValidated(layers, client_start, client_size,
+                                      use_cursor_plane);
 
     bool testing_needed = client_start != 0 || client_size != layers.size();
     AtomicCommitArgs a_args = {.test_only = true};
 
     if (testing_needed) {
-      return display->CreateComposition(a_args);
+      return display->CreateComposition(a_args, composition_types);
     }
 
     return true;
@@ -110,7 +113,8 @@ void Backend::ValidateDisplay(HwcDisplay *display) {
     ++display->total_stats().failed_kms_validate;
     client_start = 0;
     client_size = layers.size();
-    MarkValidated(layers, client_start, client_size, use_cursor_plane);
+    composition_types = MarkValidated(layers, client_start, client_size,
+                                      use_cursor_plane);
   }
 
   display->total_stats().gpu_pixops += CalcPixOps(layers, client_start,
@@ -121,6 +125,7 @@ void Backend::ValidateDisplay(HwcDisplay *display) {
   if (use_cursor_plane) {
     ++display->total_stats().cursor_plane_frames;
   }
+  return composition_types;
 }
 
 std::tuple<int, size_t> Backend::GetClientLayers(
@@ -174,19 +179,21 @@ uint32_t Backend::CalcPixOps(const std::vector<HwcLayer *> &layers,
   return pixops;
 }
 
-void Backend::MarkValidated(std::vector<HwcLayer *> &layers,
+auto Backend::MarkValidated(std::vector<HwcLayer *> &layers,
                             size_t client_first_z, size_t client_size,
-                            bool use_cursor_plane) {
+                            bool use_cursor_plane) -> CompositionTypeMap {
+  CompositionTypeMap composition_types;
   for (size_t z_order = 0; z_order < layers.size(); ++z_order) {
     if (z_order >= client_first_z && z_order < client_first_z + client_size) {
-      layers[z_order]->SetValidatedType(CompositionType::kClient);
+      composition_types[layers[z_order]] = CompositionType::kClient;
     } else if (use_cursor_plane &&
                layers[z_order]->GetSfType() == CompositionType::kCursor) {
-      layers[z_order]->SetValidatedType(CompositionType::kCursor);
+      composition_types[layers[z_order]] = CompositionType::kCursor;
     } else {
-      layers[z_order]->SetValidatedType(CompositionType::kDevice);
+      composition_types[layers[z_order]] = CompositionType::kDevice;
     }
   }
+  return composition_types;
 }
 
 std::tuple<int, int> Backend::GetExtraClientRange(
