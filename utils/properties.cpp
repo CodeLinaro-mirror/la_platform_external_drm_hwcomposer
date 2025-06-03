@@ -74,4 +74,10 @@ auto Properties::GetCtmHandling() -> CtmHandling {
   return CtmHandling::kDrmOrGpu;
 }
 
+auto Properties::GetBackendOverride() -> std::string {
+  char backend_override[PROPERTY_VALUE_MAX];
+  property_get("vendor.hwc.backend_override", backend_override, "");
+  return {backend_override};
+}
+
 }  // namespace android

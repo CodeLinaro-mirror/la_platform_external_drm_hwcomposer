@@ -93,6 +93,7 @@ class Properties {
   static auto ScaleWithGpu() -> bool;
   static auto EnableVirtualDisplay() -> bool;
   static auto GetCtmHandling() -> CtmHandling;
+  static auto GetBackendOverride() -> std::string;
 };
 
 }  // namespace android
