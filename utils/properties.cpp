@@ -18,6 +18,8 @@
 #include <android-base/properties.h>
 #include <string>
 
+namespace android {
+
 /**
  * @brief Determine if the "Present Not Reliable" property is enabled.
  *
@@ -49,3 +51,5 @@ auto Properties::ScaleWithGpu() -> bool {
 auto Properties::EnableVirtualDisplay() -> bool {
   return (property_get_bool("vendor.hwc.drm.enable_virtual_display", 0) != 0);
 }
+
+}  // namespace android

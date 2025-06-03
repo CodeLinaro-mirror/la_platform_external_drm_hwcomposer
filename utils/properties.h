@@ -76,6 +76,8 @@ auto inline property_get_bool(const char *key, int8_t default_value) -> int8_t {
 
 #include <string>
 
+namespace android {
+
 class Properties {
  public:
   static auto IsPresentFenceNotReliable() -> bool;
@@ -85,3 +87,5 @@ class Properties {
   static auto ScaleWithGpu() -> bool;
   static auto EnableVirtualDisplay() -> bool;
 };
+
+}  // namespace android
