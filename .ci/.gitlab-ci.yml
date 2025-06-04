@@ -35,8 +35,6 @@ debian/x86_64_cuttlefish:
   extends:
     - .fdo.container-build@ubuntu
     - .container
-  variables:
-    FDO_DISTRIBUTION_VERSION: "24.10"
 
 ubuntu/x86_64_aospless:
   extends:
@@ -56,6 +54,7 @@ ubuntu/x86_64_android:
     ANDROID_CTS_MODULES: >-
       CtsGraphicsTestCases
       CtsDisplayTestCases
+    FDO_DISTRIBUTION_VERSION: "22.04"
     FDO_DISTRIBUTION_EXEC: 'bash .ci/container/ubuntu/x86_64_android.sh'
     HWC_TAG: $UBUNTU_ANDROID_TAG
   after_script:
