@@ -39,7 +39,7 @@ section_end install_packages
 # Build and install Debian package for cuttlefish
 section_start get_cuttlefish_packages "get_cuttlefish_packages"
 set -x
-ANDROID_CUTTLEFISH_VERSION=v1.0.1
+ANDROID_CUTTLEFISH_VERSION=v1.5.0
 mkdir /android-cuttlefish
 pushd /android-cuttlefish
 git init
@@ -113,4 +113,5 @@ set +x
 section_end build_vts
 
 # clean up
+rm "/root/.cache" -rf
 rm "${TOP}" -rf
