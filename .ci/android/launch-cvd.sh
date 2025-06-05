@@ -28,7 +28,6 @@ function my_atexit()
 
 # Cuttlefish is an artifact built earlier in the pipeline
 tar xf "${CI_PROJECT_DIR}/${CUTTLEFISH_TARBALL}" -C /
-cp -r "/cuttlefish/cvd-host_package/." /cuttlefish
 
 export PATH=/cuttlefish/bin:/android-tools/android-cts/jdk/bin/:/android-tools/build-tools:$PATH
 

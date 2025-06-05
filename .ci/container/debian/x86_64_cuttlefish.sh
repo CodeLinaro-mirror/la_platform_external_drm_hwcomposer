@@ -200,8 +200,7 @@ PHONE_FILES=(
 );
 
 for file in "${PHONE_FILES[@]}"; do cp -v "$file" "${CUTTLEFISH_DIR}/"; done;
-cd "${TOP}"
-cp -r  "${TOP}/out/host/linux-x86/cvd-host_package" "${CUTTLEFISH_DIR}"
+cp -r  "${TOP}/out/host/linux-x86/cvd-host_package/." "${CUTTLEFISH_DIR}"
 
 : "${CUTTLEFISH_TARBALL:?CUTTLEFISH_TARBALL is not set}"
 
