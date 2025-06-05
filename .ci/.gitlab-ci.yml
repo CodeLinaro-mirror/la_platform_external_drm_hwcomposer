@@ -42,6 +42,7 @@ ubuntu/x86_64_aospless:
   extends:
     - .ubuntu/x86_64_hwc
   variables:
+    FDO_DISTRIBUTION_VERSION: "24.04"
     FDO_DISTRIBUTION_EXEC: 'bash .ci/container/ubuntu/x86_64_aospless.sh'
     HWC_TAG: $UBUNTU_AOSPLESS_TAG
 
