@@ -99,8 +99,6 @@ class DrmAtomicStateManager {
     DrmModeUserPropertyBlobUnique hdr_metadata_blob;
     std::vector<DrmModeUserPropertyBlobUnique> damage_blobs;
 
-    int release_fence_pt_index{};
-
     /* To avoid setting the inactive state twice, which will fail the commit */
     bool crtc_active_state{};
   };
