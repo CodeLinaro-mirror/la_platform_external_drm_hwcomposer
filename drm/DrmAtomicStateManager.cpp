@@ -41,9 +41,14 @@ auto DrmAtomicStateManager::CreateInstance(DrmDisplayPipeline *pipe)
       new DrmAtomicStateManager());
 
   dasm->pipe_ = pipe;
-  std::thread(&DrmAtomicStateManager::ThreadFn, dasm.get(), dasm).detach();
+  dasm->thread_ = std::thread(&DrmAtomicStateManager::ThreadFn, dasm.get());
 
   return dasm;
+}
+
+DrmAtomicStateManager::~DrmAtomicStateManager() {
+  StopThread();
+  thread_.join();
 }
 
 // NOLINTNEXTLINE (readability-function-cognitive-complexity): Fixme
@@ -322,8 +327,7 @@ auto DrmAtomicStateManager::CommitFrame(AtomicCommitArgs &args) -> int {
   return 0;
 }
 
-void DrmAtomicStateManager::ThreadFn(
-    const std::shared_ptr<DrmAtomicStateManager> &dasm) {
+void DrmAtomicStateManager::ThreadFn() {
   int tracking_at_the_moment = -1;
 
   for (;;) {
@@ -334,7 +338,7 @@ void DrmAtomicStateManager::ThreadFn(
       base::ScopedLockAssertion lock_assertion(mutex_);
       cv_.wait(lk);
 
-      if (exit_thread_ || dasm.use_count() == 1)
+      if (exit_thread_)
         break;
 
       if (frames_staged_ <= tracking_at_the_moment)

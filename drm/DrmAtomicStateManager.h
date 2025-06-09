@@ -63,7 +63,7 @@ class DrmAtomicStateManager {
   static auto CreateInstance(DrmDisplayPipeline *pipe)
       -> std::shared_ptr<DrmAtomicStateManager>;
 
-  ~DrmAtomicStateManager() = default;
+  ~DrmAtomicStateManager();
 
   auto ExecuteAtomicCommit(AtomicCommitArgs &args) -> int;
   auto ActivateDisplayUsingDPMS() -> int;
@@ -77,8 +77,7 @@ class DrmAtomicStateManager {
   }
 
  private:
-  void ThreadFn(const std::shared_ptr<DrmAtomicStateManager> &dasm);
-
+  void ThreadFn();
 
   DrmAtomicStateManager() = default;
   int CommitFrame(AtomicCommitArgs &args);
@@ -106,6 +105,7 @@ class DrmAtomicStateManager {
   KmsState committed_frame_state_;
   DstRectInfo whole_display_rect_{};
 
+  std::thread thread_;
   std::condition_variable cv_;
   std::mutex mutex_;
 
