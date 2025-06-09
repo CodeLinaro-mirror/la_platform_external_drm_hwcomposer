@@ -76,6 +76,11 @@ class DrmAtomicStateManager {
   }
 
  private:
+  void ThreadFn(const std::shared_ptr<DrmAtomicStateManager> &dasm);
+  std::condition_variable cv_;
+  std::mutex mutex_;
+  bool exit_thread_{};
+
   DrmAtomicStateManager() = default;
   auto CommitFrame(AtomicCommitArgs &args) -> int;
 
@@ -115,11 +120,6 @@ class DrmAtomicStateManager {
   int frames_tracked_{};
 
   DstRectInfo whole_display_rect_{};
-
-  void ThreadFn(const std::shared_ptr<DrmAtomicStateManager> &dasm);
-  std::condition_variable cv_;
-  std::mutex mutex_;
-  bool exit_thread_{};
 };
 
 }  // namespace android
