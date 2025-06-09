@@ -290,7 +290,7 @@ auto DrmAtomicStateManager::CommitFrame(AtomicCommitArgs &args) -> int {
 
   if (nonblock) {
     {
-      const std::unique_lock lock(mutex_);
+      const std::lock_guard lock(mutex_);
       last_present_fence_ = args.out_fence;
       staged_frame_state_ = std::move(new_frame_state);
       frames_staged_++;
@@ -306,24 +306,29 @@ auto DrmAtomicStateManager::CommitFrame(AtomicCommitArgs &args) -> int {
 void DrmAtomicStateManager::ThreadFn(
     const std::shared_ptr<DrmAtomicStateManager> &dasm) {
   int tracking_at_the_moment = -1;
-  auto &main_mutex = pipe_->device->GetResMan().GetMainLock();
 
   for (;;) {
     SharedFd present_fence;
 
     {
       std::unique_lock lk(mutex_);
+      base::ScopedLockAssertion lock_assertion(mutex_);
       cv_.wait(lk);
 
       if (exit_thread_ || dasm.use_count() == 1)
         break;
 
+      // Non-thread safe access to frames_staged_ and last_present_fence_;
+      // Main thread writes to these without acquiring mutex_;
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wthread-safety-analysis"
       if (frames_staged_ <= tracking_at_the_moment)
         continue;
 
       tracking_at_the_moment = frames_staged_;
 
       present_fence = last_present_fence_;
+#pragma clang diagnostic pop
       if (!present_fence)
         continue;
     }
@@ -340,8 +345,8 @@ void DrmAtomicStateManager::ThreadFn(
     }
 
     {
-      const std::unique_lock mlk(main_mutex);
-      const std::unique_lock lk(mutex_);
+      const std::lock_guard main_lock(main_mutex_);
+      const std::lock_guard lk(mutex_);
       if (exit_thread_)
         break;
 
@@ -366,6 +371,8 @@ void DrmAtomicStateManager::CleanupPriorFrameResources() {
 }
 
 auto DrmAtomicStateManager::ExecuteAtomicCommit(AtomicCommitArgs &args) -> int {
+  std::lock_guard lock(main_mutex_);
+
   auto err = CommitFrame(args);
 
   if (!args.test_only) {

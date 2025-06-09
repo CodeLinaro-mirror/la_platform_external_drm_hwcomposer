@@ -68,8 +68,9 @@ class DrmAtomicStateManager {
   auto ActivateDisplayUsingDPMS() -> int;
 
   void StopThread() {
+    std::lock_guard lock(main_mutex_);
     {
-      const std::unique_lock lock(mutex_);
+      const std::lock_guard lock(mutex_);
       exit_thread_ = true;
     }
     cv_.notify_all();
@@ -79,10 +80,12 @@ class DrmAtomicStateManager {
   void ThreadFn(const std::shared_ptr<DrmAtomicStateManager> &dasm);
   std::condition_variable cv_;
   std::mutex mutex_;
-  bool exit_thread_{};
+  bool exit_thread_ GUARDED_BY(mutex_){};
+
+  std::mutex main_mutex_;
 
   DrmAtomicStateManager() = default;
-  auto CommitFrame(AtomicCommitArgs &args) -> int;
+  int CommitFrame(AtomicCommitArgs &args) REQUIRES(main_mutex_);
 
   struct KmsState {
     /* Required to cleanup unused planes */
@@ -100,9 +103,9 @@ class DrmAtomicStateManager {
 
     /* To avoid setting the inactive state twice, which will fail the commit */
     bool crtc_active_state{};
-  } active_frame_state_;
+  };
 
-  auto NewFrameState() -> KmsState {
+  KmsState NewFrameState() REQUIRES(main_mutex_) {
     auto *prev_frame_state = &active_frame_state_;
     return (KmsState){
         .used_planes = prev_frame_state->used_planes,
@@ -110,16 +113,19 @@ class DrmAtomicStateManager {
     };
   }
 
+  // Only accessed from main thread.
   DrmDisplayPipeline *pipe_{};
 
-  void CleanupPriorFrameResources();
-
-  KmsState staged_frame_state_;
-  SharedFd last_present_fence_;
-  int frames_staged_{};
-  int frames_tracked_{};
+  void CleanupPriorFrameResources() REQUIRES(main_mutex_);
 
   DstRectInfo whole_display_rect_{};
+
+  // Accessed from both threads.
+  KmsState staged_frame_state_ GUARDED_BY(main_mutex_);
+  KmsState active_frame_state_ GUARDED_BY(main_mutex_);
+  SharedFd last_present_fence_ GUARDED_BY(main_mutex_);
+  int frames_staged_ GUARDED_BY(main_mutex_){};
+  int frames_tracked_ GUARDED_BY(main_mutex_){};
 };
 
 }  // namespace android
