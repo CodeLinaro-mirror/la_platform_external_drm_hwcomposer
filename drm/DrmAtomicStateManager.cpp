@@ -51,7 +51,11 @@ auto DrmAtomicStateManager::CommitFrame(AtomicCommitArgs &args) -> int {
   // NOLINTNEXTLINE(misc-const-correctness)
   ATRACE_CALL();
 
-  if (args.active && *args.active == active_frame_state_.crtc_active_state) {
+  // new_frame_state is initialized to the current frame state, so use it
+  // instead of active_frame_state_ or staged_frame_state_ to avoid races.
+  auto new_frame_state = NewFrameState();
+
+  if (args.active && *args.active == new_frame_state.crtc_active_state) {
     /* Don't set the same state twice */
     args.active.reset();
   }
@@ -61,12 +65,10 @@ auto DrmAtomicStateManager::CommitFrame(AtomicCommitArgs &args) -> int {
     return 0;
   }
 
-  if (!active_frame_state_.crtc_active_state) {
+  if (!new_frame_state.crtc_active_state) {
     /* Force activate display */
     args.active = true;
   }
-
-  auto new_frame_state = NewFrameState();
 
   auto *crtc = pipe_->crtc->Get();
 

@@ -108,7 +108,8 @@ class DrmAtomicStateManager {
   };
 
   KmsState NewFrameState() REQUIRES(main_mutex_) {
-    auto *prev_frame_state = &active_frame_state_;
+    auto *prev_frame_state = last_present_fence_ ? &staged_frame_state_
+                                                 : &active_frame_state_;
     return (KmsState){
         .used_planes = prev_frame_state->used_planes,
         .crtc_active_state = prev_frame_state->crtc_active_state,
