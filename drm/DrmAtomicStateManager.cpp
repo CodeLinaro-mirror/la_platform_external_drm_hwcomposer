@@ -298,12 +298,13 @@ auto DrmAtomicStateManager::CommitFrame(AtomicCommitArgs &args) -> int {
     {
       const std::lock_guard lock(mutex_);
       last_present_fence_ = args.out_fence;
-      staged_frame_objects_ = std::move(used_kms_objects);
+      frame_objects_.emplace(std::move(used_kms_objects));
       frames_staged_++;
     }
     cv_.notify_all();
   } else {
-    active_frame_objects_ = std::move(used_kms_objects);
+    frame_objects_ = {};
+    frame_objects_.emplace(std::move(used_kms_objects));
   }
 
   return 0;
@@ -368,11 +369,12 @@ void DrmAtomicStateManager::ThreadFn(
 void DrmAtomicStateManager::CleanupPriorFrameResources() {
   assert(frames_staged_ - frames_tracked_ == 1);
   assert(last_present_fence_);
+  assert(frame_objects_.size() > 1);
 
   // NOLINTNEXTLINE(misc-const-correctness)
   ATRACE_NAME("CleanupPriorFrameResources");
   frames_tracked_++;
-  active_frame_objects_ = std::move(staged_frame_objects_);
+  frame_objects_.pop();
   last_present_fence_ = {};
 }
 

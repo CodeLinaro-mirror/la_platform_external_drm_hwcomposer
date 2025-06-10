@@ -20,6 +20,7 @@
 
 #include <memory>
 #include <optional>
+#include <queue>
 
 #include "compositor/DisplayInfo.h"
 #include "compositor/DrmKmsPlan.h"
@@ -113,8 +114,9 @@ class DrmAtomicStateManager {
   DstRectInfo whole_display_rect_{};
 
   // Accessed from both threads.
-  KmsObjects staged_frame_objects_ GUARDED_BY(main_mutex_);
-  KmsObjects active_frame_objects_ GUARDED_BY(main_mutex_);
+  // Front of the queue is the objects for the currently presented frame.
+  // Objects for nonblocking frames are pushed to the back of the queue.
+  std::queue<KmsObjects> frame_objects_ GUARDED_BY(main_mutex_);
   SharedFd last_present_fence_ GUARDED_BY(main_mutex_);
   int frames_staged_ GUARDED_BY(main_mutex_){};
   int frames_tracked_ GUARDED_BY(main_mutex_){};
