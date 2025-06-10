@@ -133,9 +133,9 @@ auto DrmAtomicStateManager::CommitFrame(AtomicCommitArgs &args) -> int {
 
   auto *drm = pipe_->device;
   if (args.display_mode) {
-    new_frame_state.mode_blob = args.display_mode.value().CreateModeBlob(*drm);
+    auto mode_blob = args.display_mode.value().CreateModeBlob(*drm);
 
-    if (!new_frame_state.mode_blob) {
+    if (!mode_blob) {
       ALOGE("Failed to create mode_blob");
       return -EINVAL;
     }
@@ -143,23 +143,24 @@ auto DrmAtomicStateManager::CommitFrame(AtomicCommitArgs &args) -> int {
     auto raw_mode = args.display_mode.value().GetRawMode();
     whole_display_rect_.i_rect = {0, 0, raw_mode.hdisplay, raw_mode.vdisplay};
 
-    if (!crtc->GetModeProperty().AtomicSet(*pset, *new_frame_state.mode_blob)) {
+    if (!crtc->GetModeProperty().AtomicSet(*pset, *mode_blob)) {
       return -EINVAL;
     }
+    new_frame_state.used_kms_objects.blobs.emplace_back(std::move(mode_blob));
   }
 
   if (args.color_matrix && crtc->GetCtmProperty()) {
-    auto blob = drm->RegisterUserPropertyBlob(args.color_matrix.get(),
-                                              sizeof(drm_color_ctm));
-    new_frame_state.ctm_blob = std::move(blob);
-
-    if (!new_frame_state.ctm_blob) {
+    auto ctm_blob = drm->RegisterUserPropertyBlob(args.color_matrix.get(),
+                                                  sizeof(drm_color_ctm));
+    if (!ctm_blob) {
       ALOGE("Failed to create CTM blob");
       return -EINVAL;
     }
 
-    if (!crtc->GetCtmProperty().AtomicSet(*pset, *new_frame_state.ctm_blob))
+    if (!crtc->GetCtmProperty().AtomicSet(*pset, *ctm_blob))
       return -EINVAL;
+
+    new_frame_state.used_kms_objects.blobs.emplace_back(std::move(ctm_blob));
   }
 
   if (args.colorspace && connector->GetColorspaceProperty()) {
@@ -177,18 +178,19 @@ auto DrmAtomicStateManager::CommitFrame(AtomicCommitArgs &args) -> int {
   }
 
   if (args.hdr_metadata && connector->GetHdrOutputMetadataProperty()) {
-    auto blob = drm->RegisterUserPropertyBlob(args.hdr_metadata.get(),
-                                              sizeof(hdr_output_metadata));
-    new_frame_state.hdr_metadata_blob = std::move(blob);
-    if (!new_frame_state.hdr_metadata_blob) {
+    auto hdr_metadata_blob = drm->RegisterUserPropertyBlob(
+        args.hdr_metadata.get(), sizeof(hdr_output_metadata));
+    if (!hdr_metadata_blob) {
       ALOGE("Failed to create %s blob",
             connector->GetHdrOutputMetadataProperty().GetName().c_str());
       return -EINVAL;
     }
 
     if (!connector->GetHdrOutputMetadataProperty()
-             .AtomicSet(*pset, *new_frame_state.hdr_metadata_blob))
+             .AtomicSet(*pset, *hdr_metadata_blob))
       return -EINVAL;
+    new_frame_state.used_kms_objects.blobs.emplace_back(
+        std::move(hdr_metadata_blob));
   }
 
   if (args.min_bpc && connector->GetMinBpcProperty()) {
@@ -219,7 +221,7 @@ auto DrmAtomicStateManager::CommitFrame(AtomicCommitArgs &args) -> int {
       DrmPlane *plane = joining.plane->Get();
       LayerData &layer = joining.layer;
 
-      new_frame_state.used_framebuffers.emplace_back(layer.fb);
+      new_frame_state.used_kms_objects.framebuffers.emplace_back(layer.fb);
       new_frame_state.used_planes.emplace_back(joining.plane);
 
       /* Remove from 'unused' list, since plane is re-used */
@@ -231,7 +233,8 @@ auto DrmAtomicStateManager::CommitFrame(AtomicCommitArgs &args) -> int {
                                 whole_display_rect_, damage_blob) != 0) {
         return -EINVAL;
       }
-      new_frame_state.damage_blobs.push_back(std::move(damage_blob));
+      new_frame_state.used_kms_objects.blobs.emplace_back(
+          std::move(damage_blob));
     }
   }
 

@@ -87,20 +87,24 @@ class DrmAtomicStateManager {
   DrmAtomicStateManager() = default;
   int CommitFrame(AtomicCommitArgs &args) REQUIRES(main_mutex_);
 
+  // Collection of kms objects that were committed to the kernel. There must be
+  // a userspace handle to keep these from being removed/unregistered until the
+  // commit that used them is no longer being presented.
+  struct KmsObjects {
+    /* We have to hold a reference to framebuffer while displaying it ,
+     * otherwise picture will blink */
+    std::vector<std::shared_ptr<DrmFbIdHandle>> framebuffers;
+    std::vector<DrmModeUserPropertyBlobUnique> blobs;
+  };
+
   struct KmsState {
     /* Required to cleanup unused planes */
     std::vector<std::shared_ptr<BindingOwner<DrmPlane>>> used_planes;
-    /* We have to hold a reference to framebuffer while displaying it ,
-     * otherwise picture will blink */
-    std::vector<std::shared_ptr<DrmFbIdHandle>> used_framebuffers;
-
-    DrmModeUserPropertyBlobUnique mode_blob;
-    DrmModeUserPropertyBlobUnique ctm_blob;
-    DrmModeUserPropertyBlobUnique hdr_metadata_blob;
-    std::vector<DrmModeUserPropertyBlobUnique> damage_blobs;
 
     /* To avoid setting the inactive state twice, which will fail the commit */
     bool crtc_active_state{};
+
+    KmsObjects used_kms_objects;
   };
 
   KmsState NewFrameState() REQUIRES(main_mutex_) {
