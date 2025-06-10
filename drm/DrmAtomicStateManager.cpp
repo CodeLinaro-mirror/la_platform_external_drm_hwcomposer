@@ -260,18 +260,28 @@ auto DrmAtomicStateManager::CommitFrame(AtomicCommitArgs &args) -> int {
     return err;
   }
 
-  if (last_present_fence_) {
+  SharedFd present_fence;
+  {
+    std::lock_guard lock(mutex_);
+    present_fence = last_present_fence_;
+  }
+
+  if (present_fence) {
     // NOLINTNEXTLINE(misc-const-correctness)
     ATRACE_NAME("WaitPriorFramePresented");
 
     constexpr int kTimeoutMs = 500;
-    const int err = sync_wait(*last_present_fence_, kTimeoutMs);
+    const int err = sync_wait(*present_fence, kTimeoutMs);
     if (err != 0) {
-      ALOGE("sync_wait(fd=%i) returned: %i (errno: %i)", *last_present_fence_,
-            err, errno);
+      ALOGE("sync_wait(fd=%i) returned: %i (errno: %i)", *present_fence, err,
+            errno);
     }
 
-    CleanupPriorFrameResources();
+    // Lock again in case the helper thread cleaned this up while sync_waiting.
+    std::lock_guard lock(mutex_);
+    if (last_present_fence_) {
+      CleanupPriorFrameResources();
+    }
   }
 
   if (nonblock) {
@@ -303,6 +313,8 @@ auto DrmAtomicStateManager::CommitFrame(AtomicCommitArgs &args) -> int {
     }
     cv_.notify_all();
   } else {
+    const std::lock_guard lock(mutex_);
+    last_present_fence_ = {};
     frame_objects_ = {};
     frame_objects_.emplace(std::move(used_kms_objects));
   }
@@ -325,17 +337,12 @@ void DrmAtomicStateManager::ThreadFn(
       if (exit_thread_ || dasm.use_count() == 1)
         break;
 
-      // Non-thread safe access to frames_staged_ and last_present_fence_;
-      // Main thread writes to these without acquiring mutex_;
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wthread-safety-analysis"
       if (frames_staged_ <= tracking_at_the_moment)
         continue;
 
       tracking_at_the_moment = frames_staged_;
 
       present_fence = last_present_fence_;
-#pragma clang diagnostic pop
       if (!present_fence)
         continue;
     }
@@ -352,7 +359,6 @@ void DrmAtomicStateManager::ThreadFn(
     }
 
     {
-      const std::lock_guard main_lock(main_mutex_);
       const std::lock_guard lk(mutex_);
       if (exit_thread_)
         break;
@@ -379,8 +385,6 @@ void DrmAtomicStateManager::CleanupPriorFrameResources() {
 }
 
 auto DrmAtomicStateManager::ExecuteAtomicCommit(AtomicCommitArgs &args) -> int {
-  std::lock_guard lock(main_mutex_);
-
   auto err = CommitFrame(args);
 
   if (!args.test_only) {

@@ -69,7 +69,6 @@ class DrmAtomicStateManager {
   auto ActivateDisplayUsingDPMS() -> int;
 
   void StopThread() {
-    std::lock_guard lock(main_mutex_);
     {
       const std::lock_guard lock(mutex_);
       exit_thread_ = true;
@@ -79,14 +78,10 @@ class DrmAtomicStateManager {
 
  private:
   void ThreadFn(const std::shared_ptr<DrmAtomicStateManager> &dasm);
-  std::condition_variable cv_;
-  std::mutex mutex_;
-  bool exit_thread_ GUARDED_BY(mutex_){};
 
-  std::mutex main_mutex_;
 
   DrmAtomicStateManager() = default;
-  int CommitFrame(AtomicCommitArgs &args) REQUIRES(main_mutex_);
+  int CommitFrame(AtomicCommitArgs &args);
 
   // Collection of kms objects that were committed to the kernel. There must be
   // a userspace handle to keep these from being removed/unregistered until the
@@ -106,20 +101,25 @@ class DrmAtomicStateManager {
     bool crtc_active_state{};
   };
 
-  void CleanupPriorFrameResources() REQUIRES(main_mutex_);
-
   // Only accessed from main thread.
   DrmDisplayPipeline *pipe_{};
   KmsState committed_frame_state_;
   DstRectInfo whole_display_rect_{};
 
+  std::condition_variable cv_;
+  std::mutex mutex_;
+
   // Accessed from both threads.
+  //
+  void CleanupPriorFrameResources() REQUIRES(mutex_);
+
+  bool exit_thread_ GUARDED_BY(mutex_){};
   // Front of the queue is the objects for the currently presented frame.
   // Objects for nonblocking frames are pushed to the back of the queue.
-  std::queue<KmsObjects> frame_objects_ GUARDED_BY(main_mutex_);
-  SharedFd last_present_fence_ GUARDED_BY(main_mutex_);
-  int frames_staged_ GUARDED_BY(main_mutex_){};
-  int frames_tracked_ GUARDED_BY(main_mutex_){};
+  std::queue<KmsObjects> frame_objects_ GUARDED_BY(mutex_);
+  SharedFd last_present_fence_ GUARDED_BY(mutex_);
+  int frames_staged_ GUARDED_BY(mutex_){};
+  int frames_tracked_ GUARDED_BY(mutex_){};
 };
 
 }  // namespace android
