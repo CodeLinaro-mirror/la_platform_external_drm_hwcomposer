@@ -51,9 +51,10 @@ auto DrmAtomicStateManager::CommitFrame(AtomicCommitArgs &args) -> int {
   // NOLINTNEXTLINE(misc-const-correctness)
   ATRACE_CALL();
 
-  // new_frame_state is initialized to the current frame state, so use it
-  // instead of active_frame_state_ or staged_frame_state_ to avoid races.
-  auto new_frame_state = NewFrameState();
+  // new_frame_state is initialized to the current frame state and may be
+  // modified below.
+  auto new_frame_state = committed_frame_state_;
+  KmsObjects used_kms_objects;
 
   if (args.active && *args.active == new_frame_state.crtc_active_state) {
     /* Don't set the same state twice */
@@ -148,7 +149,7 @@ auto DrmAtomicStateManager::CommitFrame(AtomicCommitArgs &args) -> int {
     if (!crtc->GetModeProperty().AtomicSet(*pset, *mode_blob)) {
       return -EINVAL;
     }
-    new_frame_state.used_kms_objects.blobs.emplace_back(std::move(mode_blob));
+    used_kms_objects.blobs.emplace_back(std::move(mode_blob));
   }
 
   if (args.color_matrix && crtc->GetCtmProperty()) {
@@ -162,7 +163,7 @@ auto DrmAtomicStateManager::CommitFrame(AtomicCommitArgs &args) -> int {
     if (!crtc->GetCtmProperty().AtomicSet(*pset, *ctm_blob))
       return -EINVAL;
 
-    new_frame_state.used_kms_objects.blobs.emplace_back(std::move(ctm_blob));
+    used_kms_objects.blobs.emplace_back(std::move(ctm_blob));
   }
 
   if (args.colorspace && connector->GetColorspaceProperty()) {
@@ -191,8 +192,7 @@ auto DrmAtomicStateManager::CommitFrame(AtomicCommitArgs &args) -> int {
     if (!connector->GetHdrOutputMetadataProperty()
              .AtomicSet(*pset, *hdr_metadata_blob))
       return -EINVAL;
-    new_frame_state.used_kms_objects.blobs.emplace_back(
-        std::move(hdr_metadata_blob));
+    used_kms_objects.blobs.emplace_back(std::move(hdr_metadata_blob));
   }
 
   if (args.min_bpc && connector->GetMinBpcProperty()) {
@@ -223,7 +223,7 @@ auto DrmAtomicStateManager::CommitFrame(AtomicCommitArgs &args) -> int {
       DrmPlane *plane = joining.plane->Get();
       LayerData &layer = joining.layer;
 
-      new_frame_state.used_kms_objects.framebuffers.emplace_back(layer.fb);
+      used_kms_objects.framebuffers.emplace_back(layer.fb);
       new_frame_state.used_planes.emplace_back(joining.plane);
 
       /* Remove from 'unused' list, since plane is re-used */
@@ -235,8 +235,7 @@ auto DrmAtomicStateManager::CommitFrame(AtomicCommitArgs &args) -> int {
                                 whole_display_rect_, damage_blob) != 0) {
         return -EINVAL;
       }
-      new_frame_state.used_kms_objects.blobs.emplace_back(
-          std::move(damage_blob));
+      used_kms_objects.blobs.emplace_back(std::move(damage_blob));
     }
   }
 
@@ -293,16 +292,18 @@ auto DrmAtomicStateManager::CommitFrame(AtomicCommitArgs &args) -> int {
     args.out_writeback_complete_fence = MakeSharedFd(wb_fence);
   }
 
+  committed_frame_state_ = std::move(new_frame_state);
+
   if (nonblock) {
     {
       const std::lock_guard lock(mutex_);
       last_present_fence_ = args.out_fence;
-      staged_frame_state_ = std::move(new_frame_state);
+      staged_frame_objects_ = std::move(used_kms_objects);
       frames_staged_++;
     }
     cv_.notify_all();
   } else {
-    active_frame_state_ = std::move(new_frame_state);
+    active_frame_objects_ = std::move(used_kms_objects);
   }
 
   return 0;
@@ -371,7 +372,7 @@ void DrmAtomicStateManager::CleanupPriorFrameResources() {
   // NOLINTNEXTLINE(misc-const-correctness)
   ATRACE_NAME("CleanupPriorFrameResources");
   frames_tracked_++;
-  active_frame_state_ = std::move(staged_frame_state_);
+  active_frame_objects_ = std::move(staged_frame_objects_);
   last_present_fence_ = {};
 }
 

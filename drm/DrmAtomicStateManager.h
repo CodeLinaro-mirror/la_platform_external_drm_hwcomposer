@@ -103,29 +103,18 @@ class DrmAtomicStateManager {
 
     /* To avoid setting the inactive state twice, which will fail the commit */
     bool crtc_active_state{};
-
-    KmsObjects used_kms_objects;
   };
-
-  KmsState NewFrameState() REQUIRES(main_mutex_) {
-    auto *prev_frame_state = last_present_fence_ ? &staged_frame_state_
-                                                 : &active_frame_state_;
-    return (KmsState){
-        .used_planes = prev_frame_state->used_planes,
-        .crtc_active_state = prev_frame_state->crtc_active_state,
-    };
-  }
-
-  // Only accessed from main thread.
-  DrmDisplayPipeline *pipe_{};
 
   void CleanupPriorFrameResources() REQUIRES(main_mutex_);
 
+  // Only accessed from main thread.
+  DrmDisplayPipeline *pipe_{};
+  KmsState committed_frame_state_;
   DstRectInfo whole_display_rect_{};
 
   // Accessed from both threads.
-  KmsState staged_frame_state_ GUARDED_BY(main_mutex_);
-  KmsState active_frame_state_ GUARDED_BY(main_mutex_);
+  KmsObjects staged_frame_objects_ GUARDED_BY(main_mutex_);
+  KmsObjects active_frame_objects_ GUARDED_BY(main_mutex_);
   SharedFd last_present_fence_ GUARDED_BY(main_mutex_);
   int frames_staged_ GUARDED_BY(main_mutex_){};
   int frames_tracked_ GUARDED_BY(main_mutex_){};
