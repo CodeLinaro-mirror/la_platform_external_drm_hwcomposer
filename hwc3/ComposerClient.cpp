@@ -49,7 +49,11 @@
 #include "hwc/HwcLayer.h"
 #include "hwc3/DrmHwcThree.h"
 #include "hwc3/Utils.h"
+#include "stats/CompositionStatsAtomReporter.h"
+#include "stats/CompositionStatsPoller.h"
 
+using ::android::CompositionStatsAtomReporter;
+using ::android::CompositionStatsPoller;
 using ::android::DamageInfo;
 using ::android::DisplayHandle;
 using ::android::DstRectInfo;
@@ -362,18 +366,15 @@ std::optional<DamageInfo> AidlToDamage(
     return std::nullopt;
   }
 
-  std::optional<DamageInfo> damage_info = std::nullopt;
+  DamageInfo damage_info;
   for (const auto& r : damage.value()) {
     auto i_rect = AidlToIRect(r);
     if (i_rect.has_value()) {
-      if (!damage_info.has_value()) {
-        damage_info = DamageInfo{};
-      }
-      damage_info->dmg_rects.push_back(i_rect.value());
+      damage_info.dmg_rects.push_back(i_rect.value());
     }
   }
 
-  return damage_info;
+  return std::make_optional(damage_info);
 }
 
 }  // namespace
@@ -496,10 +497,18 @@ ComposerClient::ComposerClient() {
 void ComposerClient::Init() {
   DEBUG_FUNC();
   hwc_ = std::make_unique<DrmHwcThree>();
+
+  auto reporter = CompositionStatsAtomReporter::Create();
+  if (reporter) {
+    stats_poller_ = std::make_unique<CompositionStatsPoller>(std::move(
+                                                                 reporter),
+                                                             hwc_.get());
+  }
 }
 
 ComposerClient::~ComposerClient() {
   DEBUG_FUNC();
+  stats_poller_.reset();
   if (hwc_) {
     const std::unique_lock lock(hwc_->GetResMan().GetMainLock());
     hwc_->DeinitDisplays();
