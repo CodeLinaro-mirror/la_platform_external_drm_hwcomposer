@@ -11,8 +11,7 @@ fi
 
 source "${CI_PROJECT_DIR}/.ci/android/launch-cvd.sh"
 
-section_start run_android_vts "run_android_vts"
-set -x
+fdo_log_section_start_collapsed run_android_vts "run_android_vts"
 adb wait-for-device devices
 adb root
 adb push /VtsHalGraphicsComposer3_TargetTest /data/local/tmp/
@@ -30,4 +29,4 @@ adb pull /data/local/tmp/vts_results.txt "${RESULTS_DIR}"
 ! grep "FAILED" "${RESULTS_DIR}/vts_results.txt"
 export EXIT_CODE=$?
 
-section_end run_android_vts
+fdo_log_section_end run_android_vts
