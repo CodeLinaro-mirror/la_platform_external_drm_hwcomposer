@@ -414,9 +414,6 @@ auto HwcDisplay::PresentStagedComposition(
     if (l.second.GetPriorBufferScanOutFlag()) {
       out_release_fences.emplace_back(l.first, out_present_fence);
     }
-    if (wa_clear_fence_after_commit_) {
-      l.second.GetLayerData().acquire_fence = {};
-    }
   }
 
   return true;
@@ -540,9 +537,6 @@ void HwcDisplay::SetPipeline(std::shared_ptr<DrmDisplayPipeline> pipeline) {
   } else {
     hwc_->ScheduleHotplugEvent(handle_, DrmHwc::kDisconnected);
   }
-
-  wa_clear_fence_after_commit_ = pipeline_ && pipeline_->device->GetName() == "xe";
-  ALOGW_IF(wa_clear_fence_after_commit_, "Enabled wa_clear_fence_after_commit_");
 }
 
 void HwcDisplay::Deinit() {
