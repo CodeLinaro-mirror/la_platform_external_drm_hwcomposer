@@ -27,7 +27,7 @@ adb shell "(/data/local/tmp/VtsHalGraphicsComposer3_TargetTest \
 
 adb pull /data/local/tmp/vts_results.txt "${RESULTS_DIR}"
 
-[ "$(grep "FAILED" "${RESULTS_DIR}/vts_results.txt")" = "" ]
+! grep "FAILED" "${RESULTS_DIR}/vts_results.txt"
 export EXIT_CODE=$?
 
 section_end run_android_vts
