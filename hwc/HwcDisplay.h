@@ -285,6 +285,9 @@ class HwcDisplay {
   }
 
   std::shared_ptr<FrontendDisplayBase> frontend_private_data_;
+
+  // Workaround for b:398935643
+  bool wa_sync_fence_before_commit_ = false;
 };
 
 }  // namespace android

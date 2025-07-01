@@ -37,6 +37,7 @@ class Properties {
   static auto GetCtmHandling() -> CtmHandling;
   static auto GetBackendOverride() -> std::string;
   static auto GetDevicePath() -> std::string;
+  static auto GetEnableXeWorkaround() -> bool;
 };
 
 }  // namespace android
