@@ -274,25 +274,21 @@ HwcDisplay::ConfigError HwcDisplay::SetConfig(ConfigId config) {
 }
 
 auto HwcDisplay::QueueConfig(ConfigId config, int64_t desired_time,
-                             bool seamless, QueuedConfigTiming *out_timing)
-    -> ConfigError {
-  if (configs_.hwc_configs.count(config) == 0) {
+                             QueuedConfigTiming *out_timing) -> ConfigError {
+  const HwcDisplayConfig *new_config = GetConfig(config);
+  if (!new_config) {
     ALOGE("Could not find active mode for %u", config);
     return ConfigError::kBadConfig;
   }
 
-  // TODO: Add support for seamless configuration changes.
-  if (seamless) {
+  const HwcDisplayConfig *current_config = GetCurrentConfig();
+  if (!current_config || current_config->group_id != new_config->group_id) {
     return ConfigError::kSeamlessNotAllowed;
   }
 
-  // Request a refresh from the client one vsync period before the desired
-  // time, or simply at the desired time if there is no active configuration.
-  const HwcDisplayConfig *current_config = GetCurrentConfig();
+  // Request a refresh from the client one vsync period before the desired time.
   out_timing->refresh_time_ns = desired_time -
-                                (current_config
-                                     ? current_config->mode.GetVSyncPeriodNs()
-                                     : 0);
+                                current_config->mode.GetVSyncPeriodNs();
   out_timing->new_vsync_time_ns = desired_time;
 
   // Queue the config change timing to be consistent with the requested

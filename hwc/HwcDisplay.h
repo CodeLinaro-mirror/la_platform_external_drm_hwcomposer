@@ -98,8 +98,9 @@ class HwcDisplay {
   // committed to the kernel on successful return.
   ConfigError SetConfig(ConfigId config);
 
-  // Queue a configuration change to take effect in the future.
-  auto QueueConfig(ConfigId config, int64_t desired_time, bool seamless,
+  // Queues a configuration change to take effect in the future. All queued
+  // configurations are seamless.
+  auto QueueConfig(ConfigId config, int64_t desired_time,
                    QueuedConfigTiming *out_timing) -> ConfigError;
 
   // Get the HwcDisplayConfig, or nullptr if none.

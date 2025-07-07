@@ -1239,14 +1239,8 @@ ndk::ScopedAStatus ComposerClient::setActiveConfigWithConstraints(
     return ToBinderStatus(hwc3::Error::kSeamlessNotAllowed);
   }
 
-  const bool future_config = constraints.desiredTimeNanos >
-                             ::android::ResourceManager::GetTimeMonotonicNs();
   const HwcDisplayConfig* current_config = display->GetCurrentConfig();
   const HwcDisplayConfig* next_config = display->GetConfig(config);
-  const bool same_config_group = current_config != nullptr &&
-                                 next_config != nullptr &&
-                                 current_config->group_id ==
-                                     next_config->group_id;
   const bool same_resolution = current_config != nullptr &&
                                next_config != nullptr &&
                                current_config->mode.SameSize(next_config->mode);
@@ -1254,33 +1248,35 @@ ndk::ScopedAStatus ComposerClient::setActiveConfigWithConstraints(
   /* Client framebuffer management:
    * https://source.android.com/docs/core/graphics/framebuffer-mgmt
    */
-  if (!same_resolution && !future_config) {
+  if (!same_resolution) {
     auto& client_layer = display->GetClientLayer();
     auto hwc3_layer = GetHwc3Layer(client_layer);
     hwc3_layer->ClearSlots();
     client_layer.ClearSlots();
   }
 
-  // If the constraints dictate that this is to be applied in the future, it
-  // must be queued. If the new config is in the same config group as the
-  // current one, then queue it to reduce jank.
-  HwcDisplay::ConfigError result{};
-  if (future_config || same_config_group) {
-    QueuedConfigTiming timing = {};
-    result = display->QueueConfig(config, constraints.desiredTimeNanos,
-                                  constraints.seamlessRequired, &timing);
+  // Always try to queue a seamless commit to reduce jank and flicker artifacts.
+  // Fall-back to a full blocking commit otherwise.
+  QueuedConfigTiming timing{};
+  auto error = display->QueueConfig(config, constraints.desiredTimeNanos,
+                                    &timing);
+  if (error == HwcDisplay::kNone) {
     timeline->newVsyncAppliedTimeNanos = timing.new_vsync_time_ns;
     timeline->refreshTimeNanos = timing.refresh_time_ns;
     timeline->refreshRequired = true;
-  } else {
-    // Fall back to a blocking commit, which may modeset.
-    result = display->SetConfig(config);
+  } else if (error == HwcDisplay::kSeamlessNotAllowed) {
+    ALOGE_IF(constraints.seamlessRequired,
+             "Seamless modeset not possible with requested config=%d. Falling "
+             "back to a blocking full modeset.",
+             config);
+
+    error = display->SetConfig(config);
     timeline->newVsyncAppliedTimeNanos = ::android::ResourceManager::
         GetTimeMonotonicNs();
     timeline->refreshRequired = false;
   }
 
-  switch (result) {
+  switch (error) {
     case HwcDisplay::ConfigError::kBadConfig:
       return ToBinderStatus(hwc3::Error::kBadConfig);
     case HwcDisplay::ConfigError::kSeamlessNotAllowed:
@@ -1522,9 +1518,8 @@ ndk::ScopedAStatus ComposerClient::getDisplayConfigurations(
   const auto bounds = display->GetDisplayBoundsMm();
   for (const auto& [id, config] : configs.hwc_configs) {
     configurations->push_back(
-        HwcDisplayConfigToAidlConfiguration(/*width =*/ bounds.first, 
-                                            /*height =*/ bounds.second,
-                                            config));
+        HwcDisplayConfigToAidlConfiguration(/*width =*/bounds.first,
+                                            /*height =*/bounds.second, config));
   }
   return ndk::ScopedAStatus::ok();
 }
