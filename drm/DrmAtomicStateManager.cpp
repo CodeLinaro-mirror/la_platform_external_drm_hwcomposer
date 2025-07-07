@@ -110,7 +110,7 @@ bool DrmAtomicStateManager::CommitFrame(AtomicCommitArgs &args) {
     return false;
   }
 
-  uint32_t flags = DRM_MODE_ATOMIC_ALLOW_MODESET;
+  uint32_t flags = args.seamless ? 0U : DRM_MODE_ATOMIC_ALLOW_MODESET;
   const int error_buf_max_size = 64;
   char err_buf[error_buf_max_size];
   auto *drm = pipe_->device;
@@ -119,7 +119,8 @@ bool DrmAtomicStateManager::CommitFrame(AtomicCommitArgs &args) {
     auto err = drmModeAtomicCommit(*drm->GetFd(), pset.get(),
                                    flags | DRM_MODE_ATOMIC_TEST_ONLY, drm);
 
-    ALOGE_IF(err != 0, "Test-only ret=%d errno=%d strerror=%s\n", err, errno,
+    ALOGW_IF(err != 0, "Test-only seamless=%d ret=%d errno=%d strerror=%s\n",
+             args.seamless, err, errno,
              strerror_r(errno, err_buf, error_buf_max_size));
     return err == 0;
   }
@@ -128,11 +129,18 @@ bool DrmAtomicStateManager::CommitFrame(AtomicCommitArgs &args) {
 
   bool nonblock = !args.blocking && !args.active;
 
-  if (nonblock) {
-    flags |= DRM_MODE_ATOMIC_NONBLOCK;
+  flags |= nonblock ? DRM_MODE_ATOMIC_NONBLOCK : 0U;
+  auto err = drmModeAtomicCommit(*drm->GetFd(), pset.get(), flags, drm);
+  if (err != 0 && args.seamless) {
+    ALOGE(
+        "Seamless commit failed, retrying a full modeset (visual artifacts may "
+        "be observed). Error: %s",
+        strerror_r(errno, err_buf, error_buf_max_size));
+
+    err = drmModeAtomicCommit(*drm->GetFd(), pset.get(),
+                              flags | DRM_MODE_ATOMIC_ALLOW_MODESET, drm);
   }
 
-  auto err = drmModeAtomicCommit(*drm->GetFd(), pset.get(), flags, drm);
   if (err != 0) {
     ALOGE("Failed to commit pset ret=%d errno=%d strerror=%s\n", err, errno,
           strerror_r(errno, err_buf, error_buf_max_size));

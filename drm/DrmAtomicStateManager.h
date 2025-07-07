@@ -54,6 +54,7 @@ struct AtomicCommitArgs {
   bool test_only = false;
   bool blocking = false;
   bool teardown = false;
+  bool seamless = false;
   std::optional<DrmMode> display_mode;
   std::optional<bool> active;
   std::shared_ptr<DrmKmsPlan> composition;
