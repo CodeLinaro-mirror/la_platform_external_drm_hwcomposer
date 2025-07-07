@@ -260,10 +260,8 @@ HwcDisplay::ConfigError HwcDisplay::SetConfig(ConfigId config) {
   AtomicCommitArgs commit_args = CreateModesetCommit(new_config,
                                                      modeset_layer_data);
   commit_args.blocking = true;
-  int ret = GetPipe().atomic_state_manager->ExecuteAtomicCommit(commit_args);
-
-  if (ret) {
-    ALOGE("Blocking config failed: %d", ret);
+  if (!GetPipe().atomic_state_manager->ExecuteAtomicCommit(commit_args)) {
+    ALOGE("Blocking config failed.");
     return HwcDisplay::ConfigError::kConfigFailed;
   }
 
@@ -525,9 +523,11 @@ bool HwcDisplay::SetDisplayEnabled(bool enabled) {
   AtomicCommitArgs a_args{};
   a_args.active = false;
 
-  auto err = GetPipe().atomic_state_manager->ExecuteAtomicCommit(a_args);
-  ALOGE_IF(err != 0, "Failed to apply the dpms composition err=%d", err);
-  return err == 0;
+  const bool commit_success = GetPipe()
+                                  .atomic_state_manager->ExecuteAtomicCommit(
+                                      a_args);
+  ALOGE_IF(!commit_success, "Failed to apply the dpms composition.");
+  return commit_success;
 }
 
 void HwcDisplay::SetPipeline(std::shared_ptr<DrmDisplayPipeline> pipeline) {
@@ -897,9 +897,8 @@ bool HwcDisplay::CreateComposition(AtomicCommitArgs &a_args) {
                                          .acquire_fence;
   }
 
-  auto ret = GetPipe().atomic_state_manager->ExecuteAtomicCommit(a_args);
-  if (ret) {
-    ALOGE_IF(!a_args.test_only, "Failed to apply the frame composition ret=%d", ret);
+  if (!GetPipe().atomic_state_manager->ExecuteAtomicCommit(a_args)) {
+    ALOGE_IF(!a_args.test_only, "Failed to apply the frame composition.");
     return false;
   }
 

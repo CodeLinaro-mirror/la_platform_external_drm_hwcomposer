@@ -90,7 +90,7 @@ class DrmAtomicStateManager {
 
   ~DrmAtomicStateManager();
 
-  auto ExecuteAtomicCommit(AtomicCommitArgs &args) -> int;
+  bool ExecuteAtomicCommit(AtomicCommitArgs &args);
   auto ActivateDisplayUsingDPMS() -> int;
 
   void CleanFailedCommit();
@@ -107,7 +107,7 @@ class DrmAtomicStateManager {
   void ThreadFn();
 
   DrmAtomicStateManager() = default;
-  int CommitFrame(AtomicCommitArgs &args);
+  bool CommitFrame(AtomicCommitArgs &args);
 
   // Only accessed from main thread.
   DrmDisplayPipeline *pipe_{};
