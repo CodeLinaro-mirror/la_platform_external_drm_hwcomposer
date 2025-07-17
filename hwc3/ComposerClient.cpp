@@ -57,7 +57,6 @@ using ::android::DisplayHandle;
 using ::android::DstRectInfo;
 using ::android::HwcDisplay;
 using ::android::HwcDisplayConfig;
-using ::android::HwcDisplayConfigs;
 using ::android::HwcLayer;
 using ::android::IRect;
 using ::android::LayerTransform;
@@ -876,17 +875,15 @@ ndk::ScopedAStatus ComposerClient::getDisplayAttribute(
     return ToBinderStatus(hwc3::Error::kBadDisplay);
   }
 
-  const HwcDisplayConfigs& configs = display->GetDisplayConfigs();
-  auto config = configs.hwc_configs.find(config_id);
-  if (config == configs.hwc_configs.end()) {
+  const auto* config = display->GetConfig(config_id);
+  if (config == nullptr) {
     return ToBinderStatus(hwc3::Error::kBadConfig);
   }
 
   const auto bounds = display->GetDisplayBoundsMm();
-  DisplayConfiguration aidl_configuration =
-      HwcDisplayConfigToAidlConfiguration(/*width =*/ bounds.first,
-                                          /*height =*/bounds.second,
-                                          config->second);
+  DisplayConfiguration aidl_configuration = HwcDisplayConfigToAidlConfiguration(
+      /*width =*/bounds.first,
+      /*height =*/bounds.second, *config);
   // Legacy API for querying DPI uses units of dots per 1000 inches.
   static const int kLegacyDpiUnit = 1000;
   switch (attribute) {
@@ -943,9 +940,8 @@ ndk::ScopedAStatus ComposerClient::getDisplayConfigs(
     return ToBinderStatus(hwc3::Error::kBadDisplay);
   }
 
-  const HwcDisplayConfigs& configs = display->GetDisplayConfigs();
-  for (const auto& [id, config] : configs.hwc_configs) {
-    out_configs->push_back(static_cast<int32_t>(id));
+  for (const auto& config : display->GetDisplayConfigs()) {
+    out_configs->push_back(config.id);
   }
   return ndk::ScopedAStatus::ok();
 }
@@ -1514,9 +1510,8 @@ ndk::ScopedAStatus ComposerClient::getDisplayConfigurations(
     return ToBinderStatus(hwc3::Error::kBadDisplay);
   }
 
-  const HwcDisplayConfigs& configs = display->GetDisplayConfigs();
   const auto bounds = display->GetDisplayBoundsMm();
-  for (const auto& [id, config] : configs.hwc_configs) {
+  for (const auto& config : display->GetDisplayConfigs()) {
     configurations->push_back(
         HwcDisplayConfigToAidlConfiguration(/*width =*/bounds.first,
                                             /*height =*/bounds.second, config));

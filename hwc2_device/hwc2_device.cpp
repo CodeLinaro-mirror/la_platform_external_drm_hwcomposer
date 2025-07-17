@@ -561,8 +561,8 @@ static int32_t GetDisplayConfigs(hwc2_device_t *device, hwc2_display_t display,
   GET_DISPLAY(display);
 
   uint32_t idx = 0;
-  for (const auto &hwc_config : idisplay->GetDisplayConfigs().hwc_configs) {
-    if (hwc_config.second.disabled) {
+  for (const auto &hwc_config : idisplay->GetDisplayConfigs()) {
+    if (hwc_config.disabled) {
       continue;
     }
 
@@ -571,7 +571,7 @@ static int32_t GetDisplayConfigs(hwc2_device_t *device, hwc2_display_t display,
         break;
       }
       // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic):
-      configs[idx] = hwc_config.second.id;
+      configs[idx] = hwc_config.id;
     }
 
     idx++;

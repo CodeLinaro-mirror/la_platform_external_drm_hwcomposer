@@ -111,6 +111,19 @@ auto HwcDisplay::GetDisplayName() -> std::string {
   return stream.str();
 }
 
+auto HwcDisplay::GetDisplayConfigs() const -> std::vector<HwcDisplayConfig> {
+  std::vector<HwcDisplayConfig> filtered_configs;
+  for (const auto &[_, config] : configs_.hwc_configs) {
+    if (config.disabled) {
+      continue;
+    }
+
+    filtered_configs.emplace_back(config);
+  }
+
+  return filtered_configs;
+}
+
 HwcDisplay::HwcDisplay(DisplayHandle handle, bool is_virtual, DrmHwc *hwc)
     : hwc_(hwc), handle_(handle), is_virtual_(is_virtual), client_layer_(this) {
   // Create writeback layer for both virtual displays and potential readback
@@ -156,6 +169,11 @@ auto HwcDisplay::GetConfig(ConfigId config_id) const
   if (config_iter == configs_.hwc_configs.end()) {
     return nullptr;
   }
+
+  if (config_iter->second.disabled) {
+    return nullptr;
+  }
+
   return &config_iter->second;
 }
 

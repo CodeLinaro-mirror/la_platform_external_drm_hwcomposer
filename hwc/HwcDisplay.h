@@ -76,9 +76,7 @@ class HwcDisplay {
 
   auto GetDisplayName() -> std::string;
 
-  const HwcDisplayConfigs &GetDisplayConfigs() const {
-    return configs_;
-  }
+  auto GetDisplayConfigs() const -> std::vector<HwcDisplayConfig>;
 
   // Get the config representing the mode that has been committed to KMS.
   auto GetCurrentConfig() const -> const HwcDisplayConfig *;
