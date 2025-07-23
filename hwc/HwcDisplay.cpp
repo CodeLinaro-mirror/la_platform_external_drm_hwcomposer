@@ -136,9 +136,7 @@ void HwcDisplay::SetColorTransformMatrix(
     return;
   }
 
-  if (TransformHasOffsetValue(color_transform_matrix.data()))
-    ctm_has_offset_ = true;
-
+  ctm_has_offset_ = TransformHasOffsetValue(color_transform_matrix.data());
   color_matrix_ = ToColorTransform(color_transform_matrix);
 }
 
@@ -407,9 +405,6 @@ auto HwcDisplay::PresentStagedComposition(
   }
 
   out_present_fence = a_args.out_fence;
-
-  // Reset the color matrix so we don't apply it over and over again.
-  color_matrix_ = {};
 
   ++frame_no_;
 
