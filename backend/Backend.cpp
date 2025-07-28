@@ -65,8 +65,8 @@ auto Backend::ValidateDisplay(HwcDisplay *display) -> CompositionTypeMap {
 
     if (should_flatten) {
       display->total_stats().frames_flattened++;
-      return MarkValidated(layers, 0, layers.size(),
-                           /*use_cursor_plane=*/false);
+      return GetCompositionTypes(layers, 0, layers.size(),
+                                 /*use_cursor_plane=*/false);
     }
   }
 
@@ -85,8 +85,8 @@ auto Backend::ValidateDisplay(HwcDisplay *display) -> CompositionTypeMap {
   auto validate_and_test = [&]() -> bool {
     std::tie(client_start, client_size) = GetClientLayers(display, layers,
                                                           use_cursor_plane);
-    composition_types = MarkValidated(layers, client_start, client_size,
-                                      use_cursor_plane);
+    composition_types = GetCompositionTypes(layers, client_start, client_size,
+                                            use_cursor_plane);
 
     bool testing_needed = client_start != 0 || client_size != layers.size();
     AtomicCommitArgs a_args = {.test_only = true};
@@ -113,8 +113,8 @@ auto Backend::ValidateDisplay(HwcDisplay *display) -> CompositionTypeMap {
     ++display->total_stats().failed_kms_validate;
     client_start = 0;
     client_size = layers.size();
-    composition_types = MarkValidated(layers, client_start, client_size,
-                                      use_cursor_plane);
+    composition_types = GetCompositionTypes(layers, client_start, client_size,
+                                            use_cursor_plane);
   }
 
   display->total_stats().gpu_pixops += CalcPixOps(layers, client_start,
@@ -179,9 +179,9 @@ uint32_t Backend::CalcPixOps(const std::vector<HwcLayer *> &layers,
   return pixops;
 }
 
-auto Backend::MarkValidated(std::vector<HwcLayer *> &layers,
-                            size_t client_first_z, size_t client_size,
-                            bool use_cursor_plane) -> CompositionTypeMap {
+auto Backend::GetCompositionTypes(const std::vector<HwcLayer *> &layers,
+                                  size_t client_first_z, size_t client_size,
+                                  bool use_cursor_plane) -> CompositionTypeMap {
   CompositionTypeMap composition_types;
   for (size_t z_order = 0; z_order < layers.size(); ++z_order) {
     if (z_order >= client_first_z && z_order < client_first_z + client_size) {

@@ -44,10 +44,9 @@ class Backend {
   static uint32_t CalcPixOps(const std::vector<HwcLayer *> &layers,
                              size_t first_z, size_t size,
                              std::pair<uint32_t, uint32_t> display_size);
-  static CompositionTypeMap MarkValidated(std::vector<HwcLayer *> &layers,
-                                          size_t client_first_z,
-                                          size_t client_size,
-                                          bool use_cursor_plane);
+  static CompositionTypeMap GetCompositionTypes(
+      const std::vector<HwcLayer *> &layers, size_t client_first_z,
+      size_t client_size, bool use_cursor_plane);
   static std::tuple<int, int> GetExtraClientRange(
       HwcDisplay *display, const std::vector<HwcLayer *> &layers,
       int client_start, size_t client_size, bool use_cursor_plane);
