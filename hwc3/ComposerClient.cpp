@@ -65,6 +65,11 @@ using ::android::IRect;
 using ::android::LayerTransform;
 using ::android::SrcRectInfo;
 
+using HwcOutputType = ::android::OutputType;
+#if __ANDROID_API__ >= 36
+using AidlOutputType = aidl::android::hardware::graphics::composer3::OutputType;
+#endif
+
 namespace aidl::android::hardware::graphics::composer3::impl {
 namespace {
 
@@ -173,9 +178,7 @@ bool IsSupportedCompositionType(
     // DisplayCommand and return.
     case Composition::DISPLAY_DECORATION:
     case Composition::SIDEBAND:
-#if __ANDROID_API__ >= 34
     case Composition::REFRESH_RATE_INDICATOR:
-#endif
       return false;
   }
 }
@@ -237,35 +240,28 @@ std::optional<HwcLayer::CompositionType> AidlToCompositionType(
     // Unsupported composition types.
     case Composition::DISPLAY_DECORATION:
     case Composition::SIDEBAND:
-#if __ANDROID_API__ >= 34
     case Composition::REFRESH_RATE_INDICATOR:
-#endif
       ALOGE("Unsupported composition type: %s",
             toString(composition->composition).c_str());
       return std::nullopt;
   }
 }
 
-#if __ANDROID_API__ < 35
-
-class DisplayConfiguration {
- public:
-  class Dpi {
-   public:
-    float x = 0.000000F;
-    float y = 0.000000F;
-  };
-  // NOLINTNEXTLINE(readability-identifier-naming)
-  int32_t configId = 0;
-  int32_t width = 0;
-  int32_t height = 0;
-  std::optional<Dpi> dpi;
-  // NOLINTNEXTLINE(readability-identifier-naming)
-  int32_t configGroup = 0;
-  // NOLINTNEXTLINE(readability-identifier-naming)
-  int32_t vsyncPeriod = 0;
-};
-
+#if __ANDROID_API__ >= 36
+AidlOutputType OutputTypeToAidl(const HwcOutputType output_type) {
+  switch (output_type) {
+    case HwcOutputType::kSystem:
+      return AidlOutputType::SYSTEM;
+    case HwcOutputType::kSdr:
+      return AidlOutputType::SDR;
+    case HwcOutputType::kHdr10:
+      return AidlOutputType::HDR10;
+    case HwcOutputType::kInvalid:
+      [[fallthrough]];
+    default:
+      return AidlOutputType::INVALID;
+  }
+}
 #endif
 
 DisplayConfiguration HwcDisplayConfigToAidlConfiguration(
@@ -279,8 +275,7 @@ DisplayConfiguration HwcDisplayConfigToAidlConfiguration(
        .hdrOutputType = static_cast<OutputType>(config.output_type)};
 
 #if __ANDROID_API__ >= 36
-  aidl_configuration.hdrOutputType = static_cast<OutputType>(
-      config.output_type);
+  aidl_configuration.hdrOutputType = OutputTypeToAidl(config.output_type);
 #endif
 
   if (width > 0) {
@@ -601,7 +596,6 @@ void ComposerClient::DispatchLayerCommand(int64_t display_handle,
     return;
   }
 
-#if __ANDROID_API__ >= 35
   auto batch_command = command.layerLifecycleBatchCommandType;
   if (batch_command == LayerLifecycleBatchCommandType::CREATE) {
     if (!display->CreateLayer(command.layer)) {
@@ -617,7 +611,6 @@ void ComposerClient::DispatchLayerCommand(int64_t display_handle,
 
     return;
   }
-#endif
 
   auto* layer = display->get_layer(command.layer);
   if (layer == nullptr) {
@@ -639,7 +632,6 @@ void ComposerClient::DispatchLayerCommand(int64_t display_handle,
     return;
   }
 
-#if __ANDROID_API__ >= 34
   /* https://source.android.com/docs/core/graphics/reduce-consumption */
   if (command.bufferSlotsToClear) {
     auto hwc3_layer = GetHwc3Layer(*layer);
@@ -653,7 +645,6 @@ void ComposerClient::DispatchLayerCommand(int64_t display_handle,
       layer->SetLayerProperties(lp.value());
     }
   }
-#endif
 
   HwcLayer::LayerProperties properties;
   if (command.buffer) {
@@ -915,16 +906,14 @@ ndk::ScopedAStatus ComposerClient::getDisplayAttribute(
       *value = aidl_configuration.vsyncPeriod;
       break;
     case DisplayAttribute::DPI_X:
-      *value = aidl_configuration.dpi
-                   ? static_cast<int>(aidl_configuration.dpi->x *
-                                      kLegacyDpiUnit)
-                   : -1;
+      if (!aidl_configuration.dpi)
+        return ToBinderStatus(hwc3::Error::kUnsupported);
+      *value = static_cast<int>(aidl_configuration.dpi->x * kLegacyDpiUnit);
       break;
     case DisplayAttribute::DPI_Y:
-      *value = aidl_configuration.dpi
-                   ? static_cast<int>(aidl_configuration.dpi->y *
-                                      kLegacyDpiUnit)
-                   : -1;
+      if (!aidl_configuration.dpi)
+        return ToBinderStatus(hwc3::Error::kUnsupported);
+      *value = static_cast<int>(aidl_configuration.dpi->y * kLegacyDpiUnit);
       break;
     case DisplayAttribute::CONFIG_GROUP:
       *value = aidl_configuration.configGroup;
@@ -1304,8 +1293,13 @@ ndk::ScopedAStatus ComposerClient::setActiveConfigWithConstraints(
       return ToBinderStatus(hwc3::Error::kSeamlessNotAllowed);
     case HwcDisplay::ConfigError::kSeamlessNotPossible:
       return ToBinderStatus(hwc3::Error::kSeamlessNotPossible);
+#if __ANDROID_API__ >= 36
     case HwcDisplay::ConfigError::kConfigFailed:
       return ToBinderStatus(hwc3::Error::kConfigFailed);
+#else
+    case HwcDisplay::ConfigError::kConfigFailed:
+      return ToBinderStatus(hwc3::Error::kBadConfig);
+#endif
     case HwcDisplay::ConfigError::kNone:
       return ndk::ScopedAStatus::ok();
   }
@@ -1499,8 +1493,6 @@ ndk::ScopedAStatus ComposerClient::setIdleTimerEnabled(
   return ToBinderStatus(hwc3::Error::kUnsupported);
 }
 
-#if __ANDROID_API__ >= 34
-
 ndk::ScopedAStatus ComposerClient::getOverlaySupport(
     OverlayProperties* /*out_overlay_properties*/) {
   return ToBinderStatus(hwc3::Error::kUnsupported);
@@ -1521,10 +1513,6 @@ ndk::ScopedAStatus ComposerClient::setRefreshRateChangedCallbackDebugEnabled(
     int64_t /*display*/, bool /*enabled*/) {
   return ToBinderStatus(hwc3::Error::kUnsupported);
 }
-
-#endif
-
-#if __ANDROID_API__ >= 35
 
 ndk::ScopedAStatus ComposerClient::getDisplayConfigurations(
     int64_t display_handle, int32_t /*max_frame_interval_ns*/,
@@ -1553,8 +1541,6 @@ ndk::ScopedAStatus ComposerClient::notifyExpectedPresent(
     int32_t /*frame_interval_ns*/) {
   return ToBinderStatus(hwc3::Error::kUnsupported);
 }
-
-#endif
 
 #if __ANDROID_API__ >= 36
 
