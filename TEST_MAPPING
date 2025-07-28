@@ -55,6 +55,10 @@
         }
       ]
     },
+    // DTS Color Tests
+    {
+      "name": "HardwareColorTests"
+    },
     // CF VKMS Tests
     {
       "name": "CfVkmsConnectorsTest"
