@@ -2,6 +2,9 @@
   "desktop-presubmit": [
     {
       "name": "VtsHalGraphicsComposer3_TargetTest"
+    },
+    {
+      "name": "CfVkmsCursorTest"
     }
   ],
   "desktop-postsubmit": [
@@ -58,9 +61,6 @@
     // CF VKMS Tests
     {
       "name": "CfVkmsConnectorsTest"
-    },
-    {
-      "name": "CfVkmsCursorTest"
     },
     {
       "name": "CfVkmsDisplaysTest"
