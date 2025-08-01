@@ -23,7 +23,7 @@ namespace android {
 
 auto BackendClient::ValidateDisplay(HwcDisplay* display) -> CompositionTypeMap {
   CompositionTypeMap composition_types;
-  for (auto &[layer_handle, layer] : display->layers()) {
+  for (const auto& [layer_handle, layer] : display->layers()) {
     composition_types.emplace(&layer, CompositionType::kClient);
   }
   return composition_types;

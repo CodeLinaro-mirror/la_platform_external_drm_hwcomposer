@@ -69,7 +69,7 @@ class HwcDisplay {
 
   bool CreateComposition(AtomicCommitArgs &a_args,
                          const Backend::CompositionTypeMap &composition);
-  std::vector<HwcLayer *> GetOrderLayersByZPos();
+  std::vector<const HwcLayer *> GetOrderLayersByZPos() const;
 
   std::string Dump();
 
@@ -180,6 +180,10 @@ class HwcDisplay {
   }
 
   auto layers() -> std::map<ILayerId, HwcLayer> & {
+    return layers_;
+  }
+
+  auto layers() const -> const std::map<ILayerId, HwcLayer> & {
     return layers_;
   }
 

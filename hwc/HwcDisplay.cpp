@@ -313,20 +313,21 @@ auto HwcDisplay::ValidateStagedComposition() -> std::vector<ChangedLayer> {
     }
   }
 
-  // ValidateDisplay modifies the composition type in layers_ which can be
-  // checked to see which layers' composition strategies have changed.
+  // ValidateDisplay returns CompositionTypeMap to indicate the composition
+  // type that the Backend has determined for each layer.
   auto result = backend_->ValidateDisplay(this);
-
-  // Set the validated type
-  for (auto &[layer, type] : result) {
-    layer->SetValidatedType(type);
-  }
 
   // Iterate through the layers to find which layers actually changed.
   std::vector<ChangedLayer> changed_layers;
-  for (auto &l : layers_) {
-    if (l.second.IsTypeChanged()) {
-      changed_layers.emplace_back(l.first, l.second.GetValidatedType());
+  for (auto &[id, layer] : layers_) {
+    // Set the validated type
+    auto it = result.find(&layer);
+    ALOGE_IF(it == result.end(), "Backend did not composite layer %ld", id);
+    if (it != result.end()) {
+      layer.SetValidatedType(it->second);
+    }
+    if (layer.IsTypeChanged()) {
+      changed_layers.emplace_back(id, layer.GetValidatedType());
     }
   }
   return changed_layers;
@@ -981,11 +982,11 @@ SharedFd HwcDisplay::GetWritebackBufferFence() {
   return std::move(writeback_complete_fence_);
 }
 
-std::vector<HwcLayer *> HwcDisplay::GetOrderLayersByZPos() {
-  std::vector<HwcLayer *> ordered_layers;
+std::vector<const HwcLayer *> HwcDisplay::GetOrderLayersByZPos() const {
+  std::vector<const HwcLayer *> ordered_layers;
   ordered_layers.reserve(layers_.size());
 
-  for (auto &[handle, layer] : layers_) {
+  for (const auto &[handle, layer] : layers_) {
     ordered_layers.emplace_back(&layer);
   }
 

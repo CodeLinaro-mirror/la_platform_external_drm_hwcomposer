@@ -88,7 +88,11 @@ class HwcLayer {
     return z_order_;
   }
 
-  auto &GetLayerData() {
+  LayerData &GetLayerData() {
+    return layer_data_;
+  }
+
+  const LayerData &GetLayerData() const {
     return layer_data_;
   }
 

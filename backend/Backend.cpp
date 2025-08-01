@@ -28,9 +28,9 @@ namespace android {
 
 namespace {
 
-HwcLayer *GetCursorLayer(const std::vector<HwcLayer *> &layers) {
+const HwcLayer* GetCursorLayer(const std::vector<const HwcLayer*>& layers) {
   auto it = std::find_if(layers.begin(), layers.end(),
-                         [&](auto *layer) -> bool {
+                         [&](auto* layer) -> bool {
                            return layer->GetSfType() ==
                                   CompositionType::kCursor;
                          });
@@ -52,7 +52,7 @@ std::pair<uint32_t, uint32_t> GetDisplaySize(const HwcDisplay *display) {
 
 }  // namespace
 
-auto Backend::ValidateDisplay(HwcDisplay *display) -> CompositionTypeMap {
+auto Backend::ValidateDisplay(HwcDisplay* display) -> CompositionTypeMap {
   auto layers = display->GetOrderLayersByZPos();
 
   auto flatcon = display->GetFlatCon();
@@ -72,7 +72,7 @@ auto Backend::ValidateDisplay(HwcDisplay *display) -> CompositionTypeMap {
 
   int client_start = -1;
   size_t client_size = 0;
-  auto *cursor_layer = GetCursorLayer(layers);
+  const auto* cursor_layer = GetCursorLayer(layers);
   auto cursor_plane = display->GetPipe().GetUsablePlanes().second;
   bool use_cursor_plane = cursor_layer != nullptr && cursor_plane != nullptr &&
                           !IsClientLayer(display, cursor_layer) &&
@@ -129,7 +129,7 @@ auto Backend::ValidateDisplay(HwcDisplay *display) -> CompositionTypeMap {
 }
 
 std::tuple<int, size_t> Backend::GetClientLayers(
-    HwcDisplay *display, const std::vector<HwcLayer *> &layers,
+    HwcDisplay* display, const std::vector<const HwcLayer*>& layers,
     bool use_cursor_plane) {
   int client_start = -1;
   size_t client_size = 0;
@@ -146,7 +146,7 @@ std::tuple<int, size_t> Backend::GetClientLayers(
                              use_cursor_plane);
 }
 
-bool Backend::IsClientLayer(HwcDisplay *display, HwcLayer *layer) {
+bool Backend::IsClientLayer(HwcDisplay* display, const HwcLayer* layer) {
   return !HardwareSupportsLayerType(layer->GetSfType()) ||
          !layer->IsLayerUsableAsDevice() || display->CtmByGpu() ||
          (layer->GetLayerData().pi.RequireScalingOrPhasing() &&
@@ -158,15 +158,15 @@ bool Backend::HardwareSupportsLayerType(CompositionType comp_type) {
          comp_type == CompositionType::kCursor;
 }
 
-uint32_t Backend::CalcPixOps(const std::vector<HwcLayer *> &layers,
+uint32_t Backend::CalcPixOps(const std::vector<const HwcLayer*>& layers,
                              size_t first_z, size_t size,
                              std::pair<uint32_t, uint32_t> display_size) {
   uint32_t whole_display = display_size.first * display_size.second;
   uint32_t pixops = 0;
   for (size_t z_order = 0; z_order < layers.size(); ++z_order) {
     if (z_order >= first_z && z_order < first_z + size) {
-      auto *layer = layers[z_order];
-      auto &df = layer->GetLayerData().pi.display_frame;
+      const auto* layer = layers[z_order];
+      const auto& df = layer->GetLayerData().pi.display_frame;
       if (df.i_rect.has_value()) {
         pixops += (df.i_rect->right - df.i_rect->left) *
                   (df.i_rect->bottom - df.i_rect->top);
@@ -179,7 +179,7 @@ uint32_t Backend::CalcPixOps(const std::vector<HwcLayer *> &layers,
   return pixops;
 }
 
-auto Backend::GetCompositionTypes(const std::vector<HwcLayer *> &layers,
+auto Backend::GetCompositionTypes(const std::vector<const HwcLayer*>& layers,
                                   size_t client_first_z, size_t client_size,
                                   bool use_cursor_plane) -> CompositionTypeMap {
   CompositionTypeMap composition_types;
@@ -197,7 +197,7 @@ auto Backend::GetCompositionTypes(const std::vector<HwcLayer *> &layers,
 }
 
 std::tuple<int, int> Backend::GetExtraClientRange(
-    HwcDisplay *display, const std::vector<HwcLayer *> &layers,
+    HwcDisplay* display, const std::vector<const HwcLayer*>& layers,
     int client_start, size_t client_size, bool use_cursor_plane) {
   size_t avail_planes = display->GetPipe().GetUsablePlanes().first.size();
   size_t layers_size = layers.size();
