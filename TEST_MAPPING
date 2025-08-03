@@ -2,6 +2,9 @@
   "desktop-presubmit": [
     {
       "name": "VtsHalGraphicsComposer3_TargetTest"
+    },
+    {
+      "name": "CfVkmsCursorTest"
     }
   ],
   "desktop-postsubmit": [
@@ -55,29 +58,9 @@
         }
       ]
     },
-    {
-      "name": "Vkms2VtsHalGraphicsComposer3"
-    },
-    {
-      "name": "Vkms5WithConfig_VtsHalGraphicsComposer3"
-    },
-    {
-      "name": "test_hotplugs"
-    },
-    {
-      "name": "CfVkmsConnectorsTest"
-    },
-    {
-      "name": "CfVkmsDisplaysTest"
-    }
-  ],
-  "desktop-postsubmit-latest-kernel": [
     // CF VKMS Tests
     {
       "name": "CfVkmsConnectorsTest"
-    },
-    {
-      "name": "CfVkmsCursorTest"
     },
     {
       "name": "CfVkmsDisplaysTest"
