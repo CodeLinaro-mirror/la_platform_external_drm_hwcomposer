@@ -32,6 +32,7 @@ srcs_hwc2_device = [
 ]
 
 deps = [
+    dependency('base'),
     dependency('cutils'),
     dependency('drm'),
     dependency('hardware'),
