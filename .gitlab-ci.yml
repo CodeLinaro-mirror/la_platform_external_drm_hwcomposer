@@ -5,8 +5,8 @@ workflow:
     - when: always
 
 variables:
-  ANDROID_BRANCH: android15-release
-  ANDROID_SDK_VERSION: 35
+  ANDROID_BRANCH: android16-release
+  ANDROID_SDK_VERSION: 36
   DEBIAN_FRONTEND: noninteractive
   CI_TEMPLATES_COMMIT: &ci-templates-commit 32afe5644697e503af18a736587c8619fa036a72
   FDO_UPSTREAM_REPO: "drm-hwcomposer/drm-hwcomposer"

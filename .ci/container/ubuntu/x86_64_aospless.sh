@@ -79,8 +79,6 @@ else
 fi
 git -C external/drm_hwcomposer checkout FETCH_HEAD
 
-sed -i "/'-DUSE_IMAPPER4_METADATA_API'/a\    '-D__ANDROID_API__=${ANDROID_SDK_VERSION}'," external/drm_hwcomposer/meson.build
-
 rm external/libdisplay_info -rf
 git clone --depth=1 https://android.googlesource.com/platform/external/libdisplay-info/ external/libdisplay_info
 
