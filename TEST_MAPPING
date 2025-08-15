@@ -11,6 +11,9 @@
     },
     {
       "name": "Vkms5WithConfig_VtsHalGraphicsComposer3"
+    },
+    {
+      "name": "VkmsTestHwcHotplugs"
     }
   ],
   "desktop-postsubmit": [
@@ -76,9 +79,6 @@
       "name": "Vkms2_SurfaceFlingerTest"
     },
     // HWC Tests
-    {
-      "name": "VkmsTestHwcHotplugs"
-    },
     {
       "name": "TestHwcComposition"
     },
