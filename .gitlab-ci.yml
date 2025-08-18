@@ -11,6 +11,7 @@ variables:
   CI_TEMPLATES_COMMIT: &ci-templates-commit 32afe5644697e503af18a736587c8619fa036a72
   FDO_UPSTREAM_REPO: "drm-hwcomposer/drm-hwcomposer"
   CUTTLEFISH_TARBALL: "cuttlefish.tar.xz"
+  RESULTS_DIR: "${CI_PROJECT_DIR}/results"
 
 include:
   - project: 'freedesktop/ci-templates'
@@ -73,8 +74,6 @@ android-cts:
   stage: android
   extends:
     .use-ubuntu/x86_64_android
-  variables:
-    RESULTS_DIR: "${CI_PROJECT_DIR}/results"
   script:
     - "${CI_PROJECT_DIR}/.ci/android/cts-runner.sh"
   needs:
@@ -95,8 +94,6 @@ android-vts:
   stage: android
   extends:
     .use-ubuntu/x86_64_android
-  variables:
-    RESULTS_DIR: "${CI_PROJECT_DIR}/results"
   script:
     - "${CI_PROJECT_DIR}/.ci/android/vts-runner.sh"
   needs:
