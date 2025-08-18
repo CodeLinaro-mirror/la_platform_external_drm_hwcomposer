@@ -89,10 +89,8 @@ auto Backend::ValidateDisplay(HwcDisplay* display) -> CompositionTypeMap {
                                             use_cursor_plane);
 
     bool testing_needed = client_start != 0 || client_size != layers.size();
-    AtomicCommitArgs a_args = {.test_only = true};
-
     if (testing_needed) {
-      return display->CreateComposition(a_args, composition_types);
+      return display->TestComposition(composition_types);
     }
 
     return true;

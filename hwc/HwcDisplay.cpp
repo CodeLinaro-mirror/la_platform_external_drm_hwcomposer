@@ -770,6 +770,12 @@ uint32_t HwcDisplay::GetCurrentVsyncPeriodNs() const {
   return config->mode.GetVSyncPeriodNs();
 }
 
+bool HwcDisplay::TestComposition(
+    const Backend::CompositionTypeMap &composition) {
+  AtomicCommitArgs a_args = {.test_only = true};
+  return CreateComposition(a_args, composition);
+}
+
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
 bool HwcDisplay::CreateComposition(
     AtomicCommitArgs &a_args, const Backend::CompositionTypeMap &composition) {
