@@ -17,10 +17,16 @@ INCLUDE_FILE="${CI_PROJECT_DIR}/.ci/android/cts-includes.txt"
 # shellcheck disable=SC2086 # keep word splitting
 INCLUDE_FILTERS="$(grep -v -E "(^#|^[[:space:]]*$)" "$INCLUDE_FILE" | sed -e 's/\s*$//g' -e 's/.*/--include-filter "\0" /g')"
 
+SKIP_FILE="${CI_PROJECT_DIR}/.ci/android/cts-skips.txt"
+EXCLUDE_FILTERS=""
+if [ -e "$SKIP_FILE" ]; then
+  EXCLUDE_FILTERS="$(grep -v -E "(^#|^[[:space:]]*$)" "$SKIP_FILE" | sed -e 's/\s*$//g' -e 's/.*/--exclude-filter "\0" /g')"
+fi
+
 set +e
 # shellcheck disable=SC2086 # keep word splitting
 eval /android-tools/android-cts/tools/cts-tradefed run commandAndExit cts-dev \
-  $INCLUDE_FILTERS --log-level-display ASSERT
+  $INCLUDE_FILTERS $EXCLUDE_FILTERS --log-level-display ASSERT
 
 cp -r "/android-tools/android-cts/results/latest"/* "${RESULTS_DIR}"
 cp -r "/android-tools/android-cts/logs/latest"/* "${RESULTS_DIR}"
