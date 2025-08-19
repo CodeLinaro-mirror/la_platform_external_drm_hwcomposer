@@ -794,22 +794,16 @@ bool HwcDisplay::CreateComposition(
   a_args.hdr_metadata = hdr_metadata_;
   a_args.min_bpc = min_bpc_;
 
-  uint32_t prev_vperiod_ns = GetCurrentVsyncPeriodNs();
-  std::optional<uint32_t> new_vsync_period_ns;
+  const HwcDisplayConfig *staged_config = nullptr;
   if (staged_mode_config_id_ &&
       staged_mode_change_time_ <= ResourceManager::GetTimeMonotonicNs()) {
-    const HwcDisplayConfig *staged_config = GetConfig(
-        staged_mode_config_id_.value());
+    staged_config = GetConfig(staged_mode_config_id_.value());
     if (staged_config == nullptr) {
       return false;
     }
 
     a_args.display_mode = staged_config->mode;
     a_args.seamless = true;
-    if (!a_args.test_only) {
-      configs_.active_config_id = staged_mode_config_id_.value();
-      new_vsync_period_ns = staged_config->mode.GetVSyncPeriodNs();
-    }
   }
 
   // order the layers by z-order
@@ -913,19 +907,23 @@ bool HwcDisplay::CreateComposition(
 
   if (!a_args.test_only) {
     writeback_complete_fence_ = a_args.out_writeback_complete_fence;
-  }
+    if (staged_config != nullptr) {
+      // Get the vsync period before updating active_config_id.
+      uint32_t prev_vperiod_ns = GetCurrentVsyncPeriodNs();
+      vsync_worker_->SetVsyncTimestampTracking(false);
+      uint32_t last_vsync_ts = vsync_worker_->GetLastVsyncTimestamp();
+      if (last_vsync_ts != 0) {
+        hwc_->SendVsyncPeriodTimingChangedEventToClient(handle_,
+                                                        last_vsync_ts +
+                                                            prev_vperiod_ns);
+      }
 
-  if (new_vsync_period_ns) {
-    staged_mode_config_id_.reset();
-
-    vsync_worker_->SetVsyncTimestampTracking(false);
-    uint32_t last_vsync_ts = vsync_worker_->GetLastVsyncTimestamp();
-    if (last_vsync_ts != 0) {
-      hwc_->SendVsyncPeriodTimingChangedEventToClient(handle_,
-                                                      last_vsync_ts +
-                                                          prev_vperiod_ns);
+      // Update the active_config_id and update the vsync period for the
+      // VsyncWorker.
+      configs_.active_config_id = staged_mode_config_id_.value();
+      staged_mode_config_id_.reset();
+      vsync_worker_->SetVsyncPeriodNs(staged_config->mode.GetVSyncPeriodNs());
     }
-    vsync_worker_->SetVsyncPeriodNs(new_vsync_period_ns.value());
   }
 
   return true;
