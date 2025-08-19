@@ -800,10 +800,10 @@ bool HwcDisplay::CreateComposition(
       return false;
     }
 
-    configs_.active_config_id = staged_mode_config_id_.value();
     a_args.display_mode = staged_config->mode;
     a_args.seamless = true;
     if (!a_args.test_only) {
+      configs_.active_config_id = staged_mode_config_id_.value();
       new_vsync_period_ns = staged_config->mode.GetVSyncPeriodNs();
     }
   }
