@@ -794,10 +794,9 @@ bool HwcDisplay::CreateComposition(
   a_args.hdr_metadata = hdr_metadata_;
   a_args.min_bpc = min_bpc_;
 
-  const HwcDisplayConfig *staged_config = nullptr;
   if (staged_mode_config_id_ &&
       staged_mode_change_time_ <= ResourceManager::GetTimeMonotonicNs()) {
-    staged_config = GetConfig(staged_mode_config_id_.value());
+    const auto *staged_config = GetConfig(staged_mode_config_id_.value());
     if (staged_config == nullptr) {
       return false;
     }
@@ -907,7 +906,7 @@ bool HwcDisplay::CreateComposition(
 
   if (!a_args.test_only) {
     writeback_complete_fence_ = a_args.out_writeback_complete_fence;
-    if (staged_config != nullptr) {
+    if (a_args.display_mode) {
       // Get the vsync period before updating active_config_id.
       uint32_t prev_vperiod_ns = GetCurrentVsyncPeriodNs();
       vsync_worker_->SetVsyncTimestampTracking(false);
@@ -922,7 +921,7 @@ bool HwcDisplay::CreateComposition(
       // VsyncWorker.
       configs_.active_config_id = staged_mode_config_id_.value();
       staged_mode_config_id_.reset();
-      vsync_worker_->SetVsyncPeriodNs(staged_config->mode.GetVSyncPeriodNs());
+      vsync_worker_->SetVsyncPeriodNs(a_args.display_mode->GetVSyncPeriodNs());
     }
   }
 
