@@ -903,29 +903,36 @@ bool HwcDisplay::CreateComposition(
     ALOGE_IF(!a_args.test_only, "Failed to apply the frame composition.");
     return false;
   }
-
   if (!a_args.test_only) {
-    writeback_complete_fence_ = a_args.out_writeback_complete_fence;
-    if (a_args.display_mode) {
-      // Get the vsync period before updating active_config_id.
-      uint32_t prev_vperiod_ns = GetCurrentVsyncPeriodNs();
-      vsync_worker_->SetVsyncTimestampTracking(false);
-      uint32_t last_vsync_ts = vsync_worker_->GetLastVsyncTimestamp();
-      if (last_vsync_ts != 0) {
-        hwc_->SendVsyncPeriodTimingChangedEventToClient(handle_,
-                                                        last_vsync_ts +
-                                                            prev_vperiod_ns);
-      }
-
-      // Update the active_config_id and update the vsync period for the
-      // VsyncWorker.
-      configs_.active_config_id = staged_mode_config_id_.value();
-      staged_mode_config_id_.reset();
-      vsync_worker_->SetVsyncPeriodNs(a_args.display_mode->GetVSyncPeriodNs());
-    }
+    ApplyCommitChanges(a_args);
   }
-
   return true;
+}
+
+void HwcDisplay::ApplyCommitChanges(const AtomicCommitArgs &a_args) {
+  ALOGE_IF(a_args.test_only, "Applying commit changes for test_only args.");
+  writeback_complete_fence_ = a_args.out_writeback_complete_fence;
+  if (a_args.display_mode) {
+    // Get the vsync period before updating active_config_id.
+    uint32_t prev_vperiod_ns = GetCurrentVsyncPeriodNs();
+    vsync_worker_->SetVsyncTimestampTracking(false);
+    uint32_t last_vsync_ts = vsync_worker_->GetLastVsyncTimestamp();
+    if (last_vsync_ts != 0) {
+      hwc_->SendVsyncPeriodTimingChangedEventToClient(handle_,
+                                                      last_vsync_ts +
+                                                          prev_vperiod_ns);
+    }
+
+    // If staged_mode_config_id_ is nullopt that indicates a logic error.
+    ALOGE_IF(!staged_mode_config_id_,
+             "a_args.display_mode is set but staged_mode_config_id_ is not.");
+    // Update the active_config_id and update the vsync period for the
+    // VsyncWorker.
+    configs_.active_config_id = staged_mode_config_id_.value_or(
+        configs_.active_config_id);
+    staged_mode_config_id_.reset();
+    vsync_worker_->SetVsyncPeriodNs(a_args.display_mode->GetVSyncPeriodNs());
+  }
 }
 
 bool HwcDisplay::CtmByGpu() {

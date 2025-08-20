@@ -234,6 +234,10 @@ class HwcDisplay {
   bool CreateComposition(AtomicCommitArgs &a_args,
                          const Backend::CompositionTypeMap &composition);
 
+  // Update HwcDisplay state tracking to reflect what was committed in |a_args|.
+  // This should be called after a successful commit.
+  void ApplyCommitChanges(const AtomicCommitArgs &a_args);
+
   AtomicCommitArgs CreateModesetCommit(
       const HwcDisplayConfig *config,
       const std::optional<LayerData> &modeset_layer);
