@@ -231,8 +231,16 @@ class HwcDisplay {
   bool NeedsClientLayerUpdate() const;
 
  private:
-  bool CreateComposition(AtomicCommitArgs &a_args,
-                         const Backend::CompositionTypeMap &composition);
+  // Create AtomicCommitArgs to commit at the next vsync. Returns nullopt if
+  // such AtomicCommitArgs cannot be created due to lack of drm resources or
+  // invalid HwcDisplay or HwcLayer state.
+  // The caller must do a test commit on the returned args to ensure that the
+  // hardware can perform the commit.
+  std::optional<AtomicCommitArgs> CreateFrameUpdateCommit(
+      const Backend::CompositionTypeMap &composition);
+
+  bool CreateComposition(const Backend::CompositionTypeMap &composition,
+                         SharedFd &out_present_fence);
 
   // Update HwcDisplay state tracking to reflect what was committed in |a_args|.
   // This should be called after a successful commit.

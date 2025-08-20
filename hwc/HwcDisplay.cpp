@@ -387,13 +387,10 @@ auto HwcDisplay::PresentStagedComposition(
     composition.emplace(&l.second, l.second.GetValidatedType());
   }
 
-  AtomicCommitArgs a_args{};
-  if (!CreateComposition(a_args, composition)) {
+  if (!CreateComposition(composition, out_present_fence)) {
     ++total_stats_.failed_kms_present;
     return false;
   }
-
-  out_present_fence = a_args.out_fence;
 
   // Reset the hdr output metadata blobs so we don't apply it repeatedly.
   hdr_metadata_.reset();
@@ -776,18 +773,26 @@ uint32_t HwcDisplay::GetCurrentVsyncPeriodNs() const {
 
 bool HwcDisplay::TestComposition(
     const Backend::CompositionTypeMap &composition) {
-  AtomicCommitArgs a_args = {.test_only = true};
-  return CreateComposition(a_args, composition);
+  if (IsInHeadlessMode()) {
+    return true;
+  }
+  auto a_args = CreateFrameUpdateCommit(composition);
+  if (!a_args) {
+    return false;
+  }
+  a_args->test_only = true;
+  return GetPipe().atomic_state_manager->ExecuteAtomicCommit(*a_args);
 }
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
-bool HwcDisplay::CreateComposition(
-    AtomicCommitArgs &a_args, const Backend::CompositionTypeMap &composition) {
+std::optional<AtomicCommitArgs> HwcDisplay::CreateFrameUpdateCommit(
+    const Backend::CompositionTypeMap &composition) {
   if (IsInHeadlessMode()) {
     ALOGE("%s: Display is in headless mode, should never reach here", __func__);
-    return true;
+    return AtomicCommitArgs{};
   }
 
+  AtomicCommitArgs a_args;
   a_args.color_matrix = color_matrix_;
   a_args.content_type = content_type_;
   a_args.colorspace = colorspace_;
@@ -798,7 +803,7 @@ bool HwcDisplay::CreateComposition(
       staged_mode_change_time_ <= ResourceManager::GetTimeMonotonicNs()) {
     const auto *staged_config = GetConfig(staged_mode_config_id_.value());
     if (staged_config == nullptr) {
-      return false;
+      return std::nullopt;
     }
 
     a_args.display_mode = staged_config->mode;
@@ -842,7 +847,7 @@ bool HwcDisplay::CreateComposition(
 
   // CTM will be applied by the client, don't apply DRM CTM
   if (client_layer_count == layers_.size())
-   a_args.color_matrix = identity_color_matrix_;
+    a_args.color_matrix = identity_color_matrix_;
   else
     a_args.color_matrix = color_matrix_;
 
@@ -860,7 +865,7 @@ bool HwcDisplay::CreateComposition(
        * imported. For example when non-contiguous buffer is imported into
        * contiguous-only DRM/KMS driver.
        */
-      return false;
+      return std::nullopt;
     }
   }
 
@@ -871,7 +876,7 @@ bool HwcDisplay::CreateComposition(
   // now that they're ordered by z, add them to the composition
   for (std::pair<const uint32_t, HwcLayer *> &l : z_map) {
     if (!l.second->IsLayerUsableAsDevice()) {
-      return false;
+      return std::nullopt;
     }
     composition_layers.emplace_back(l.second->GetLayerData());
   }
@@ -884,7 +889,7 @@ bool HwcDisplay::CreateComposition(
                                                cursor_layer);
   if (!current_plan_) {
     ALOGE_IF(!a_args.test_only, "Failed to create DrmKmsPlan");
-    return false;
+    return std::nullopt;
   }
   a_args.composition = current_plan_;
 
@@ -892,20 +897,35 @@ bool HwcDisplay::CreateComposition(
     writeback_layer_->PopulateLayerData();
     if (!writeback_layer_->IsLayerUsableAsDevice()) {
       ALOGE("Writeback layer not usable by DRM/KMS - no valid buffer set");
-      return false;
+      return std::nullopt;
     }
     a_args.writeback_fb = writeback_layer_->GetLayerData().fb;
     a_args.writeback_release_fence = writeback_layer_->GetLayerData()
                                          .acquire_fence;
   }
+  return a_args;
+}
 
-  if (!GetPipe().atomic_state_manager->ExecuteAtomicCommit(a_args)) {
-    ALOGE_IF(!a_args.test_only, "Failed to apply the frame composition.");
+bool HwcDisplay::CreateComposition(
+    const Backend::CompositionTypeMap &composition,
+    SharedFd &out_present_fence) {
+  if (IsInHeadlessMode()) {
+    ALOGE("%s: Display is in headless mode, should never reach here", __func__);
+    return true;
+  }
+  auto a_args = CreateFrameUpdateCommit(composition);
+  if (!a_args) {
+    ALOGE("Failed to create AtomicCommitArgs for frame composition.");
     return false;
   }
-  if (!a_args.test_only) {
-    ApplyCommitChanges(a_args);
+  current_plan_ = a_args->composition;
+
+  if (!GetPipe().atomic_state_manager->ExecuteAtomicCommit(*a_args)) {
+    ALOGE("Failed to commit the frame composition.");
+    return false;
   }
+  out_present_fence = a_args->out_fence;
+  ApplyCommitChanges(*a_args);
   return true;
 }
 
