@@ -69,8 +69,6 @@ class HwcDisplay {
 
   bool TestComposition(const Backend::CompositionTypeMap &composition);
 
-  bool CreateComposition(AtomicCommitArgs &a_args,
-                         const Backend::CompositionTypeMap &composition);
   std::vector<const HwcLayer *> GetOrderLayersByZPos() const;
 
   std::string Dump();
@@ -233,6 +231,9 @@ class HwcDisplay {
   bool NeedsClientLayerUpdate() const;
 
  private:
+  bool CreateComposition(AtomicCommitArgs &a_args,
+                         const Backend::CompositionTypeMap &composition);
+
   AtomicCommitArgs CreateModesetCommit(
       const HwcDisplayConfig *config,
       const std::optional<LayerData> &modeset_layer);
