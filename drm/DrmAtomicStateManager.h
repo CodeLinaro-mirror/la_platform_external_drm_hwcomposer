@@ -54,6 +54,7 @@ struct AtomicCommitArgs {
   bool test_only = false;
   bool blocking = false;
   bool teardown = false;
+  bool seamless = false;
   std::optional<DrmMode> display_mode;
   std::optional<bool> active;
   std::shared_ptr<DrmKmsPlan> composition;
@@ -90,7 +91,7 @@ class DrmAtomicStateManager {
 
   ~DrmAtomicStateManager();
 
-  auto ExecuteAtomicCommit(AtomicCommitArgs &args) -> int;
+  bool ExecuteAtomicCommit(AtomicCommitArgs &args);
   auto ActivateDisplayUsingDPMS() -> int;
 
   void CleanFailedCommit();
@@ -107,15 +108,15 @@ class DrmAtomicStateManager {
   void ThreadFn();
 
   DrmAtomicStateManager() = default;
-  int CommitFrame(AtomicCommitArgs &args);
+  bool CommitFrame(AtomicCommitArgs &args);
 
   // Only accessed from main thread.
   DrmDisplayPipeline *pipe_{};
 
+  // The following members must only be updated after a successful commit to
+  // reflect the current state of DRM for the display.
   KmsState committed_frame_state_;
-
-  KmsState staged_frame_state_;
-  KmsObjects used_kms_objects_;
+  DstRectInfo whole_display_rect_{};
 
   void WaitLastFrame();
   bool SetWriteBackFenceIfNeeded(drmModeAtomicReq *pset,
@@ -134,14 +135,11 @@ class DrmAtomicStateManager {
   static void CheckDoubleSettingState(AtomicCommitArgs &args,
                                       bool crtc_is_active);
 
-  DstRectInfo whole_display_rect_{};
-
   std::thread thread_;
   std::condition_variable cv_;
   std::mutex mutex_;
 
   // Accessed from both threads.
-  //
   void CleanupPriorFrameResources() REQUIRES(mutex_);
 
   bool exit_thread_ GUARDED_BY(mutex_){};

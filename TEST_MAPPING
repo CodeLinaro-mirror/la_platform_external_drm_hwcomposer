@@ -5,6 +5,15 @@
     },
     {
       "name": "CfVkmsCursorTest"
+    },
+    {
+      "name": "Vkms2_VtsHalGraphicsComposer3"
+    },
+    {
+      "name": "Vkms5WithConfig_VtsHalGraphicsComposer3"
+    },
+    {
+      "name": "VkmsTestHwcHotplugs"
     }
   ],
   "desktop-postsubmit": [
@@ -58,10 +67,6 @@
         }
       ]
     },
-    // DTS Color Tests
-    {
-      "name": "HardwareColorTests"
-    },
     // CF VKMS Tests
     {
       "name": "CfVkmsConnectorsTest"
@@ -71,17 +76,11 @@
     },
     // VKMS Wrapper Tests
     {
-      "name": "Vkms2VtsHalGraphicsComposer3"
-    },
-    {
-      "name": "Vkms5WithConfig_VtsHalGraphicsComposer3"
-    },
-    {
-      "name": "Vkms2SurfaceFlingerTest"
+      "name": "Vkms2_SurfaceFlingerTest"
     },
     // HWC Tests
     {
-      "name": "test_hotplugs"
+      "name": "TestHwcComposition"
     },
     // IGT Tests
     {
