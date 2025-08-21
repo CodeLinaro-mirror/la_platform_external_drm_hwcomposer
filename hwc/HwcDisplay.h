@@ -67,7 +67,7 @@ class HwcDisplay {
   /* SetPipeline should be carefully used only by DrmHwcTwo hotplug handlers */
   void SetPipeline(std::shared_ptr<DrmDisplayPipeline> pipeline);
 
-  bool TestComposition(const Backend::CompositionTypeMap &composition);
+  bool TestComposition(Backend::ValidatedComposition &composition);
 
   std::vector<const HwcLayer *> GetOrderLayersByZPos() const;
 

@@ -317,17 +317,22 @@ auto HwcDisplay::ValidateStagedComposition() -> std::vector<ChangedLayer> {
     }
   }
 
-  // ValidateDisplay returns CompositionTypeMap to indicate the composition
-  // type that the Backend has determined for each layer.
+  // The CompositionTypeMap in the ValidatedComposition indicates the
+  // composition type that the Backend has determined for each layer.
   auto result = backend_->ValidateDisplay(this);
+
+  // Store plan to ensure shared planes won't be stolen by other display
+  // between ValidateDisplay() and PresentDisplay() calls.
+  current_plan_ = result.composition_plan;
 
   // Iterate through the layers to find which layers actually changed.
   std::vector<ChangedLayer> changed_layers;
   for (auto &[id, layer] : layers_) {
     // Set the validated type
-    auto it = result.find(&layer);
-    ALOGE_IF(it == result.end(), "Backend did not composite layer %ld", id);
-    if (it != result.end()) {
+    auto it = result.composition_types.find(&layer);
+    ALOGE_IF(it == result.composition_types.end(),
+             "Backend did not composite layer %ld", id);
+    if (it != result.composition_types.end()) {
       layer.SetValidatedType(it->second);
     }
     if (layer.IsTypeChanged()) {
@@ -771,17 +776,20 @@ uint32_t HwcDisplay::GetCurrentVsyncPeriodNs() const {
   return config->mode.GetVSyncPeriodNs();
 }
 
-bool HwcDisplay::TestComposition(
-    const Backend::CompositionTypeMap &composition) {
+bool HwcDisplay::TestComposition(Backend::ValidatedComposition &composition) {
   if (IsInHeadlessMode()) {
     return true;
   }
-  auto a_args = CreateFrameUpdateCommit(composition);
+  auto a_args = CreateFrameUpdateCommit(composition.composition_types);
   if (!a_args) {
     return false;
   }
   a_args->test_only = true;
-  return GetPipe().atomic_state_manager->ExecuteAtomicCommit(*a_args);
+  if (GetPipe().atomic_state_manager->ExecuteAtomicCommit(*a_args)) {
+    composition.composition_plan = a_args->composition;
+    return true;
+  }
+  return false;
 }
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
@@ -881,17 +889,14 @@ std::optional<AtomicCommitArgs> HwcDisplay::CreateFrameUpdateCommit(
     composition_layers.emplace_back(l.second->GetLayerData());
   }
 
-  /* Store plan to ensure shared planes won't be stolen by other display
-   * in between of ValidateDisplay() and PresentDisplay() calls
-   */
-  current_plan_ = DrmKmsPlan::CreateDrmKmsPlan(GetPipe(),
-                                               std::move(composition_layers),
-                                               cursor_layer);
-  if (!current_plan_) {
+  a_args.composition = DrmKmsPlan::CreateDrmKmsPlan(GetPipe(),
+                                                    std::move(
+                                                        composition_layers),
+                                                    cursor_layer);
+  if (!a_args.composition) {
     ALOGE_IF(!a_args.test_only, "Failed to create DrmKmsPlan");
     return std::nullopt;
   }
-  a_args.composition = current_plan_;
 
   if (pipeline_->writeback_connector) {
     writeback_layer_->PopulateLayerData();
