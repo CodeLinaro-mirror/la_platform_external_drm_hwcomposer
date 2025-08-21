@@ -861,8 +861,6 @@ std::optional<AtomicCommitArgs> HwcDisplay::CreateFrameUpdateCommit(
 
   if (use_client_layer) {
     z_map.emplace(client_z_order, &client_layer_);
-
-    client_layer_.PopulateLayerData();
     if (!client_layer_.IsLayerUsableAsDevice()) {
       ALOGE_IF(!a_args.test_only,
                "Client layer must be always usable by DRM/KMS");
@@ -917,6 +915,14 @@ bool HwcDisplay::CreateComposition(
   if (IsInHeadlessMode()) {
     ALOGE("%s: Display is in headless mode, should never reach here", __func__);
     return true;
+  }
+  // Client layer needs to be populated after validation since the client may
+  // not provide a new buffer until after validation.
+  if (std::any_of(composition.begin(), composition.end(),
+                  [](const auto &pair) -> bool {
+                    return pair.second == CompositionType::kClient;
+                  })) {
+    client_layer_.PopulateLayerData();
   }
   auto a_args = CreateFrameUpdateCommit(composition);
   if (!a_args) {
