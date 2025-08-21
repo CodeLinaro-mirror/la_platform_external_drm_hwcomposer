@@ -67,13 +67,13 @@ class HwcDisplay {
   /* SetPipeline should be carefully used only by DrmHwcTwo hotplug handlers */
   void SetPipeline(std::shared_ptr<DrmDisplayPipeline> pipeline);
 
-  bool TestComposition(Backend::ValidatedComposition &composition);
+  bool TestComposition(Backend::ValidatedComposition &composition) const;
 
   std::vector<const HwcLayer *> GetOrderLayersByZPos() const;
 
   std::string Dump();
 
-  auto GetDisplayName() -> std::string;
+  auto GetDisplayName() const -> std::string;
 
   auto GetDisplayConfigs() const -> std::vector<HwcDisplayConfig>;
 
@@ -129,7 +129,7 @@ class HwcDisplay {
   auto GetRawEdid() -> std::vector<uint8_t>;
 
   // Get the port id that this display is plugged into.
-  auto GetPort() -> uint8_t;
+  auto GetPort() const -> uint8_t;
 
   auto SetContentType(ContentType content_type) {
     content_type_ = content_type;
@@ -187,6 +187,10 @@ class HwcDisplay {
     return layers_;
   }
 
+  const auto &GetPipe() const {
+    return *pipeline_;
+  }
+
   auto &GetPipe() {
     return *pipeline_;
   }
@@ -203,7 +207,7 @@ class HwcDisplay {
    * to prevent the crash. See:
    * https://source.android.com/devices/graphics/hotplug#handling-common-scenarios
    */
-  bool IsInHeadlessMode() {
+  bool IsInHeadlessMode() const {
     return !pipeline_;
   }
 
@@ -226,7 +230,7 @@ class HwcDisplay {
     virtual_disp_height_ = height;
   }
 
-  auto getDisplayPhysicalOrientation() -> std::optional<PanelOrientation>;
+  auto getDisplayPhysicalOrientation() const -> std::optional<PanelOrientation>;
 
   bool NeedsClientLayerUpdate() const;
 
@@ -237,7 +241,7 @@ class HwcDisplay {
   // The caller must do a test commit on the returned args to ensure that the
   // hardware can perform the commit.
   std::optional<AtomicCommitArgs> CreateFrameUpdateCommit(
-      const Backend::CompositionTypeMap &composition);
+      const Backend::CompositionTypeMap &composition) const;
 
   bool CreateComposition(const Backend::CompositionTypeMap &composition,
                          SharedFd &out_present_fence);
@@ -311,7 +315,7 @@ class HwcDisplay {
   void SetHdrOutputMetadata(ui::Hdr hdrType);
   void SetOutputType(OutputType hdr_output_type);
 
-  auto GetEdid() -> EdidWrapperUnique & {
+  auto GetEdid() const -> EdidWrapperUnique & {
     return GetPipe().connector->Get()->GetParsedEdid();
   }
 

@@ -97,7 +97,7 @@ auto ToColorTransform(const std::array<float, 16> &color_transform_matrix) {
 
 }  // namespace
 
-auto HwcDisplay::GetDisplayName() -> std::string {
+auto HwcDisplay::GetDisplayName() const -> std::string {
   std::ostringstream stream;
   if (IsInHeadlessMode()) {
     stream << "null-display";
@@ -429,7 +429,7 @@ auto HwcDisplay::GetRawEdid() -> std::vector<uint8_t> {
   return {edid_data, edid_data + blob->length};
 }
 
-auto HwcDisplay::GetPort() -> uint8_t {
+auto HwcDisplay::GetPort() const -> uint8_t {
   if (IsInHeadlessMode()) {
     return 0;
   }
@@ -609,14 +609,15 @@ bool HwcDisplay::Init() {
   return true;
 }
 
-std::optional<PanelOrientation> HwcDisplay::getDisplayPhysicalOrientation() {
+std::optional<PanelOrientation> HwcDisplay::getDisplayPhysicalOrientation()
+    const {
   if (IsInHeadlessMode()) {
     // The pipeline can be nullptr in headless mode, so return the default
     // "normal" mode.
     return PanelOrientation::kModePanelOrientationNormal;
   }
 
-  DrmDisplayPipeline &pipeline = GetPipe();
+  const DrmDisplayPipeline &pipeline = GetPipe();
   if (pipeline.connector == nullptr || pipeline.connector->Get() == nullptr) {
     ALOGW(
         "No display pipeline present to query the panel orientation property.");
@@ -776,7 +777,8 @@ uint32_t HwcDisplay::GetCurrentVsyncPeriodNs() const {
   return config->mode.GetVSyncPeriodNs();
 }
 
-bool HwcDisplay::TestComposition(Backend::ValidatedComposition &composition) {
+bool HwcDisplay::TestComposition(
+    Backend::ValidatedComposition &composition) const {
   if (IsInHeadlessMode()) {
     return true;
   }
@@ -794,7 +796,7 @@ bool HwcDisplay::TestComposition(Backend::ValidatedComposition &composition) {
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
 std::optional<AtomicCommitArgs> HwcDisplay::CreateFrameUpdateCommit(
-    const Backend::CompositionTypeMap &composition) {
+    const Backend::CompositionTypeMap &composition) const {
   if (IsInHeadlessMode()) {
     ALOGE("%s: Display is in headless mode, should never reach here", __func__);
     return AtomicCommitArgs{};
@@ -822,9 +824,9 @@ std::optional<AtomicCommitArgs> HwcDisplay::CreateFrameUpdateCommit(
   size_t client_layer_count = 0;
   bool use_client_layer = false;
   uint32_t client_z_order = UINT32_MAX;
-  std::map<uint32_t, HwcLayer *> z_map;
+  std::map<uint32_t, const HwcLayer *> z_map;
   std::optional<LayerData> cursor_layer = std::nullopt;
-  for (auto &[_, layer] : layers_) {
+  for (const auto &[_, layer] : layers_) {
     auto it = composition.find(&layer);
     CompositionType type = it != composition.end() ? it->second
                                                    : CompositionType::kInvalid;
@@ -880,11 +882,11 @@ std::optional<AtomicCommitArgs> HwcDisplay::CreateFrameUpdateCommit(
   std::vector<LayerData> composition_layers;
 
   // now that they're ordered by z, add them to the composition
-  for (std::pair<const uint32_t, HwcLayer *> &l : z_map) {
-    if (!l.second->IsLayerUsableAsDevice()) {
+  for (const auto &[_, layer] : z_map) {
+    if (!layer->IsLayerUsableAsDevice()) {
       return std::nullopt;
     }
-    composition_layers.emplace_back(l.second->GetLayerData());
+    composition_layers.emplace_back(layer->GetLayerData());
   }
 
   a_args.composition = DrmKmsPlan::CreateDrmKmsPlan(GetPipe(),
