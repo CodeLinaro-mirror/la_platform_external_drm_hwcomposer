@@ -392,7 +392,7 @@ auto HwcDisplay::PresentStagedComposition(
     composition.emplace(&l.second, l.second.GetValidatedType());
   }
 
-  if (!CreateComposition(composition, out_present_fence)) {
+  if (!CommitComposition(composition, out_present_fence)) {
     ++total_stats_.failed_kms_present;
     return false;
   }
@@ -911,7 +911,7 @@ std::optional<AtomicCommitArgs> HwcDisplay::CreateFrameUpdateCommit(
   return a_args;
 }
 
-bool HwcDisplay::CreateComposition(
+bool HwcDisplay::CommitComposition(
     const Backend::CompositionTypeMap &composition,
     SharedFd &out_present_fence) {
   if (IsInHeadlessMode()) {

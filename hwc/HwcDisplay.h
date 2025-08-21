@@ -243,7 +243,7 @@ class HwcDisplay {
   std::optional<AtomicCommitArgs> CreateFrameUpdateCommit(
       const Backend::CompositionTypeMap &composition) const;
 
-  bool CreateComposition(const Backend::CompositionTypeMap &composition,
+  bool CommitComposition(const Backend::CompositionTypeMap &composition,
                          SharedFd &out_present_fence);
 
   // Update HwcDisplay state tracking to reflect what was committed in |a_args|.
