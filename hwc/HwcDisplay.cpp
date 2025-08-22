@@ -266,10 +266,14 @@ auto HwcDisplay::QueueConfig(ConfigId config, int64_t desired_time,
     return ConfigError::kSeamlessNotAllowed;
   }
 
-  // Request a refresh from the client one vsync period before the desired time.
-  out_timing->refresh_time_ns = desired_time -
+  // Estimate the timestamp of the next vsync after the desired time.
+  int64_t next_vsync = vsync_worker_->GetNextVsyncTimestamp(desired_time);
+
+  // Request a refresh from the client one vsync period before the estimated
+  // timestamp.
+  out_timing->refresh_time_ns = next_vsync -
                                 current_config->mode.GetVSyncPeriodNs();
-  out_timing->new_vsync_time_ns = desired_time;
+  out_timing->new_vsync_time_ns = next_vsync;
 
   // Queue the config change timing to be consistent with the requested
   // refresh time.
