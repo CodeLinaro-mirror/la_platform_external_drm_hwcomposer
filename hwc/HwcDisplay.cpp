@@ -19,6 +19,8 @@
 
 #include "HwcDisplay.h"
 
+#include <cinttypes>
+
 #include <ui/ColorSpace.h>
 
 #include "backend/Backend.h"
@@ -331,7 +333,7 @@ auto HwcDisplay::ValidateStagedComposition() -> std::vector<ChangedLayer> {
     // Set the validated type
     auto it = result.composition_types.find(&layer);
     ALOGE_IF(it == result.composition_types.end(),
-             "Backend did not composite layer %ld", id);
+             "Backend did not composite layer %" PRId64 "", id);
     if (it != result.composition_types.end()) {
       layer.SetValidatedType(it->second);
     }
