@@ -11,6 +11,9 @@ variables:
   CI_TEMPLATES_COMMIT: &ci-templates-commit 32afe5644697e503af18a736587c8619fa036a72
   FDO_UPSTREAM_REPO: "drm-hwcomposer/drm-hwcomposer"
   CUTTLEFISH_TARBALL: "cuttlefish.tar.xz"
+  ANDROID_TOOLS_TARBALL: "android_tools.tar.xz"
+  TOOLS_DIR: "android-tools"
+  BINARIES_DIR: "android-binaries"
   RESULTS_DIR: "${CI_PROJECT_DIR}/results"
 
 include:
@@ -80,8 +83,6 @@ android-cts:
     - job: build_x86_64
       artifacts: true
     - job: ubuntu/x86_64_android
-    - job: use-debian/x86_64_cuttlefish
-      artifacts: true
   artifacts:
     paths:
       - "${RESULTS_DIR}"
@@ -100,8 +101,6 @@ android-vts:
     - job: build_x86_64
       artifacts: true
     - job: ubuntu/x86_64_android
-    - job: use-debian/x86_64_cuttlefish
-      artifacts: true
   artifacts:
     paths:
       - "${RESULTS_DIR}"

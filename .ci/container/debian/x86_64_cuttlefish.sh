@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC1091 # no need to follow references to other shell scripts
-# Bump the DEBIAN_CUTTLEFISH_TAG for changes in this file to take effect.
+# For changes in this file to take effect, bump both:
+# DEBIAN_CUTTLEFISH_TAG and UBUNTU_ANDROID_TAG
 set -e
 
 function get_repo() {
