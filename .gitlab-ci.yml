@@ -108,3 +108,21 @@ android-vts:
     expire_in: 1 week
   tags:
     - kvm
+
+vkms-hotplugs:
+  stage: android
+  extends:
+    .use-ubuntu/x86_64_android
+  script:
+    - "${CI_PROJECT_DIR}/.ci/android/vkms-hotplugs.sh"
+  needs:
+    - job: build_x86_64
+      artifacts: true
+    - job: ubuntu/x86_64_android
+  artifacts:
+    paths:
+      - "${RESULTS_DIR}"
+    when: always
+    expire_in: 1 week
+  tags:
+    - kvm
