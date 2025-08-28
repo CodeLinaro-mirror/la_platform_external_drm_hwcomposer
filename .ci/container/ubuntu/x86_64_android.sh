@@ -112,6 +112,20 @@ fdo_log_section_end build_apexer
 
 cp "${TOP}/prebuilts/sdk/current/public/android.jar" "/android.jar"
 
+fdo_log_section_start_collapsed build_vkms_tests "build_vkms_tests"
+m setup_vkms_connectors_for_atest;
+cp "${TOP}/out/target/product/vsoc_x86_64_only/system/bin/setup_vkms_connectors_for_atest" \
+  "/${BINARIES_DIR}/setup_vkms_connectors_for_atest"
+
+m teardown_vkms;
+cp "${TOP}/out/target/product/vsoc_x86_64_only/system/bin/teardown_vkms" \
+  "/${BINARIES_DIR}/teardown_vkms"
+
+m test_hotplugs
+cp "${TOP}/out/target/product/vsoc_x86_64_only/data/nativetest64/test_hotplugs/test_hotplugs" \
+  "/${BINARIES_DIR}/test_hotplugs"
+fdo_log_section_end build_vkms_tests
+
 # clean up
 rm "/root/.cache" -rf
 rm "${TOP}" -rf
