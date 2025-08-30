@@ -19,6 +19,8 @@
 
 #include "HwcDisplay.h"
 
+#include <cinttypes>
+
 #include <ui/ColorSpace.h>
 
 #include "backend/Backend.h"
@@ -97,7 +99,7 @@ auto ToColorTransform(const std::array<float, 16> &color_transform_matrix) {
 
 }  // namespace
 
-auto HwcDisplay::GetDisplayName() -> std::string {
+auto HwcDisplay::GetDisplayName() const -> std::string {
   std::ostringstream stream;
   if (IsInHeadlessMode()) {
     stream << "null-display";
@@ -268,10 +270,14 @@ auto HwcDisplay::QueueConfig(ConfigId config, int64_t desired_time,
     return ConfigError::kSeamlessNotAllowed;
   }
 
-  // Request a refresh from the client one vsync period before the desired time.
-  out_timing->refresh_time_ns = desired_time -
+  // Estimate the timestamp of the next vsync after the desired time.
+  int64_t next_vsync = vsync_worker_->GetNextVsyncTimestamp(desired_time);
+
+  // Request a refresh from the client one vsync period before the estimated
+  // timestamp.
+  out_timing->refresh_time_ns = next_vsync -
                                 current_config->mode.GetVSyncPeriodNs();
-  out_timing->new_vsync_time_ns = desired_time;
+  out_timing->new_vsync_time_ns = next_vsync;
 
   // Queue the config change timing to be consistent with the requested
   // refresh time.
@@ -306,24 +312,35 @@ auto HwcDisplay::ValidateStagedComposition() -> std::vector<ChangedLayer> {
    */
   for (auto &l : layers_) {
     l.second.SetPriorBufferScanOutFlag(l.second.GetValidatedType() !=
-                                       HwcLayer::CompositionType::kClient);
+                                       CompositionType::kClient);
 
     /* Populate layer data for layers that might be mapped to a drm plane. */
-    if (l.second.GetSfType() == HwcLayer::CompositionType::kDevice ||
-        l.second.GetSfType() == HwcLayer::CompositionType::kCursor) {
+    if (l.second.GetSfType() == CompositionType::kDevice ||
+        l.second.GetSfType() == CompositionType::kCursor) {
       l.second.PopulateLayerData();
     }
   }
 
-  // ValidateDisplay modifies the composition type in layers_ which can be
-  // checked to see which layers' composition strategies have changed.
-  backend_->ValidateDisplay(this);
+  // The CompositionTypeMap in the ValidatedComposition indicates the
+  // composition type that the Backend has determined for each layer.
+  auto result = backend_->ValidateDisplay(this);
+
+  // Store plan to ensure shared planes won't be stolen by other display
+  // between ValidateDisplay() and PresentDisplay() calls.
+  current_plan_ = result.composition_plan;
 
   // Iterate through the layers to find which layers actually changed.
   std::vector<ChangedLayer> changed_layers;
-  for (auto &l : layers_) {
-    if (l.second.IsTypeChanged()) {
-      changed_layers.emplace_back(l.first, l.second.GetValidatedType());
+  for (auto &[id, layer] : layers_) {
+    // Set the validated type
+    auto it = result.composition_types.find(&layer);
+    ALOGE_IF(it == result.composition_types.end(),
+             "Backend did not composite layer %" PRId64 "", id);
+    if (it != result.composition_types.end()) {
+      layer.SetValidatedType(it->second);
+    }
+    if (layer.IsTypeChanged()) {
+      changed_layers.emplace_back(id, layer.GetValidatedType());
     }
   }
   return changed_layers;
@@ -374,13 +391,15 @@ auto HwcDisplay::PresentStagedComposition(
     WaitForPresentTime(desired_present_time.value(), vperiod_ns);
   }
 
-  AtomicCommitArgs a_args{};
-  if (!CreateComposition(a_args)) {
+  Backend::CompositionTypeMap composition;
+  for (auto &l : layers_) {
+    composition.emplace(&l.second, l.second.GetValidatedType());
+  }
+
+  if (!CommitComposition(composition, out_present_fence)) {
     ++total_stats_.failed_kms_present;
     return false;
   }
-
-  out_present_fence = a_args.out_fence;
 
   // Reset the hdr output metadata blobs so we don't apply it repeatedly.
   hdr_metadata_.reset();
@@ -414,7 +433,7 @@ auto HwcDisplay::GetRawEdid() -> std::vector<uint8_t> {
   return {edid_data, edid_data + blob->length};
 }
 
-auto HwcDisplay::GetPort() -> uint8_t {
+auto HwcDisplay::GetPort() const -> uint8_t {
   if (IsInHeadlessMode()) {
     return 0;
   }
@@ -448,7 +467,7 @@ auto HwcDisplay::GetDisplayType() -> DisplayType {
     return kInternal;
   }
 
-  auto displays = GetHwc()->GetResMan().GetInternalDisplayNames();
+  auto displays = hwc_->GetResMan().GetInternalDisplayNames();
   if (!displays.empty()) {
     std::string name = GetPipe().connector->Get()->GetName();
     const bool is_internal = (displays.find(name) != displays.end());
@@ -594,14 +613,15 @@ bool HwcDisplay::Init() {
   return true;
 }
 
-std::optional<PanelOrientation> HwcDisplay::getDisplayPhysicalOrientation() {
+std::optional<PanelOrientation> HwcDisplay::getDisplayPhysicalOrientation()
+    const {
   if (IsInHeadlessMode()) {
     // The pipeline can be nullptr in headless mode, so return the default
     // "normal" mode.
     return PanelOrientation::kModePanelOrientationNormal;
   }
 
-  DrmDisplayPipeline &pipeline = GetPipe();
+  const DrmDisplayPipeline &pipeline = GetPipe();
   if (pipeline.connector == nullptr || pipeline.connector->Get() == nullptr) {
     ALOGW(
         "No display pipeline present to query the panel orientation property.");
@@ -626,16 +646,8 @@ auto HwcDisplay::DestroyLayer(ILayerId layer_id) -> bool {
 }
 
 auto HwcDisplay::GetColorModes() -> std::vector<ColorMode> {
-  if (IsInHeadlessMode())
-    return {ColorMode::kNative};
-
-  std::vector<ColorMode> modes;
-  GetEdid()->GetColorModes(modes);
-
-  if (modes.empty())
-    modes.emplace_back(ColorMode::kNative);
-
-  return modes;
+  // disable non-native color modes until tone-mapping is supported
+  return {ColorMode::kNative};
 }
 
 void HwcDisplay::SetColorMode(ColorMode mode) {
@@ -761,49 +773,64 @@ uint32_t HwcDisplay::GetCurrentVsyncPeriodNs() const {
   return config->mode.GetVSyncPeriodNs();
 }
 
-// NOLINTNEXTLINE(readability-function-cognitive-complexity)
-bool HwcDisplay::CreateComposition(AtomicCommitArgs &a_args) {
+bool HwcDisplay::TestComposition(
+    Backend::ValidatedComposition &composition) const {
   if (IsInHeadlessMode()) {
-    ALOGE("%s: Display is in headless mode, should never reach here", __func__);
     return true;
   }
+  auto a_args = CreateFrameUpdateCommit(composition.composition_types);
+  if (!a_args) {
+    return false;
+  }
+  a_args->test_only = true;
+  if (GetPipe().atomic_state_manager->ExecuteAtomicCommit(*a_args)) {
+    composition.composition_plan = a_args->composition;
+    return true;
+  }
+  return false;
+}
 
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
+std::optional<AtomicCommitArgs> HwcDisplay::CreateFrameUpdateCommit(
+    const Backend::CompositionTypeMap &composition) const {
+  if (IsInHeadlessMode()) {
+    ALOGE("%s: Display is in headless mode, should never reach here", __func__);
+    return AtomicCommitArgs{};
+  }
+
+  AtomicCommitArgs a_args;
   a_args.color_matrix = color_matrix_;
   a_args.content_type = content_type_;
   a_args.colorspace = colorspace_;
   a_args.hdr_metadata = hdr_metadata_;
   a_args.min_bpc = min_bpc_;
 
-  uint32_t prev_vperiod_ns = GetCurrentVsyncPeriodNs();
-  std::optional<uint32_t> new_vsync_period_ns;
   if (staged_mode_config_id_ &&
       staged_mode_change_time_ <= ResourceManager::GetTimeMonotonicNs()) {
-    const HwcDisplayConfig *staged_config = GetConfig(
-        staged_mode_config_id_.value());
+    const auto *staged_config = GetConfig(staged_mode_config_id_.value());
     if (staged_config == nullptr) {
-      return false;
+      return std::nullopt;
     }
 
-    configs_.active_config_id = staged_mode_config_id_.value();
     a_args.display_mode = staged_config->mode;
     a_args.seamless = true;
-    if (!a_args.test_only) {
-      new_vsync_period_ns = staged_config->mode.GetVSyncPeriodNs();
-    }
   }
 
   // order the layers by z-order
   size_t client_layer_count = 0;
   bool use_client_layer = false;
   uint32_t client_z_order = UINT32_MAX;
-  std::map<uint32_t, HwcLayer *> z_map;
+  std::map<uint32_t, const HwcLayer *> z_map;
   std::optional<LayerData> cursor_layer = std::nullopt;
-  for (auto &[_, layer] : layers_) {
-    switch (layer.GetValidatedType()) {
-      case HwcLayer::CompositionType::kDevice:
+  for (const auto &[_, layer] : layers_) {
+    auto it = composition.find(&layer);
+    CompositionType type = it != composition.end() ? it->second
+                                                   : CompositionType::kInvalid;
+    switch (type) {
+      case CompositionType::kDevice:
         z_map.emplace(layer.GetZOrder(), &layer);
         break;
-      case HwcLayer::CompositionType::kCursor:
+      case CompositionType::kCursor:
         if (!cursor_layer.has_value()) {
           cursor_layer = layer.GetLayerData();
         } else {
@@ -811,30 +838,27 @@ bool HwcDisplay::CreateComposition(AtomicCommitArgs &a_args) {
           z_map.emplace(layer.GetZOrder(), &layer);
         }
         break;
-      case HwcLayer::CompositionType::kClient:
+      case CompositionType::kClient:
         // Place it at the z_order of the lowest client layer
         use_client_layer = true;
         client_layer_count++;
         client_z_order = std::min(client_z_order, layer.GetZOrder());
         break;
-      case HwcLayer::CompositionType::kSolidColor:
-      case HwcLayer::CompositionType::kInvalid:
-        ALOGE("Invalid layer type: %d",
-              static_cast<int>(layer.GetValidatedType()));
+      case CompositionType::kSolidColor:
+      case CompositionType::kInvalid:
+        ALOGE("Invalid layer type: %d", static_cast<int>(type));
         continue;
     }
   }
 
   // CTM will be applied by the client, don't apply DRM CTM
   if (client_layer_count == layers_.size())
-   a_args.color_matrix = identity_color_matrix_;
+    a_args.color_matrix = identity_color_matrix_;
   else
     a_args.color_matrix = color_matrix_;
 
   if (use_client_layer) {
     z_map.emplace(client_z_order, &client_layer_);
-
-    client_layer_.PopulateLayerData();
     if (!client_layer_.IsLayerUsableAsDevice()) {
       ALOGE_IF(!a_args.test_only,
                "Client layer must be always usable by DRM/KMS");
@@ -845,7 +869,7 @@ bool HwcDisplay::CreateComposition(AtomicCommitArgs &a_args) {
        * imported. For example when non-contiguous buffer is imported into
        * contiguous-only DRM/KMS driver.
        */
-      return false;
+      return std::nullopt;
     }
   }
 
@@ -854,48 +878,72 @@ bool HwcDisplay::CreateComposition(AtomicCommitArgs &a_args) {
   std::vector<LayerData> composition_layers;
 
   // now that they're ordered by z, add them to the composition
-  for (std::pair<const uint32_t, HwcLayer *> &l : z_map) {
-    if (!l.second->IsLayerUsableAsDevice()) {
-      return false;
+  for (const auto &[_, layer] : z_map) {
+    if (!layer->IsLayerUsableAsDevice()) {
+      return std::nullopt;
     }
-    composition_layers.emplace_back(l.second->GetLayerData());
+    composition_layers.emplace_back(layer->GetLayerData());
   }
 
-  /* Store plan to ensure shared planes won't be stolen by other display
-   * in between of ValidateDisplay() and PresentDisplay() calls
-   */
-  current_plan_ = DrmKmsPlan::CreateDrmKmsPlan(GetPipe(),
-                                               std::move(composition_layers),
-                                               cursor_layer);
-  if (!current_plan_) {
+  a_args.composition = DrmKmsPlan::CreateDrmKmsPlan(GetPipe(),
+                                                    std::move(
+                                                        composition_layers),
+                                                    cursor_layer);
+  if (!a_args.composition) {
     ALOGE_IF(!a_args.test_only, "Failed to create DrmKmsPlan");
-    return false;
+    return std::nullopt;
   }
-  a_args.composition = current_plan_;
 
   if (pipeline_->writeback_connector) {
     writeback_layer_->PopulateLayerData();
     if (!writeback_layer_->IsLayerUsableAsDevice()) {
       ALOGE("Writeback layer not usable by DRM/KMS - no valid buffer set");
-      return false;
+      return std::nullopt;
     }
     a_args.writeback_fb = writeback_layer_->GetLayerData().fb;
     a_args.writeback_release_fence = writeback_layer_->GetLayerData()
                                          .acquire_fence;
   }
+  return a_args;
+}
 
-  if (!GetPipe().atomic_state_manager->ExecuteAtomicCommit(a_args)) {
-    ALOGE_IF(!a_args.test_only, "Failed to apply the frame composition.");
+bool HwcDisplay::CommitComposition(
+    const Backend::CompositionTypeMap &composition,
+    SharedFd &out_present_fence) {
+  if (IsInHeadlessMode()) {
+    ALOGE("%s: Display is in headless mode, should never reach here", __func__);
+    return true;
+  }
+  // Client layer needs to be populated after validation since the client may
+  // not provide a new buffer until after validation.
+  if (std::any_of(composition.begin(), composition.end(),
+                  [](const auto &pair) -> bool {
+                    return pair.second == CompositionType::kClient;
+                  })) {
+    client_layer_.PopulateLayerData();
+  }
+  auto a_args = CreateFrameUpdateCommit(composition);
+  if (!a_args) {
+    ALOGE("Failed to create AtomicCommitArgs for frame composition.");
     return false;
   }
+  current_plan_ = a_args->composition;
 
-  if (!a_args.test_only) {
-    writeback_complete_fence_ = a_args.out_writeback_complete_fence;
+  if (!GetPipe().atomic_state_manager->ExecuteAtomicCommit(*a_args)) {
+    ALOGE("Failed to commit the frame composition.");
+    return false;
   }
+  out_present_fence = a_args->out_fence;
+  ApplyCommitChanges(*a_args);
+  return true;
+}
 
-  if (new_vsync_period_ns) {
-    staged_mode_config_id_.reset();
-
+void HwcDisplay::ApplyCommitChanges(const AtomicCommitArgs &a_args) {
+  ALOGE_IF(a_args.test_only, "Applying commit changes for test_only args.");
+  writeback_complete_fence_ = a_args.out_writeback_complete_fence;
+  if (a_args.display_mode) {
+    // Get the vsync period before updating active_config_id.
+    uint32_t prev_vperiod_ns = GetCurrentVsyncPeriodNs();
     vsync_worker_->SetVsyncTimestampTracking(false);
     uint32_t last_vsync_ts = vsync_worker_->GetLastVsyncTimestamp();
     if (last_vsync_ts != 0) {
@@ -903,23 +951,34 @@ bool HwcDisplay::CreateComposition(AtomicCommitArgs &a_args) {
                                                       last_vsync_ts +
                                                           prev_vperiod_ns);
     }
-    vsync_worker_->SetVsyncPeriodNs(new_vsync_period_ns.value());
-  }
 
-  return true;
+    // If staged_mode_config_id_ is nullopt that indicates a logic error.
+    ALOGE_IF(!staged_mode_config_id_,
+             "a_args.display_mode is set but staged_mode_config_id_ is not.");
+    // Update the active_config_id and update the vsync period for the
+    // VsyncWorker.
+    configs_.active_config_id = staged_mode_config_id_.value_or(
+        configs_.active_config_id);
+    staged_mode_config_id_.reset();
+    vsync_worker_->SetVsyncPeriodNs(a_args.display_mode->GetVSyncPeriodNs());
+  }
 }
 
-bool HwcDisplay::CtmByGpu() {
+bool HwcDisplay::CtmByGpu() const {
   if (color_transform_is_identity_)
     return false;
 
   if (GetPipe().crtc->Get()->GetCtmProperty() && !ctm_has_offset_)
     return false;
 
-  if (GetHwc()->GetResMan().GetCtmHandling() == CtmHandling::kDrmOrIgnore)
+  if (hwc_->GetResMan().GetCtmHandling() == CtmHandling::kDrmOrIgnore)
     return false;
 
   return true;
+}
+
+bool HwcDisplay::ForcedScalingWithGpu() const {
+  return hwc_->GetResMan().ForcedScalingWithGpu();
 }
 
 bool HwcDisplay::IsWritebackSupported() {
@@ -970,20 +1029,20 @@ SharedFd HwcDisplay::GetWritebackBufferFence() {
   return std::move(writeback_complete_fence_);
 }
 
-std::vector<HwcLayer *> HwcDisplay::GetOrderLayersByZPos() {
-  std::vector<HwcLayer *> ordered_layers;
+std::vector<const HwcLayer *> HwcDisplay::GetOrderLayersByZPos() const {
+  std::vector<const HwcLayer *> ordered_layers;
   ordered_layers.reserve(layers_.size());
 
-  for (auto &[handle, layer] : layers_) {
+  for (const auto &[handle, layer] : layers_) {
     ordered_layers.emplace_back(&layer);
   }
 
   std::sort(std::begin(ordered_layers), std::end(ordered_layers),
             [](const HwcLayer *lhs, const HwcLayer *rhs) {
               // Cursor layers should always have highest zpos.
-              if ((lhs->GetSfType() == HwcLayer::CompositionType::kCursor) !=
-                  (rhs->GetSfType() == HwcLayer::CompositionType::kCursor)) {
-                return rhs->GetSfType() == HwcLayer::CompositionType::kCursor;
+              if ((lhs->GetSfType() == CompositionType::kCursor) !=
+                  (rhs->GetSfType() == CompositionType::kCursor)) {
+                return rhs->GetSfType() == CompositionType::kCursor;
               }
 
               return lhs->GetZOrder() < rhs->GetZOrder();
@@ -1057,8 +1116,8 @@ void HwcDisplay::set_backend(std::unique_ptr<Backend> backend) {
 bool HwcDisplay::NeedsClientLayerUpdate() const {
   return std::any_of(layers_.begin(), layers_.end(), [](const auto &pair) {
     const auto &layer = pair.second;
-    return layer.GetSfType() == HwcLayer::CompositionType::kClient ||
-           layer.GetValidatedType() == HwcLayer::CompositionType::kClient;
+    return layer.GetSfType() == CompositionType::kClient ||
+           layer.GetValidatedType() == CompositionType::kClient;
   });
 }
 
