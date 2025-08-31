@@ -19,7 +19,6 @@
 
 #include "HwcDisplay.h"
 
-#include <sync/sync.h>
 #include <ui/ColorSpace.h>
 
 #include "backend/Backend.h"
@@ -521,12 +520,6 @@ void HwcDisplay::SetPipeline(std::shared_ptr<DrmDisplayPipeline> pipeline) {
   } else {
     hwc_->ScheduleHotplugEvent(handle_, DrmHwc::kDisconnected);
   }
-
-  wa_sync_fence_before_commit_ = pipeline_ &&
-                                 pipeline_->device->GetName() == "xe" &&
-                                 Properties::GetEnableXeWorkaround();
-  ALOGW_IF(wa_sync_fence_before_commit_,
-           "Enabled wa_sync_fence_before_commit_");
 }
 
 void HwcDisplay::Deinit() {
@@ -889,18 +882,6 @@ bool HwcDisplay::CreateComposition(AtomicCommitArgs &a_args) {
     a_args.writeback_fb = writeback_layer_->GetLayerData().fb;
     a_args.writeback_release_fence = writeback_layer_->GetLayerData()
                                          .acquire_fence;
-  }
-
-  if (wa_sync_fence_before_commit_) {
-    for (auto joining : current_plan_->plan) {
-      if (!joining.layer.acquire_fence) {
-        continue;
-      }
-      constexpr int kTimeoutMs = 500;
-      const int err = sync_wait(*joining.layer.acquire_fence, kTimeoutMs);
-      ALOGE_IF(err != 0, "sync_wait(fd=%i) returned: %i (errno: %i)",
-               *joining.layer.acquire_fence, err, errno);
-    }
   }
 
   if (!GetPipe().atomic_state_manager->ExecuteAtomicCommit(a_args)) {
