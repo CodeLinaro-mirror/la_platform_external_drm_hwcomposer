@@ -1164,9 +1164,10 @@ ndk::ScopedAStatus ComposerClient::getReadbackBufferFence(
                                                   ->GetWritebackBufferFence();
   display->SetWritebackEnabled(false);
   display->GetWritebackLayer()->ClearSlots();
+
   if (!fence) {
     ALOGE("ComposerClient: Failed to get readback buffer fence");
-    return ToBinderStatus(hwc3::Error::kBadParameter);
+    return ToBinderStatus(hwc3::Error::kUnsupported);
   }
 
   if (fence && *fence >= 0) {
