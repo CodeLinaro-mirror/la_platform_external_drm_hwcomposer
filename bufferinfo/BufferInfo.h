@@ -19,7 +19,7 @@
 #include <cstdint>
 #include <memory>
 
-namespace android {
+namespace android::drm_hwcomposer {
 
 constexpr int kBufferMaxPlanes = 4;
 
@@ -69,4 +69,4 @@ struct BufferInfo {
   std::shared_ptr<PrimeFdsSharedBase> fds_shared;
 };
 
-}  // namespace android
+}  // namespace android::drm_hwcomposer

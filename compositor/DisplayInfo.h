@@ -19,7 +19,7 @@
 #include <array>
 #include <cstdint>
 
-namespace android {
+namespace android::drm_hwcomposer {
 
 /*
  * 4x4 Identity matrix used for color transformations.
@@ -103,4 +103,4 @@ struct QueuedConfigTiming {
   int64_t new_vsync_time_ns;
 };
 
-}  // namespace android
+}  // namespace android::drm_hwcomposer

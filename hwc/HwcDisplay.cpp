@@ -31,10 +31,9 @@
 #include "drm/DrmHwc.h"
 #include "utils/properties.h"
 
-using ::android::DrmDisplayPipeline;
 using ColorGamut = ::android::ColorSpace;
 
-namespace android {
+namespace android::drm_hwcomposer {
 
 namespace {
 
@@ -1177,4 +1176,4 @@ void HwcDisplay::SetConfigGroupsForActiveConfig() {
   configs_.SanitizeGroups();
 }
 
-}  // namespace android
+}  // namespace android::drm_hwcomposer

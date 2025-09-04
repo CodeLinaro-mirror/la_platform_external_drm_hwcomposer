@@ -29,7 +29,7 @@
 #include "drm/ResourceManager.h"
 #include "drm/VSyncWorker.h"
 
-namespace android {
+namespace android::drm_hwcomposer {
 
 struct AtomicCommitArgs {
   /* inputs. All fields are optional, but at least one has to be specified */
@@ -174,4 +174,4 @@ class DrmAtomicStateManager {
   int frames_tracked_ GUARDED_BY(mutex_){};
 };
 
-}  // namespace android
+}  // namespace android::drm_hwcomposer

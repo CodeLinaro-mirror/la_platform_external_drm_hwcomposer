@@ -20,7 +20,7 @@
 
 #include "DrmDevice.h"
 
-namespace android {
+namespace android::drm_hwcomposer {
 
 DrmMode::DrmMode(drmModeModeInfoPtr m) : mode_(*m){};
 
@@ -45,4 +45,4 @@ auto DrmMode::CreateModeBlob(const DrmDevice &drm) const
                                       sizeof(struct drm_mode_modeinfo));
 }
 
-}  // namespace android
+}  // namespace android::drm_hwcomposer

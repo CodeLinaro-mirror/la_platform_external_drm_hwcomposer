@@ -33,7 +33,7 @@
 #include "drm/DrmUnique.h"
 #include "utils/log.h"
 
-namespace android {
+namespace android::drm_hwcomposer {
 
 auto DrmAtomicStateManager::CreateInstance(DrmDisplayPipeline *pipe)
     -> std::shared_ptr<DrmAtomicStateManager> {
@@ -579,4 +579,4 @@ auto DrmAtomicStateManager::ActivateDisplayUsingDPMS() -> int {
                                      DRM_MODE_DPMS_ON);
 }
 
-}  // namespace android
+}  // namespace android::drm_hwcomposer

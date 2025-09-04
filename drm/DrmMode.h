@@ -24,7 +24,7 @@
 
 #include "DrmUnique.h"
 
-namespace android {
+namespace android::drm_hwcomposer {
 
 class DrmDevice;
 
@@ -66,4 +66,5 @@ class DrmMode {
  private:
   drmModeModeInfo mode_;
 };
-}  // namespace android
+
+}  // namespace android::drm_hwcomposer
