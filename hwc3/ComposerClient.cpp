@@ -50,6 +50,9 @@
 #include "stats/CompositionStatsAtomReporter.h"
 #include "stats/CompositionStatsPoller.h"
 
+using ::android::BufferBlendMode;
+using ::android::BufferColorSpace;
+using ::android::BufferSampleRange;
 using ::android::CompositionStatsAtomReporter;
 using ::android::CompositionStatsPoller;
 using ::android::CompositionType;
@@ -61,6 +64,7 @@ using ::android::HwcDisplayConfig;
 using ::android::HwcLayer;
 using ::android::IRect;
 using ::android::LayerTransform;
+using ::android::PanelOrientation;
 using ::android::SrcRectInfo;
 
 using HwcOutputType = ::android::OutputType;
@@ -211,7 +215,8 @@ std::optional<std::array<float, kCtmSize>> AidlToColorTransformMatrix(
     return std::nullopt;
   }
 
-  std::array<float, kCtmSize> color_transform_matrix = kIdentityMatrix;
+  std::array<float, kCtmSize>
+      color_transform_matrix = ::android::kIdentityMatrix;
   std::copy(aidl_color_transform_matrix->begin(),
             aidl_color_transform_matrix->end(), color_transform_matrix.begin());
   return color_transform_matrix;
@@ -371,7 +376,7 @@ std::optional<DamageInfo> AidlToDamage(
 
 }  // namespace
 
-class Hwc3BufferHandle : public PrimeFdsSharedBase {
+class Hwc3BufferHandle : public ::android::PrimeFdsSharedBase {
  public:
   static auto Create(buffer_handle_t handle)
       -> std::shared_ptr<Hwc3BufferHandle> {
@@ -860,8 +865,8 @@ ndk::ScopedAStatus ComposerClient::getDataspaceSaturationMatrix(
   }
 
   matrix->clear();
-  matrix->insert(matrix->begin(), kIdentityMatrix.begin(),
-                 kIdentityMatrix.end());
+  matrix->insert(matrix->begin(), ::android::kIdentityMatrix.begin(),
+                 ::android::kIdentityMatrix.end());
 
   return ndk::ScopedAStatus::ok();
 }
@@ -1254,7 +1259,7 @@ ndk::ScopedAStatus ComposerClient::setActiveConfigWithConstraints(
 
   // Always try to queue a seamless commit to reduce jank and flicker artifacts.
   // Fall-back to a full blocking commit otherwise.
-  QueuedConfigTiming timing{};
+  ::android::QueuedConfigTiming timing{};
   auto error = display->QueueConfig(config, constraints.desiredTimeNanos,
                                     &timing);
   if (error == HwcDisplay::kNone) {
@@ -1348,7 +1353,7 @@ ndk::ScopedAStatus ComposerClient::setColorMode(int64_t display_handle,
   if (intent != RenderIntent::COLORIMETRIC)
     return ToBinderStatus(hwc3::Error::kUnsupported);
 
-  display->SetColorMode(static_cast<::ColorMode>(mode));
+  display->SetColorMode(static_cast<::android::ColorMode>(mode));
   return ToBinderStatus(hwc3::Error::kNone);
 }
 

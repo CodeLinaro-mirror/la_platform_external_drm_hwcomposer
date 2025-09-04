@@ -19,6 +19,8 @@
 #include <array>
 #include <cstdint>
 
+namespace android {
+
 /*
  * 4x4 Identity matrix used for color transformations.
  */
@@ -100,3 +102,5 @@ struct QueuedConfigTiming {
   // The time when the display will start to refresh at the new vsync period.
   int64_t new_vsync_time_ns;
 };
+
+}  // namespace android
