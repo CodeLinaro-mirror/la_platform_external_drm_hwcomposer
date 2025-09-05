@@ -228,7 +228,6 @@ bool DrmAtomicStateManager::SetWriteBackFenceIfNeeded(AtomicRequest &request,
   // Wait on input fence if provided
   if (args.writeback_release_fence) {
     sync_wait(*args.writeback_release_fence, -1);
-    args.writeback_release_fence.reset();
   }
 
   return true;
