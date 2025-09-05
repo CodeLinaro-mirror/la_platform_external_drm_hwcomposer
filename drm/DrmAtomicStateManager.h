@@ -31,24 +31,6 @@
 
 namespace android {
 
-// Collection of kms objects that were committed to the kernel. There must be
-// a userspace handle to keep these from being removed/unregistered until the
-// commit that used them is no longer being presented.
-struct KmsObjects {
-  /* We have to hold a reference to framebuffer while displaying it ,
-   * otherwise picture will blink */
-  std::vector<std::shared_ptr<DrmFbIdHandle>> framebuffers;
-  std::vector<DrmModeUserPropertyBlobUnique> blobs;
-};
-
-struct KmsState {
-  /* Required to cleanup unused planes */
-  std::vector<std::shared_ptr<BindingOwner<DrmPlane>>> used_planes;
-
-  /* To avoid setting the inactive state twice, which will fail the commit */
-  bool crtc_active_state{};
-};
-
 struct AtomicCommitArgs {
   /* inputs. All fields are optional, but at least one has to be specified */
   bool test_only = false;
@@ -77,31 +59,6 @@ struct AtomicCommitArgs {
   }
 };
 
-// State for a pending atomic request. Includes the pending kms objects and
-// resulting state of the driver. Since the AtomicRequest might include
-// properties that reference memory addresses, this struct must not be moved
-// or copied.
-struct AtomicRequest {
-  AtomicRequest() = default;
-
-  DrmModeAtomicReqUnique property_set;
-
-  // Properties in the property set may reference the memory addresses of
-  // these struct members.
-  int wb_fence_address = -1;
-  int out_fence_address = -1;
-
-  KmsObjects used_kms_objects;
-  KmsState new_frame_state;
-
-  // Make this struct non-copyable and non-movable to avoid dangling
-  // references to struct member addresses.
-  AtomicRequest(const AtomicRequest &) = delete;
-  AtomicRequest &operator=(const AtomicRequest &) = delete;
-  AtomicRequest(AtomicRequest &&) = delete;
-  AtomicRequest &operator=(AtomicRequest &&) = delete;
-};
-
 class DrmAtomicStateManager {
  public:
   static auto CreateInstance(DrmDisplayPipeline *pipe)
@@ -123,6 +80,50 @@ class DrmAtomicStateManager {
   }
 
  private:
+  // Collection of kms objects that were committed to the kernel. There must be
+  // a userspace handle to keep these from being removed/unregistered until the
+  // commit that used them is no longer being presented.
+  struct KmsObjects {
+    /* We have to hold a reference to framebuffer while displaying it ,
+     * otherwise picture will blink */
+    std::vector<std::shared_ptr<DrmFbIdHandle>> framebuffers;
+    std::vector<DrmModeUserPropertyBlobUnique> blobs;
+  };
+
+  // State of the driver after a commit.
+  struct KmsState {
+    /* Required to cleanup unused planes */
+    std::vector<std::shared_ptr<BindingOwner<DrmPlane>>> used_planes;
+
+    /* To avoid setting the inactive state twice, which will fail the commit */
+    bool crtc_active_state{};
+  };
+
+  // State for a pending atomic request. Includes the pending kms objects and
+  // resulting state of the driver. Since the AtomicRequest might include
+  // properties that reference memory addresses, this struct must not be moved
+  // or copied.
+  struct AtomicRequest {
+    AtomicRequest() = default;
+
+    DrmModeAtomicReqUnique property_set;
+
+    // Properties in the property set may reference the memory addresses of
+    // these struct members.
+    int wb_fence_address = -1;
+    int out_fence_address = -1;
+
+    KmsObjects used_kms_objects;
+    KmsState new_frame_state;
+
+    // Make this struct non-copyable and non-movable to avoid dangling
+    // references to struct member addresses.
+    AtomicRequest(const AtomicRequest &) = delete;
+    AtomicRequest &operator=(const AtomicRequest &) = delete;
+    AtomicRequest(AtomicRequest &&) = delete;
+    AtomicRequest &operator=(AtomicRequest &&) = delete;
+  };
+
   void ThreadFn();
 
   DrmAtomicStateManager() = default;

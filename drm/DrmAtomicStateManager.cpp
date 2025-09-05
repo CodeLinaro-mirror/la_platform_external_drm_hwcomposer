@@ -433,8 +433,8 @@ bool DrmAtomicStateManager::SetCompositionIfNeeded(AtomicRequest &request,
                      });
 }
 
-std::unique_ptr<AtomicRequest> DrmAtomicStateManager::GetAtomicModeReqForArgs(
-    AtomicCommitArgs &args) {
+std::unique_ptr<DrmAtomicStateManager::AtomicRequest>
+DrmAtomicStateManager::GetAtomicModeReqForArgs(AtomicCommitArgs &args) {
   ATRACE_CALL();
   auto atomic_request = std::make_unique<AtomicRequest>();
   atomic_request->property_set = MakeDrmModeAtomicReqUnique();
