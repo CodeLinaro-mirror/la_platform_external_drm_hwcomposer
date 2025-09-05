@@ -69,8 +69,6 @@ class DrmAtomicStateManager {
   bool ExecuteAtomicCommit(AtomicCommitArgs &args);
   auto ActivateDisplayUsingDPMS() -> int;
 
-  void CleanFailedCommit();
-
   void StopThread() {
     {
       const std::lock_guard lock(mutex_);
@@ -138,6 +136,7 @@ class DrmAtomicStateManager {
   DstRectInfo whole_display_rect_{};
 
   void WaitLastFrame();
+  void CleanFailedCommit();
   bool SetWriteBackFenceIfNeeded(const AtomicCommitArgs &args,
                                  AtomicRequest &request);
   bool SetOutputFence(AtomicRequest &request);
