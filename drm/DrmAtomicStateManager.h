@@ -138,17 +138,22 @@ class DrmAtomicStateManager {
   DstRectInfo whole_display_rect_{};
 
   void WaitLastFrame();
-  bool SetWriteBackFenceIfNeeded(AtomicRequest &request,
-                                 AtomicCommitArgs &args);
+  bool SetWriteBackFenceIfNeeded(const AtomicCommitArgs &args,
+                                 AtomicRequest &request);
   bool SetOutputFence(AtomicRequest &request);
-  bool SetActiveIfNeeded(AtomicRequest &request, AtomicCommitArgs &args);
-  bool SetDisplayModeIfNeeded(AtomicRequest &request, AtomicCommitArgs &args);
-  bool SetCtmIfNeeded(AtomicRequest &request, AtomicCommitArgs &args);
-  bool SetColorSpaceIfNeeded(AtomicRequest &request, AtomicCommitArgs &args);
-  bool SetContentTypeIfNeeded(AtomicRequest &request, AtomicCommitArgs &args);
-  bool SetHdrMetadataIfNeeded(AtomicRequest &request, AtomicCommitArgs &args);
-  bool SetMinBpcIfNeeded(AtomicRequest &request, AtomicCommitArgs &args);
-  bool SetCompositionIfNeeded(AtomicRequest &request, AtomicCommitArgs &args);
+  bool SetActiveIfNeeded(const AtomicCommitArgs &args, AtomicRequest &request);
+  bool SetDisplayModeIfNeeded(const AtomicCommitArgs &args,
+                              AtomicRequest &request);
+  bool SetCtmIfNeeded(const AtomicCommitArgs &args, AtomicRequest &request);
+  bool SetColorSpaceIfNeeded(const AtomicCommitArgs &args,
+                             AtomicRequest &request);
+  bool SetContentTypeIfNeeded(const AtomicCommitArgs &args,
+                              AtomicRequest &request);
+  bool SetHdrMetadataIfNeeded(const AtomicCommitArgs &args,
+                              AtomicRequest &request);
+  bool SetMinBpcIfNeeded(const AtomicCommitArgs &args, AtomicRequest &request);
+  bool SetCompositionIfNeeded(const AtomicCommitArgs &args,
+                              AtomicRequest &request);
 
   std::unique_ptr<AtomicRequest> GetAtomicModeReqForArgs(
       AtomicCommitArgs &args);

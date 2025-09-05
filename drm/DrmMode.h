@@ -60,7 +60,8 @@ class DrmMode {
     return std::string(mode_.name) + "@" + std::to_string(GetVRefresh());
   }
 
-  auto CreateModeBlob(const DrmDevice &drm) -> DrmModeUserPropertyBlobUnique;
+  auto CreateModeBlob(const DrmDevice &drm) const
+      -> DrmModeUserPropertyBlobUnique;
 
  private:
   drmModeModeInfo mode_;

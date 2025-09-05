@@ -33,7 +33,7 @@ bool DrmMode::SameSize(const DrmMode &mode) const {
          (mode_.hdisplay == mode.mode_.hdisplay);
 }
 
-auto DrmMode::CreateModeBlob(const DrmDevice &drm)
+auto DrmMode::CreateModeBlob(const DrmDevice &drm) const
     -> DrmModeUserPropertyBlobUnique {
   struct drm_mode_modeinfo drm_mode = {};
   /* drm_mode_modeinfo and drmModeModeInfo should be identical

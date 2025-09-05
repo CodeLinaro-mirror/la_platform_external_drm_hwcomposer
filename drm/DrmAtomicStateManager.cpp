@@ -194,8 +194,8 @@ void DrmAtomicStateManager::CheckDoubleSettingState(
   }
 }
 
-bool DrmAtomicStateManager::SetWriteBackFenceIfNeeded(AtomicRequest &request,
-                                                      AtomicCommitArgs &args) {
+bool DrmAtomicStateManager::SetWriteBackFenceIfNeeded(
+    const AtomicCommitArgs &args, AtomicRequest &request) {
   if (!pipe_->writeback_connector || !args.writeback_fb) {
     return true;
   }
@@ -240,8 +240,8 @@ bool DrmAtomicStateManager::SetOutputFence(AtomicRequest &request) {
       .AtomicSet(*request.property_set, uint64_t(&request.out_fence_address));
 }
 
-bool DrmAtomicStateManager::SetActiveIfNeeded(AtomicRequest &request,
-                                              AtomicCommitArgs &args) {
+bool DrmAtomicStateManager::SetActiveIfNeeded(const AtomicCommitArgs &args,
+                                              AtomicRequest &request) {
   if (!args.active) {
     return true;
   }
@@ -264,8 +264,8 @@ bool DrmAtomicStateManager::SetActiveIfNeeded(AtomicRequest &request,
   return true;
 }
 
-bool DrmAtomicStateManager::SetDisplayModeIfNeeded(AtomicRequest &request,
-                                                   AtomicCommitArgs &args) {
+bool DrmAtomicStateManager::SetDisplayModeIfNeeded(const AtomicCommitArgs &args,
+                                                   AtomicRequest &request) {
   if (!args.display_mode) {
     return true;
   }
@@ -286,8 +286,8 @@ bool DrmAtomicStateManager::SetDisplayModeIfNeeded(AtomicRequest &request,
   return true;
 }
 
-bool DrmAtomicStateManager::SetCtmIfNeeded(AtomicRequest &request,
-                                           AtomicCommitArgs &args) {
+bool DrmAtomicStateManager::SetCtmIfNeeded(const AtomicCommitArgs &args,
+                                           AtomicRequest &request) {
   auto *crtc = pipe_->crtc->Get();
   if (!args.color_matrix || !crtc->GetCtmProperty()) {
     return true;
@@ -309,8 +309,8 @@ bool DrmAtomicStateManager::SetCtmIfNeeded(AtomicRequest &request,
   return true;
 }
 
-bool DrmAtomicStateManager::SetColorSpaceIfNeeded(AtomicRequest &request,
-                                                  AtomicCommitArgs &args) {
+bool DrmAtomicStateManager::SetColorSpaceIfNeeded(const AtomicCommitArgs &args,
+                                                  AtomicRequest &request) {
   auto *connector = pipe_->connector->Get();
   if (!args.colorspace || !connector->GetColorspaceProperty()) {
     return true;
@@ -321,8 +321,8 @@ bool DrmAtomicStateManager::SetColorSpaceIfNeeded(AtomicRequest &request,
                  connector->GetColorspacePropertyValue(*args.colorspace));
 }
 
-bool DrmAtomicStateManager::SetContentTypeIfNeeded(AtomicRequest &request,
-                                                   AtomicCommitArgs &args) {
+bool DrmAtomicStateManager::SetContentTypeIfNeeded(const AtomicCommitArgs &args,
+                                                   AtomicRequest &request) {
   auto *connector = pipe_->connector->Get();
   if (!args.content_type || !connector->GetContentTypeProperty()) {
     return true;
@@ -332,8 +332,8 @@ bool DrmAtomicStateManager::SetContentTypeIfNeeded(AtomicRequest &request,
                                                            *args.content_type));
 }
 
-bool DrmAtomicStateManager::SetHdrMetadataIfNeeded(AtomicRequest &request,
-                                                   AtomicCommitArgs &args) {
+bool DrmAtomicStateManager::SetHdrMetadataIfNeeded(const AtomicCommitArgs &args,
+                                                   AtomicRequest &request) {
   auto *connector = pipe_->connector->Get();
   if (!args.hdr_metadata || !connector->GetHdrOutputMetadataProperty()) {
     return true;
@@ -357,8 +357,8 @@ bool DrmAtomicStateManager::SetHdrMetadataIfNeeded(AtomicRequest &request,
   return true;
 }
 
-bool DrmAtomicStateManager::SetMinBpcIfNeeded(AtomicRequest &request,
-                                              AtomicCommitArgs &args) {
+bool DrmAtomicStateManager::SetMinBpcIfNeeded(const AtomicCommitArgs &args,
+                                              AtomicRequest &request) {
   auto *connector = pipe_->connector->Get();
   if (!args.min_bpc || !connector->GetMinBpcProperty()) {
     return true;
@@ -385,8 +385,8 @@ bool DrmAtomicStateManager::SetMinBpcIfNeeded(AtomicRequest &request,
                                                   min_bpc_val);
 }
 
-bool DrmAtomicStateManager::SetCompositionIfNeeded(AtomicRequest &request,
-                                                   AtomicCommitArgs &args) {
+bool DrmAtomicStateManager::SetCompositionIfNeeded(const AtomicCommitArgs &args,
+                                                   AtomicRequest &request) {
   if (!args.composition) {
     return true;
   }
@@ -442,7 +442,7 @@ DrmAtomicStateManager::GetAtomicModeReqForArgs(AtomicCommitArgs &args) {
     return nullptr;
   }
 
-  if (!SetWriteBackFenceIfNeeded(*atomic_request, args)) {
+  if (!SetWriteBackFenceIfNeeded(args, *atomic_request)) {
     ALOGE("Failed to set writeback fence");
     return nullptr;
   }
@@ -452,42 +452,41 @@ DrmAtomicStateManager::GetAtomicModeReqForArgs(AtomicCommitArgs &args) {
     return nullptr;
   }
 
-  if (!SetActiveIfNeeded(*atomic_request, args)) {
+  if (!SetActiveIfNeeded(args, *atomic_request)) {
     ALOGE("Failed to set active");
     return nullptr;
   }
 
-  if (!SetDisplayModeIfNeeded(*atomic_request, args)) {
+  if (!SetDisplayModeIfNeeded(args, *atomic_request)) {
     ALOGE("Failed to set display mode");
     return nullptr;
   }
 
-  if (!SetCtmIfNeeded(*atomic_request, args)) {
+  if (!SetCtmIfNeeded(args, *atomic_request)) {
     ALOGE("Failed to set CTM blob");
     return nullptr;
   }
 
-  if (!SetColorSpaceIfNeeded(*atomic_request, args)) {
+  if (!SetColorSpaceIfNeeded(args, *atomic_request)) {
     ALOGE("Failed to set color space");
     return nullptr;
   }
 
-  if (!SetContentTypeIfNeeded(*atomic_request, args)) {
+  if (!SetContentTypeIfNeeded(args, *atomic_request)) {
     ALOGE("Failed to set content type");
     return nullptr;
   }
 
-  if (!SetHdrMetadataIfNeeded(*atomic_request, args)) {
+  if (!SetHdrMetadataIfNeeded(args, *atomic_request)) {
     ALOGE("Failed to set HDR metadata");
     return nullptr;
   }
 
-  if (!SetMinBpcIfNeeded(*atomic_request, args)) {
+  if (!SetMinBpcIfNeeded(args, *atomic_request)) {
     ALOGE("Failed to set min BPC");
     return nullptr;
   }
-
-  if (!SetCompositionIfNeeded(*atomic_request, args)) {
+  if (!SetCompositionIfNeeded(args, *atomic_request)) {
     ALOGE("Failed to set composition");
     return nullptr;
   }
