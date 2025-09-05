@@ -92,16 +92,22 @@ void DrmAtomicStateManager::CleanFailedCommit() {
 bool DrmAtomicStateManager::CommitFrame(AtomicCommitArgs &args) {
   // NOLINTNEXTLINE(misc-const-correctness)
   ATRACE_CALL();
-  // new_frame_state is initialized to the current frame state and may be
-  // modified below.
-  args.new_frame_state = committed_frame_state_;
+
+  args.new_frame_state = {};
   args.used_kms_objects = {};
 
-  CheckDoubleSettingState(args, args.new_frame_state.crtc_active_state);
+  // Clear args.active if it's a no-op.
+  CheckDoubleSettingState(args);
 
   if (!args.HasInputs()) {
     /* nothing to do */
     return true;
+  }
+
+  if (!committed_frame_state_.crtc_active_state) {
+    // Force args.active if the display is not active and there are other
+    // things to commit.
+    args.active = true;
   }
 
   auto pset = GetAtomicModeReqForArgs(args);
@@ -179,9 +185,9 @@ bool DrmAtomicStateManager::CommitFrame(AtomicCommitArgs &args) {
   return true;
 }
 
-void DrmAtomicStateManager::CheckDoubleSettingState(AtomicCommitArgs &args,
-                                                    bool crtc_is_active) {
-  if (args.active && *args.active == crtc_is_active) {
+void DrmAtomicStateManager::CheckDoubleSettingState(
+    AtomicCommitArgs &args) const {
+  if (args.active && *args.active == committed_frame_state_.crtc_active_state) {
     /* Don't set the same state twice */
     args.active.reset();
   }
@@ -383,8 +389,9 @@ bool DrmAtomicStateManager::SetCompositionIfNeeded(drmModeAtomicReq *pset,
     return true;
   }
 
-  auto unused_planes = args.new_frame_state.used_planes;
-  args.new_frame_state.used_planes.clear();
+  // Initialize the list of unused planes to all the planes used in the
+  // previous frame.
+  auto unused_planes = committed_frame_state_.used_planes;
 
   for (auto &joining : args.composition->plan) {
     DrmPlane *plane = joining.plane->Get();
@@ -413,6 +420,8 @@ bool DrmAtomicStateManager::SetCompositionIfNeeded(drmModeAtomicReq *pset,
     args.used_kms_objects.blobs.emplace_back(std::move(damage_blob));
   }
 
+  // Disable all planes that were used in the previous commit which are no
+  // longer being used.
   return std::all_of(unused_planes.begin(), unused_planes.end(),
                      [&pset](auto &plane) {
                        return plane->Get()->AtomicDisablePlane(*pset) == 0;
@@ -422,11 +431,6 @@ bool DrmAtomicStateManager::SetCompositionIfNeeded(drmModeAtomicReq *pset,
 DrmModeAtomicReqUnique DrmAtomicStateManager::GetAtomicModeReqForArgs(
     AtomicCommitArgs &args) {
   ATRACE_CALL();
-  if (!args.new_frame_state.crtc_active_state) {
-    /* Force activate display */
-    args.active = true;
-  }
-
   auto pset = MakeDrmModeAtomicReqUnique();
   if (!pset) {
     ALOGE("Failed to allocate property set");

@@ -132,8 +132,7 @@ class DrmAtomicStateManager {
   bool SetCompositionIfNeeded(drmModeAtomicReq *pset, AtomicCommitArgs &args);
 
   DrmModeAtomicReqUnique GetAtomicModeReqForArgs(AtomicCommitArgs &args);
-  static void CheckDoubleSettingState(AtomicCommitArgs &args,
-                                      bool crtc_is_active);
+  void CheckDoubleSettingState(AtomicCommitArgs &args) const;
 
   std::thread thread_;
   std::condition_variable cv_;
