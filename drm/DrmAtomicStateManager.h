@@ -68,20 +68,38 @@ struct AtomicCommitArgs {
   SharedFd writeback_release_fence;
 
   /* out */
-  KmsState new_frame_state;
-  KmsObjects used_kms_objects;
   SharedFd out_writeback_complete_fence;
   SharedFd out_fence;
-  // Shared FD can't be initiallized to an invalid value, for now we keep
-  // the address separate from the FD for initialization.
-  // TODO: look into adding support for invalid fences.
-  int wb_fence_address = -1;
-  int out_fence_address = -1;
 
   /* helpers */
   auto HasInputs() const -> bool {
     return display_mode || active || composition;
   }
+};
+
+// State for a pending atomic request. Includes the pending kms objects and
+// resulting state of the driver. Since the AtomicRequest might include
+// properties that reference memory addresses, this struct must not be moved
+// or copied.
+struct AtomicRequest {
+  AtomicRequest() = default;
+
+  DrmModeAtomicReqUnique property_set;
+
+  // Properties in the property set may reference the memory addresses of
+  // these struct members.
+  int wb_fence_address = -1;
+  int out_fence_address = -1;
+
+  KmsObjects used_kms_objects;
+  KmsState new_frame_state;
+
+  // Make this struct non-copyable and non-movable to avoid dangling
+  // references to struct member addresses.
+  AtomicRequest(const AtomicRequest &) = delete;
+  AtomicRequest &operator=(const AtomicRequest &) = delete;
+  AtomicRequest(AtomicRequest &&) = delete;
+  AtomicRequest &operator=(AtomicRequest &&) = delete;
 };
 
 class DrmAtomicStateManager {
@@ -119,19 +137,20 @@ class DrmAtomicStateManager {
   DstRectInfo whole_display_rect_{};
 
   void WaitLastFrame();
-  bool SetWriteBackFenceIfNeeded(drmModeAtomicReq *pset,
+  bool SetWriteBackFenceIfNeeded(AtomicRequest &request,
                                  AtomicCommitArgs &args);
-  bool SetOutputFence(drmModeAtomicReq *pset, AtomicCommitArgs &args);
-  bool SetActiveIfNeeded(drmModeAtomicReq *pset, AtomicCommitArgs &args);
-  bool SetDisplayModeIfNeeded(drmModeAtomicReq *pset, AtomicCommitArgs &args);
-  bool SetCtmIfNeeded(drmModeAtomicReq *pset, AtomicCommitArgs &args);
-  bool SetColorSpaceIfNeeded(drmModeAtomicReq *pset, AtomicCommitArgs &args);
-  bool SetContentTypeIfNeeded(drmModeAtomicReq *pset, AtomicCommitArgs &args);
-  bool SetHdrMetadataIfNeeded(drmModeAtomicReq *pset, AtomicCommitArgs &args);
-  bool SetMinBpcIfNeeded(drmModeAtomicReq *pset, AtomicCommitArgs &args);
-  bool SetCompositionIfNeeded(drmModeAtomicReq *pset, AtomicCommitArgs &args);
+  bool SetOutputFence(AtomicRequest &request);
+  bool SetActiveIfNeeded(AtomicRequest &request, AtomicCommitArgs &args);
+  bool SetDisplayModeIfNeeded(AtomicRequest &request, AtomicCommitArgs &args);
+  bool SetCtmIfNeeded(AtomicRequest &request, AtomicCommitArgs &args);
+  bool SetColorSpaceIfNeeded(AtomicRequest &request, AtomicCommitArgs &args);
+  bool SetContentTypeIfNeeded(AtomicRequest &request, AtomicCommitArgs &args);
+  bool SetHdrMetadataIfNeeded(AtomicRequest &request, AtomicCommitArgs &args);
+  bool SetMinBpcIfNeeded(AtomicRequest &request, AtomicCommitArgs &args);
+  bool SetCompositionIfNeeded(AtomicRequest &request, AtomicCommitArgs &args);
 
-  DrmModeAtomicReqUnique GetAtomicModeReqForArgs(AtomicCommitArgs &args);
+  std::unique_ptr<AtomicRequest> GetAtomicModeReqForArgs(
+      AtomicCommitArgs &args);
   void CheckDoubleSettingState(AtomicCommitArgs &args) const;
 
   std::thread thread_;
