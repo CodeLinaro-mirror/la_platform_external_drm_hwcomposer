@@ -54,6 +54,7 @@
 
 using ::android::CompositionStatsAtomReporter;
 using ::android::CompositionStatsPoller;
+using ::android::CompositionType;
 using ::android::DamageInfo;
 using ::android::DisplayHandle;
 using ::android::DstRectInfo;
@@ -218,7 +219,7 @@ std::optional<std::array<float, kCtmSize>> AidlToColorTransformMatrix(
   return color_transform_matrix;
 }
 
-std::optional<HwcLayer::CompositionType> AidlToCompositionType(
+std::optional<CompositionType> AidlToCompositionType(
     const std::optional<ParcelableComposition> composition) {
   if (!composition) {
     return std::nullopt;
@@ -226,15 +227,15 @@ std::optional<HwcLayer::CompositionType> AidlToCompositionType(
 
   switch (composition->composition) {
     case Composition::INVALID:
-      return HwcLayer::CompositionType::kInvalid;
+      return CompositionType::kInvalid;
     case Composition::CLIENT:
-      return HwcLayer::CompositionType::kClient;
+      return CompositionType::kClient;
     case Composition::DEVICE:
-      return HwcLayer::CompositionType::kDevice;
+      return CompositionType::kDevice;
     case Composition::SOLID_COLOR:
-      return HwcLayer::CompositionType::kSolidColor;
+      return CompositionType::kSolidColor;
     case Composition::CURSOR:
-      return HwcLayer::CompositionType::kCursor;
+      return CompositionType::kCursor;
 
     // Unsupported composition types.
     case Composition::DISPLAY_DECORATION:
@@ -1539,13 +1540,14 @@ ndk::ScopedAStatus ComposerClient::startHdcpNegotiation(
   return ToBinderStatus(hwc3::Error::kUnsupported);
 }
 
-ndk::ScopedAStatus ComposerClient::getMaxLayerPictureProfiles(int64_t,
-                                                              int32_t*) {
+ndk::ScopedAStatus ComposerClient::getMaxLayerPictureProfiles(int64_t /* display */,
+                                                              int32_t* /* max_profiles */) {
   return ToBinderStatus(hwc3::Error::kUnsupported);
 }
 
-ndk::ScopedAStatus ComposerClient::getLuts(int64_t, const std::vector<Buffer>&,
-                                           std::vector<Luts>*) {
+ndk::ScopedAStatus ComposerClient::getLuts(int64_t /* display */,
+                                           const std::vector<Buffer>& /* buffers */,
+                                           std::vector<Luts>* /* out_luts */) {
   return ToBinderStatus(hwc3::Error::kUnsupported);
 }
 
