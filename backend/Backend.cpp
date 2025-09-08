@@ -59,14 +59,22 @@ auto Backend::ValidateDisplay(HwcDisplay* display) -> ValidatedComposition {
     }
   }
 
-  size_t client_start = 0;
-  size_t client_size = 0;
+  bool use_cursor_plane = false;
   const auto* cursor_layer = GetCursorLayer(layers);
   auto cursor_plane = display->GetPipe().GetUsablePlanes().second;
-  bool use_cursor_plane = cursor_layer != nullptr && cursor_plane != nullptr &&
-                          !IsClientLayer(display, cursor_layer) &&
-                          cursor_plane->Get()->IsValidForLayer(
-                              &cursor_layer->GetLayerData());
+  if (cursor_layer != nullptr && cursor_plane != nullptr &&
+      !IsClientLayer(display, cursor_layer) &&
+      cursor_plane->Get()->IsValidForLayer(&cursor_layer->GetLayerData())) {
+    // Create and test a composition using only cursor plane and all other
+    // layers client-composited to infer whether the cursor plane can be used.
+    ValidatedComposition cursor_composition{
+        .composition_types = GetCompositionTypes(layers, 0, layers.size() - 1,
+                                                 /*use_cursor_plane=*/true)};
+    use_cursor_plane = display->TestComposition(cursor_composition);
+  }
+
+  size_t client_start = 0;
+  size_t client_size = 0;
   ValidatedComposition validated_composition;
 
   // Populates and tests |validated_composition|, returning whether it
@@ -92,18 +100,26 @@ auto Backend::ValidateDisplay(HwcDisplay* display) -> ValidatedComposition {
                                                         use_cursor_plane);
   bool success = validate_and_test();
 
-  // First fallback: convert cursor layer to device composition and reattempt.
-  if (!success && use_cursor_plane) {
-    ++display->total_stats().failed_kms_cursor_validate;
-    use_cursor_plane = false;
-    std::tie(client_start, client_size) = GetClientLayers(display, layers,
-                                                          use_cursor_plane);
-    success = validate_and_test();
+  // Cursor fallback: convert all non-cursor layers to client composition and
+  // reattempt. (Cursor layer is preserved as _either_ cursor _or_ device
+  // composited.)
+  if (!success && cursor_layer != nullptr) {
+    if (layers.back()->GetSfType() != CompositionType::kCursor) {
+      ALOGE("Cursor layer was not found at highest z-order");
+      // Continue to next fallback.
+    } else {
+      client_start = 0;
+      client_size = layers.size() - 1;
+      success = validate_and_test();
+    }
   }
 
   // Final fallback: convert all layers to client composition.
   if (!success) {
     ++display->total_stats().failed_kms_validate;
+    if (use_cursor_plane) {
+      ++display->total_stats().failed_kms_cursor_validate;
+    }
     use_cursor_plane = false;
     validated_composition = GetFlattenedComposition(layers);
   }
