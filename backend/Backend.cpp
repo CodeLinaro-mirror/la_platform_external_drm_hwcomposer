@@ -69,11 +69,9 @@ auto Backend::ValidateDisplay(HwcDisplay* display) -> ValidatedComposition {
                               &cursor_layer->GetLayerData());
   ValidatedComposition validated_composition;
 
-  // Validates layers and creates a test composition, returning whether it
+  // Populates and tests |validated_composition|, returning whether it
   // succeeded.
   auto validate_and_test = [&]() -> bool {
-    std::tie(client_start, client_size) = GetClientLayers(display, layers,
-                                                          use_cursor_plane);
     validated_composition
         .composition_types = GetCompositionTypes(layers, client_start,
                                                  client_size, use_cursor_plane);
@@ -83,27 +81,34 @@ auto Backend::ValidateDisplay(HwcDisplay* display) -> ValidatedComposition {
       return display->TestComposition(validated_composition);
     }
 
+    // Reset the plan in case it was set during a previous test.
+    validated_composition.composition_plan = std::make_shared<DrmKmsPlan>();
+
     return true;
   };
 
   // Initial composition attempt.
+  std::tie(client_start, client_size) = GetClientLayers(display, layers,
+                                                        use_cursor_plane);
   bool success = validate_and_test();
 
   // First fallback: convert cursor layer to device composition and reattempt.
   if (!success && use_cursor_plane) {
     ++display->total_stats().failed_kms_cursor_validate;
     use_cursor_plane = false;
+    std::tie(client_start, client_size) = GetClientLayers(display, layers,
+                                                          use_cursor_plane);
     success = validate_and_test();
   }
 
   // Final fallback: convert all layers to client composition.
   if (!success) {
     ++display->total_stats().failed_kms_validate;
+    use_cursor_plane = false;
     validated_composition = GetFlattenedComposition(layers);
   }
 
-  display->total_stats().gpu_pixops += CalcPixOps(layers, client_start,
-                                                  client_size);
+  display->total_stats().gpu_pixops += CalcPixOps(validated_composition);
   display->total_stats().total_pixops += CalcPixOps(layers, 0, layers.size());
   if (use_cursor_plane) {
     ++display->total_stats().cursor_plane_frames;
@@ -147,6 +152,18 @@ bool Backend::IsClientLayer(const HwcDisplay* display, const HwcLayer* layer) {
 bool Backend::HardwareSupportsLayerType(CompositionType comp_type) {
   return comp_type == CompositionType::kDevice ||
          comp_type == CompositionType::kCursor;
+}
+
+uint32_t Backend::CalcPixOps(
+    const ValidatedComposition& validated_composition) {
+  uint32_t pixops = 0;
+  for (const auto& [layer, comp_type] :
+       validated_composition.composition_types) {
+    if (comp_type == CompositionType::kClient) {
+      pixops += layer->GetPixOps();
+    }
+  }
+  return pixops;
 }
 
 uint32_t Backend::CalcPixOps(const std::vector<const HwcLayer*>& layers,
