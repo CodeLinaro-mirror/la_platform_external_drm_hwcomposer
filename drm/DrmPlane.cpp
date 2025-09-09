@@ -294,6 +294,10 @@ auto DrmPlane::AtomicSetState(drmModeAtomicReq &pset, LayerData &layer,
   auto src = opt_src.value();
 
   if (type_ == DRM_PLANE_TYPE_CURSOR) {
+    // Calculate scaling factors in each direction so that they can be
+    // preserved.
+    const float hscale = src.Width() / static_cast<float>(disp.Width());
+    const float vscale = src.Height() / static_cast<float>(disp.Height());
     // Panning (i.e. non-zero src position) is not permitted with cursor plane.
     // Shift the display frame in the opposite direction to position the cursor
     // correctly. Then clear the src position.
@@ -305,10 +309,10 @@ auto DrmPlane::AtomicSetState(drmModeAtomicReq &pset, LayerData &layer,
     // known to be compatible with cursor plane restrictions.
     disp.right = disp.left + static_cast<int>(layer.bi->width);
     disp.bottom = disp.top + static_cast<int>(layer.bi->height);
-    // Scaling is not permitted with cursor plane. Force the src size to match
-    // the display frame.
-    src.right = static_cast<float>(disp.Width());
-    src.bottom = static_cast<float>(disp.Height());
+    // Resize the src rect to preserve the original scaling factor relative to
+    // the new disp size.
+    src.right = hscale * static_cast<float>(disp.Width());
+    src.bottom = vscale * static_cast<float>(disp.Height());
   }
 
   // Clip the source crop rect to ensure it does not exceed the bounds of the
