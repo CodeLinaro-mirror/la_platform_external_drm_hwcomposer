@@ -173,8 +173,7 @@ uint32_t Backend::CalcPixOps(const std::vector<const HwcLayer*>& layers,
     const auto* layer = layers[z_order];
     const auto& df = layer->GetLayerData().pi.display_frame;
     if (df.i_rect.has_value()) {
-      pixops += (df.i_rect->right - df.i_rect->left) *
-                (df.i_rect->bottom - df.i_rect->top);
+      pixops += df.i_rect->Width() * df.i_rect->Height();
     } else {
       // nullopt frame rect means whole display.
       pixops += whole_display;

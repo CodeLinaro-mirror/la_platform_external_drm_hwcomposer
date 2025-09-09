@@ -32,7 +32,7 @@ namespace android::drm_hwcomposer {
 
 namespace {
 // Ensure that |src| does not exceed the bounds of the buffer.
-void ClipSourceCrop(SrcRectInfo::FRect &src, const BufferInfo &buffer_info) {
+void ClipSourceCrop(FRect &src, const BufferInfo &buffer_info) {
   src.left = std::max(src.left, 0.F);
   src.top = std::max(src.top, 0.F);
   src.right = std::min(src.right, static_cast<float>(buffer_info.width));
@@ -307,8 +307,8 @@ auto DrmPlane::AtomicSetState(drmModeAtomicReq &pset, LayerData &layer,
     disp.bottom = disp.top + static_cast<int>(layer.bi->height);
     // Scaling is not permitted with cursor plane. Force the src size to match
     // the display frame.
-    src.right = static_cast<float>(disp.right - disp.left);
-    src.bottom = static_cast<float>(disp.bottom - disp.top);
+    src.right = static_cast<float>(disp.Width());
+    src.bottom = static_cast<float>(disp.Height());
   }
 
   // Clip the source crop rect to ensure it does not exceed the bounds of the
@@ -319,12 +319,12 @@ auto DrmPlane::AtomicSetState(drmModeAtomicReq &pset, LayerData &layer,
       !fb_property_.AtomicSet(pset, layer.fb->GetFbId()) ||
       !crtc_x_property_.AtomicSet(pset, disp.left) ||
       !crtc_y_property_.AtomicSet(pset, disp.top) ||
-      !crtc_w_property_.AtomicSet(pset, disp.right - disp.left) ||
-      !crtc_h_property_.AtomicSet(pset, disp.bottom - disp.top) ||
+      !crtc_w_property_.AtomicSet(pset, disp.Width()) ||
+      !crtc_h_property_.AtomicSet(pset, disp.Height()) ||
       !src_x_property_.AtomicSet(pset, To1616FixPt(src.left)) ||
       !src_y_property_.AtomicSet(pset, To1616FixPt(src.top)) ||
-      !src_w_property_.AtomicSet(pset, To1616FixPt(src.right - src.left)) ||
-      !src_h_property_.AtomicSet(pset, To1616FixPt(src.bottom - src.top))) {
+      !src_w_property_.AtomicSet(pset, To1616FixPt(src.Width())) ||
+      !src_h_property_.AtomicSet(pset, To1616FixPt(src.Height()))) {
     return -EINVAL;
   }
 
