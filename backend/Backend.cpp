@@ -40,16 +40,6 @@ const HwcLayer* GetCursorLayer(const std::vector<const HwcLayer*>& layers) {
   return *it;
 }
 
-std::pair<uint32_t, uint32_t> GetDisplaySize(const HwcDisplay *display) {
-  const auto *config = display->GetNextConfig();
-  if (config == nullptr) {
-    return std::make_pair(0, 0);
-  }
-
-  return std::make_pair(config->mode.GetRawMode().hdisplay,
-                        config->mode.GetRawMode().vdisplay);
-}
-
 }  // namespace
 
 auto Backend::ValidateDisplay(HwcDisplay* display) -> ValidatedComposition {
@@ -113,10 +103,8 @@ auto Backend::ValidateDisplay(HwcDisplay* display) -> ValidatedComposition {
   }
 
   display->total_stats().gpu_pixops += CalcPixOps(layers, client_start,
-                                                  client_size,
-                                                  GetDisplaySize(display));
-  display->total_stats().total_pixops += CalcPixOps(layers, 0, layers.size(),
-                                                    GetDisplaySize(display));
+                                                  client_size);
+  display->total_stats().total_pixops += CalcPixOps(layers, 0, layers.size());
   if (use_cursor_plane) {
     ++display->total_stats().cursor_plane_frames;
   }
@@ -162,22 +150,13 @@ bool Backend::HardwareSupportsLayerType(CompositionType comp_type) {
 }
 
 uint32_t Backend::CalcPixOps(const std::vector<const HwcLayer*>& layers,
-                             size_t first_z, size_t size,
-                             std::pair<uint32_t, uint32_t> display_size) {
-  uint32_t whole_display = display_size.first * display_size.second;
+                             size_t first_z, size_t size) {
   uint32_t pixops = 0;
   ALOGE_IF(first_z + size > layers.size(),
            "CalcPixOps provided range outside of layers");
   for (size_t z_order = first_z;
        z_order < std::min(first_z + size, layers.size()); ++z_order) {
-    const auto* layer = layers[z_order];
-    const auto& df = layer->GetLayerData().pi.display_frame;
-    if (df.i_rect.has_value()) {
-      pixops += df.i_rect->Width() * df.i_rect->Height();
-    } else {
-      // nullopt frame rect means whole display.
-      pixops += whole_display;
-    }
+    pixops += layers[z_order]->GetPixOps();
   }
   return pixops;
 }
@@ -255,8 +234,7 @@ std::tuple<size_t, size_t> Backend::GetExtraClientRange(
     // fewest GPU pixops.
     uint32_t gpu_pixops = UINT32_MAX;
     for (size_t i = 0; i < steps; i++) {
-      const uint32_t po = CalcPixOps(layers, start + i, client_size,
-                                     GetDisplaySize(display));
+      const uint32_t po = CalcPixOps(layers, start + i, client_size);
       if (po < gpu_pixops) {
         gpu_pixops = po;
         client_start = start + i;
