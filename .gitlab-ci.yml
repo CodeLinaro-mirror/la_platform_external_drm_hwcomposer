@@ -96,7 +96,7 @@ android-vts:
   extends:
     .use-ubuntu/x86_64_android
   script:
-    - "${CI_PROJECT_DIR}/.ci/android/vts-runner.sh"
+    - "${CI_PROJECT_DIR}/.ci/android/android-vts.sh"
   needs:
     - job: build_x86_64
       artifacts: true
