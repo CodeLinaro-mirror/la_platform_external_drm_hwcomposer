@@ -61,11 +61,16 @@ class FlatteningController {
   static constexpr auto kTimeout = 1s;
 
  private:
-  FlatteningController() = default;
+  explicit FlatteningController(FlatConCallbacks callbacks);
   void ThreadFn();
 
-  bool flatten_next_frame_{};
-  bool disabled_{};
+  /* Disable the controller by default as it can cause refresh event to be
+   * issued at creation time, even when it is not required. This can fail VTS
+   * tests at teardown that check for this behaviour. See:
+   * https://cs.android.com/android/platform/superproject/main/+/cedca652b903e4f4e584e457b5a7038e0825fb94:hardware/interfaces/graphics/composer/aidl/vts/VtsComposerClient.cpp;drc=a2a6deaf5036e081f48379b6573db4465538b5ac;l=604
+   */
+  bool flatten_next_frame_ = false;
+  bool disabled_ = true;
   decltype(std::chrono::system_clock::now()) sleep_until_{};
   std::thread thread_;
   std::mutex mutex_;
