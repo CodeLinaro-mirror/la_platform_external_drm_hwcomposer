@@ -37,13 +37,6 @@
 
 namespace android::drm_hwcomposer {
 
-auto FlatteningController::CreateInstance(FlatConCallbacks &cbks,
-                                          std::chrono::milliseconds timeout)
-    -> std::shared_ptr<FlatteningController> {
-  return std::shared_ptr<FlatteningController>(
-      new FlatteningController(cbks, timeout));
-}
-
 FlatteningController::FlatteningController(FlatConCallbacks callbacks,
                                            std::chrono::milliseconds timeout)
     : cbks_(std::move(callbacks)), timeout_(timeout) {

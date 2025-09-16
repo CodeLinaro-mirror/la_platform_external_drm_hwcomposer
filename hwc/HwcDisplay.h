@@ -212,7 +212,7 @@ class HwcDisplay {
   void Deinit();
 
   auto GetFlatCon() {
-    return flatcon_;
+    return flatcon_.get();
   }
 
   auto GetClientLayer() -> HwcLayer & {
@@ -279,7 +279,7 @@ class HwcDisplay {
   std::shared_ptr<DrmDisplayPipeline> pipeline_;
 
   std::unique_ptr<Backend> backend_;
-  std::shared_ptr<FlatteningController> flatcon_;
+  std::unique_ptr<FlatteningController> flatcon_;
 
   std::unique_ptr<VSyncWorker> vsync_worker_;
   bool vsync_event_en_{};

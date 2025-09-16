@@ -34,9 +34,9 @@ struct FlatConCallbacks {
 
 class FlatteningController {
  public:
-  static auto CreateInstance(FlatConCallbacks &cbks,
-                             std::chrono::milliseconds timeout)
-      -> std::shared_ptr<FlatteningController>;
+  FlatteningController(FlatConCallbacks callbacks,
+                       std::chrono::milliseconds timeout);
+
   ~FlatteningController() {
     StopThread();
     thread_.join();
@@ -66,8 +66,6 @@ class FlatteningController {
   }
 
  private:
-  FlatteningController(FlatConCallbacks callbacks,
-                       std::chrono::milliseconds timeout);
   void ThreadFn();
 
   std::thread thread_;

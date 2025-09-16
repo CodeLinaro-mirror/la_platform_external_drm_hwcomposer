@@ -46,7 +46,7 @@ auto Backend::ValidateDisplay(HwcDisplay* display) -> ValidatedComposition {
   auto layers = display->GetOrderLayersByZPos();
 
   auto flatcon = display->GetFlatCon();
-  if (flatcon) {
+  if (flatcon != nullptr) {
     if (layers.size() <= 1) {
       flatcon->Disable();
     } else {

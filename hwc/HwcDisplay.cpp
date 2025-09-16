@@ -589,8 +589,8 @@ bool HwcDisplay::Init() {
     }
     auto flatcbk = (struct FlatConCallbacks){
         .trigger = [this]() { hwc_->SendRefreshEventToClient(handle_); }};
-    flatcon_ = FlatteningController::CreateInstance(flatcbk,
-                                                    kFlatteningTimeout);
+    flatcon_ = std::make_unique<FlatteningController>(flatcbk,
+                                                      kFlatteningTimeout);
   }
 
   HwcLayer::LayerProperties lp;
