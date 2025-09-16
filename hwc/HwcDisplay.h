@@ -211,7 +211,7 @@ class HwcDisplay {
 
   void Deinit();
 
-  auto GetFlatCon() {
+  const FlatteningController *GetFlatCon() const {
     return flatcon_.get();
   }
 
