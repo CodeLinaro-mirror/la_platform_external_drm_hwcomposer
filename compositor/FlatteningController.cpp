@@ -74,6 +74,7 @@ void FlatteningController::NewFrame() {
 void FlatteningController::ThreadFn() {
   for (;;) {
     std::unique_lock<std::mutex> lock(mutex_);
+    base::ScopedLockAssertion lock_assertion(mutex_);
     if (!cbks_.trigger)
       break;
 

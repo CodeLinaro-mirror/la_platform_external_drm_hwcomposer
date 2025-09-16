@@ -21,6 +21,8 @@
 #include <functional>
 #include <thread>
 
+#include <android-base/thread_annotations.h>
+
 namespace android::drm_hwcomposer {
 
 // NOLINTNEXTLINE(misc-unused-using-decls): False positive
@@ -55,6 +57,7 @@ class FlatteningController {
   // Returns true if the FlatteningController detects that the scene is idle
   // and should be flattened by the compositor.
   auto ShouldFlatten() const {
+    auto lock = std::lock_guard<std::mutex>(mutex_);
     return should_flatten_;
   }
 
@@ -69,19 +72,22 @@ class FlatteningController {
                        std::chrono::milliseconds timeout);
   void ThreadFn();
 
+  std::thread thread_;
+  mutable std::mutex mutex_;
+  std::condition_variable cv_;
+
   /* Disable the controller by default as it can cause refresh event to be
    * issued at creation time, even when it is not required. This can fail VTS
    * tests at teardown that check for this behaviour. See:
    * https://cs.android.com/android/platform/superproject/main/+/cedca652b903e4f4e584e457b5a7038e0825fb94:hardware/interfaces/graphics/composer/aidl/vts/VtsComposerClient.cpp;drc=a2a6deaf5036e081f48379b6573db4465538b5ac;l=604
    */
-  bool flatten_next_frame_ = false;
-  bool should_flatten_ = false;
-  bool disabled_ = true;
+  bool flatten_next_frame_ GUARDED_BY(mutex_) = false;
+  bool should_flatten_ GUARDED_BY(mutex_) = false;
+  bool disabled_ GUARDED_BY(mutex_) = true;
+  FlatConCallbacks cbks_ GUARDED_BY(mutex_);
+
+  // Only accessed from helper thread.
   decltype(std::chrono::system_clock::now()) sleep_until_{};
-  std::thread thread_;
-  std::mutex mutex_;
-  std::condition_variable cv_;
-  FlatConCallbacks cbks_;
   const std::chrono::milliseconds timeout_;
 };
 
