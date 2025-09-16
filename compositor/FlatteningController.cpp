@@ -37,13 +37,16 @@
 
 namespace android::drm_hwcomposer {
 
-auto FlatteningController::CreateInstance(FlatConCallbacks &cbks)
+auto FlatteningController::CreateInstance(FlatConCallbacks &cbks,
+                                          std::chrono::milliseconds timeout)
     -> std::shared_ptr<FlatteningController> {
-  return std::shared_ptr<FlatteningController>(new FlatteningController(cbks));
+  return std::shared_ptr<FlatteningController>(
+      new FlatteningController(cbks, timeout));
 }
 
-FlatteningController::FlatteningController(FlatConCallbacks callbacks)
-    : cbks_(std::move(callbacks)) {
+FlatteningController::FlatteningController(FlatConCallbacks callbacks,
+                                           std::chrono::milliseconds timeout)
+    : cbks_(std::move(callbacks)), timeout_(timeout) {
   thread_ = std::thread(&FlatteningController::ThreadFn, this);
 }
 
@@ -57,7 +60,7 @@ bool FlatteningController::NewFrame() {
     return true;
   }
 
-  sleep_until_ = std::chrono::system_clock::now() + kTimeout;
+  sleep_until_ = std::chrono::system_clock::now() + timeout_;
   if (disabled_) {
     wake_it = true;
     disabled_ = false;

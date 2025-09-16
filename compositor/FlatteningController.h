@@ -32,7 +32,8 @@ struct FlatConCallbacks {
 
 class FlatteningController {
  public:
-  static auto CreateInstance(FlatConCallbacks &cbks)
+  static auto CreateInstance(FlatConCallbacks &cbks,
+                             std::chrono::milliseconds timeout)
       -> std::shared_ptr<FlatteningController>;
   ~FlatteningController() {
     StopThread();
@@ -58,10 +59,9 @@ class FlatteningController {
     cv_.notify_all();
   }
 
-  static constexpr auto kTimeout = 1s;
-
  private:
-  explicit FlatteningController(FlatConCallbacks callbacks);
+  FlatteningController(FlatConCallbacks callbacks,
+                       std::chrono::milliseconds timeout);
   void ThreadFn();
 
   /* Disable the controller by default as it can cause refresh event to be
@@ -76,6 +76,7 @@ class FlatteningController {
   std::mutex mutex_;
   std::condition_variable cv_;
   FlatConCallbacks cbks_;
+  const std::chrono::milliseconds timeout_;
 };
 
 }  // namespace android::drm_hwcomposer

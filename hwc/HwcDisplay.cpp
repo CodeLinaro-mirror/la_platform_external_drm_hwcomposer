@@ -37,6 +37,7 @@ namespace android::drm_hwcomposer {
 
 namespace {
 
+constexpr auto kFlatteningTimeout = 1s;
 constexpr int kCtmRows = 3;
 constexpr int kCtmCols = 3;
 
@@ -588,7 +589,8 @@ bool HwcDisplay::Init() {
     }
     auto flatcbk = (struct FlatConCallbacks){
         .trigger = [this]() { hwc_->SendRefreshEventToClient(handle_); }};
-    flatcon_ = FlatteningController::CreateInstance(flatcbk);
+    flatcon_ = FlatteningController::CreateInstance(flatcbk,
+                                                    kFlatteningTimeout);
   }
 
   HwcLayer::LayerProperties lp;
