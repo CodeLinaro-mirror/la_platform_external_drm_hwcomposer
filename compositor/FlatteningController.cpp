@@ -51,15 +51,16 @@ FlatteningController::FlatteningController(FlatConCallbacks callbacks,
 }
 
 /* Compositor should call this every frame */
-bool FlatteningController::NewFrame() {
+void FlatteningController::NewFrame() {
   bool wake_it = false;
   auto lock = std::lock_guard<std::mutex>(mutex_);
 
   if (flatten_next_frame_) {
     flatten_next_frame_ = false;
-    return true;
+    return;
   }
 
+  should_flatten_ = false;
   sleep_until_ = std::chrono::system_clock::now() + timeout_;
   if (disabled_) {
     wake_it = true;
@@ -68,8 +69,6 @@ bool FlatteningController::NewFrame() {
 
   if (wake_it)
     cv_.notify_all();
-
-  return false;
 }
 
 void FlatteningController::ThreadFn() {
@@ -81,6 +80,7 @@ void FlatteningController::ThreadFn() {
     if (sleep_until_ <= std::chrono::system_clock::now() && !disabled_) {
       disabled_ = true;
       flatten_next_frame_ = true;
+      should_flatten_ = true;
       ALOGV("Timeout. Sending an event to compositor");
       cbks_.trigger();
     }

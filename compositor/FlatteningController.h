@@ -40,17 +40,22 @@ class FlatteningController {
     thread_.join();
   }
 
+  // Disable flattening and stop checking for an idle scene.
   void Disable() {
     auto lock = std::lock_guard<std::mutex>(mutex_);
     flatten_next_frame_ = false;
+    should_flatten_ = false;
     disabled_ = true;
   }
 
-  /* Compositor should call this every frame */
-  bool NewFrame();
+  // Registers a new frame by updating the flattening state as needed and
+  // resetting the idle timer.
+  void NewFrame();
 
+  // Returns true if the FlatteningController detects that the scene is idle
+  // and should be flattened by the compositor.
   auto ShouldFlatten() const {
-    return flatten_next_frame_;
+    return should_flatten_;
   }
 
   void StopThread() {
@@ -70,6 +75,7 @@ class FlatteningController {
    * https://cs.android.com/android/platform/superproject/main/+/cedca652b903e4f4e584e457b5a7038e0825fb94:hardware/interfaces/graphics/composer/aidl/vts/VtsComposerClient.cpp;drc=a2a6deaf5036e081f48379b6573db4465538b5ac;l=604
    */
   bool flatten_next_frame_ = false;
+  bool should_flatten_ = false;
   bool disabled_ = true;
   decltype(std::chrono::system_clock::now()) sleep_until_{};
   std::thread thread_;

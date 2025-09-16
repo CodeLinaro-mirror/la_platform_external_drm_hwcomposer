@@ -47,13 +47,13 @@ auto Backend::ValidateDisplay(HwcDisplay* display) -> ValidatedComposition {
 
   auto flatcon = display->GetFlatCon();
   if (flatcon) {
-    bool should_flatten = false;
-    if (layers.size() <= 1)
+    if (layers.size() <= 1) {
       flatcon->Disable();
-    else
-      should_flatten = flatcon->NewFrame();
+    } else {
+      flatcon->NewFrame();
+    }
 
-    if (should_flatten) {
+    if (flatcon->ShouldFlatten()) {
       display->total_stats().frames_flattened++;
       return GetFlattenedComposition(layers);
     }
