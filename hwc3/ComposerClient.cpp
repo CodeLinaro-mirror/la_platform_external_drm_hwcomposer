@@ -1574,6 +1574,11 @@ ndk::ScopedAStatus ComposerClient::getLuts(int64_t /* display */,
   return ToBinderStatus(hwc3::Error::kUnsupported);
 }
 
+ndk::ScopedAStatus ComposerClient::getDisplayKnownVsyncSample(
+    int64_t /* display */, VsyncSample* /* sample */) {
+  return ToBinderStatus(hwc3::Error::kUnsupported);
+}
+
 #endif
 
 std::string ComposerClient::Dump() {
