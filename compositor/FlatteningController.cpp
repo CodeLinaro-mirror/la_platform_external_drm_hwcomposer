@@ -52,23 +52,20 @@ FlatteningController::FlatteningController(FlatConCallbacks callbacks,
 
 /* Compositor should call this every frame */
 void FlatteningController::NewFrame() {
-  bool wake_it = false;
   auto lock = std::lock_guard<std::mutex>(mutex_);
 
-  if (flatten_next_frame_) {
-    flatten_next_frame_ = false;
+  if (state_ == State::kTriggeredCallback) {
+    state_ = State::kFlattened;
     return;
   }
 
-  should_flatten_ = false;
   sleep_until_ = std::chrono::system_clock::now() + timeout_;
-  if (disabled_) {
-    wake_it = true;
-    disabled_ = false;
-  }
+  bool was_active = (state_ == State::kActive);
+  state_ = State::kActive;
 
-  if (wake_it)
+  if (!was_active) {
     cv_.notify_all();
+  }
 }
 
 void FlatteningController::ThreadFn() {
@@ -78,15 +75,14 @@ void FlatteningController::ThreadFn() {
     if (!cbks_.trigger)
       break;
 
-    if (sleep_until_ <= std::chrono::system_clock::now() && !disabled_) {
-      disabled_ = true;
-      flatten_next_frame_ = true;
-      should_flatten_ = true;
+    if (sleep_until_ <= std::chrono::system_clock::now() &&
+        (state_ == State::kActive)) {
+      state_ = State::kTriggeredCallback;
       ALOGV("Timeout. Sending an event to compositor");
       cbks_.trigger();
     }
 
-    if (disabled_) {
+    if (state_ != State::kActive) {
       ALOGV("Wait");
       cv_.wait(lock);
     } else {

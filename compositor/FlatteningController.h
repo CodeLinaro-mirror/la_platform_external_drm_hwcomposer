@@ -45,9 +45,7 @@ class FlatteningController {
   // Disable flattening and stop checking for an idle scene.
   void Disable() {
     auto lock = std::lock_guard<std::mutex>(mutex_);
-    flatten_next_frame_ = false;
-    should_flatten_ = false;
-    disabled_ = true;
+    state_ = State::kDisabled;
   }
 
   // Registers a new frame by updating the flattening state as needed and
@@ -58,7 +56,7 @@ class FlatteningController {
   // and should be flattened by the compositor.
   auto ShouldFlatten() const {
     auto lock = std::lock_guard<std::mutex>(mutex_);
-    return should_flatten_;
+    return state_ == State::kTriggeredCallback || state_ == State::kFlattened;
   }
 
   void StopThread() {
@@ -76,14 +74,23 @@ class FlatteningController {
   mutable std::mutex mutex_;
   std::condition_variable cv_;
 
+  enum class State {
+    // Thread is not active, should not flatten.
+    kDisabled,
+    // Thread is active. Waiting for timeout.
+    kActive,
+    // Callback has been triggered but NewFrame has not yet been called.
+    kTriggeredCallback,
+    // Callback was triggered and NewFrame was called once.
+    kFlattened,
+  };
+
   /* Disable the controller by default as it can cause refresh event to be
    * issued at creation time, even when it is not required. This can fail VTS
    * tests at teardown that check for this behaviour. See:
    * https://cs.android.com/android/platform/superproject/main/+/cedca652b903e4f4e584e457b5a7038e0825fb94:hardware/interfaces/graphics/composer/aidl/vts/VtsComposerClient.cpp;drc=a2a6deaf5036e081f48379b6573db4465538b5ac;l=604
    */
-  bool flatten_next_frame_ GUARDED_BY(mutex_) = false;
-  bool should_flatten_ GUARDED_BY(mutex_) = false;
-  bool disabled_ GUARDED_BY(mutex_) = true;
+  State state_ GUARDED_BY(mutex_) = State::kDisabled;
   FlatConCallbacks cbks_ GUARDED_BY(mutex_);
 
   // Only accessed from helper thread.
