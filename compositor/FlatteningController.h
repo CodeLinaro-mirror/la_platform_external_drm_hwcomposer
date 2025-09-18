@@ -36,17 +36,10 @@ class FlatteningController {
  public:
   FlatteningController(FlatConCallbacks callbacks,
                        std::chrono::milliseconds timeout);
-
-  ~FlatteningController() {
-    StopThread();
-    thread_.join();
-  }
+  ~FlatteningController();
 
   // Disable flattening and stop checking for an idle scene.
-  void Disable() {
-    auto lock = std::lock_guard<std::mutex>(mutex_);
-    state_ = State::kDisabled;
-  }
+  void DisableFlattening();
 
   // Registers a new frame by updating the flattening state as needed and
   // resetting the idle timer.
@@ -54,16 +47,10 @@ class FlatteningController {
 
   // Returns true if the FlatteningController detects that the scene is idle
   // and should be flattened by the compositor.
-  auto ShouldFlatten() const {
-    auto lock = std::lock_guard<std::mutex>(mutex_);
-    return state_ == State::kTriggeredCallback || state_ == State::kFlattened;
-  }
+  bool ShouldFlatten() const;
 
-  void StopThread() {
-    auto lock = std::lock_guard<std::mutex>(mutex_);
-    cbks_ = {};
-    cv_.notify_all();
-  }
+  // Stop the helper thread
+  void StopThread();
 
  private:
   void ThreadFn();

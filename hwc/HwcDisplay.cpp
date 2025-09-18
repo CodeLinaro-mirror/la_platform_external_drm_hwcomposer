@@ -321,7 +321,7 @@ auto HwcDisplay::ValidateStagedComposition() -> std::vector<ChangedLayer> {
 
   // Notify the flattening controller of a new frame.
   if (layers_.size() <= 1) {
-    flatcon_->Disable();
+    flatcon_->DisableFlattening();
   } else {
     flatcon_->NewFrame();
   }

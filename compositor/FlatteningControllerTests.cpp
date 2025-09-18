@@ -72,7 +72,7 @@ TEST_F(FlatteningControllerTest, DisabledAfterCallingDisable) {
   std::this_thread::sleep_for(kTestTimeout + kTimeoutEpsilon);
   EXPECT_TRUE(flat_con->ShouldFlatten());
 
-  flat_con->Disable();
+  flat_con->DisableFlattening();
   EXPECT_FALSE(flat_con->ShouldFlatten());
 
   std::this_thread::sleep_for(kTestTimeout + kTimeoutEpsilon);

@@ -43,7 +43,16 @@ FlatteningController::FlatteningController(FlatConCallbacks callbacks,
   thread_ = std::thread(&FlatteningController::ThreadFn, this);
 }
 
-/* Compositor should call this every frame */
+FlatteningController::~FlatteningController() {
+  StopThread();
+  thread_.join();
+}
+
+void FlatteningController::DisableFlattening() {
+  auto lock = std::lock_guard<std::mutex>(mutex_);
+  state_ = State::kDisabled;
+}
+
 void FlatteningController::NewFrame() {
   auto lock = std::lock_guard<std::mutex>(mutex_);
 
@@ -59,6 +68,17 @@ void FlatteningController::NewFrame() {
   if (!was_active) {
     cv_.notify_all();
   }
+}
+
+bool FlatteningController::ShouldFlatten() const {
+  auto lock = std::lock_guard<std::mutex>(mutex_);
+  return state_ == State::kTriggeredCallback || state_ == State::kFlattened;
+}
+
+void FlatteningController::StopThread() {
+  auto lock = std::lock_guard<std::mutex>(mutex_);
+  cbks_ = {};
+  cv_.notify_all();
 }
 
 void FlatteningController::ThreadFn() {
