@@ -565,10 +565,7 @@ void HwcDisplay::Deinit() {
 
     current_plan_.reset();
     backend_.reset();
-    if (flatcon_) {
-      flatcon_->StopThread();
-      flatcon_.reset();
-    }
+    flatcon_.reset();
   }
 
   if (vsync_worker_) {

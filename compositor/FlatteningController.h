@@ -49,10 +49,10 @@ class FlatteningController {
   // and should be flattened by the compositor.
   bool ShouldFlatten() const;
 
+ private:
   // Stop the helper thread
   void StopThread();
 
- private:
   void ThreadFn();
 
   std::thread thread_;
