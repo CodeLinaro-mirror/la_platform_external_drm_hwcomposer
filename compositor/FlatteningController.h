@@ -68,6 +68,8 @@ class FlatteningController {
     kTriggeredCallback,
     // Callback was triggered and NewFrame was called once.
     kFlattened,
+    // Thread will exit without any further processing or state update.
+    kExitThread,
   };
 
   /* Disable the controller by default as it can cause refresh event to be
@@ -76,9 +78,9 @@ class FlatteningController {
    * https://cs.android.com/android/platform/superproject/main/+/cedca652b903e4f4e584e457b5a7038e0825fb94:hardware/interfaces/graphics/composer/aidl/vts/VtsComposerClient.cpp;drc=a2a6deaf5036e081f48379b6573db4465538b5ac;l=604
    */
   State state_ GUARDED_BY(mutex_) = State::kDisabled;
-  FlatConCallbacks cbks_ GUARDED_BY(mutex_);
 
   // Only accessed from helper thread.
+  const FlatConCallbacks cbks_;
   decltype(std::chrono::system_clock::now()) sleep_until_{};
   const std::chrono::milliseconds timeout_;
 };

@@ -77,7 +77,7 @@ bool FlatteningController::ShouldFlatten() const {
 
 void FlatteningController::StopThread() {
   auto lock = std::lock_guard<std::mutex>(mutex_);
-  cbks_ = {};
+  state_ = State::kExitThread;
   cv_.notify_all();
 }
 
@@ -85,8 +85,9 @@ void FlatteningController::ThreadFn() {
   for (;;) {
     std::unique_lock<std::mutex> lock(mutex_);
     base::ScopedLockAssertion lock_assertion(mutex_);
-    if (!cbks_.trigger)
+    if (state_ == State::kExitThread) {
       break;
+    }
 
     if (sleep_until_ <= std::chrono::system_clock::now() &&
         (state_ == State::kActive)) {
