@@ -41,7 +41,7 @@
 #define DRM_MODE_CONNECTOR_USB 20
 #endif
 
-namespace android {
+namespace android::drm_hwcomposer {
 
 constexpr size_t kTypesCount = 21;
 
@@ -302,4 +302,4 @@ std::optional<PanelOrientation> DrmConnector::GetPanelOrientation() {
   return {};
 }
 
-}  // namespace android
+}  // namespace android::drm_hwcomposer
