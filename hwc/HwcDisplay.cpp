@@ -22,6 +22,7 @@
 #include <cinttypes>
 
 #include <ui/ColorSpace.h>
+#include <utils/Trace.h>
 
 #include "backend/Backend.h"
 #include "backend/BackendManager.h"
@@ -223,6 +224,8 @@ void HwcDisplay::SetOutputType(OutputType hdr_output_type) {
 }
 
 HwcDisplay::ConfigError HwcDisplay::SetConfig(ConfigId config) {
+  ATRACE_CALL();
+
   const HwcDisplayConfig *new_config = GetConfig(config);
   if (new_config == nullptr) {
     ALOGE("Could not find active mode for %u", config);
@@ -376,6 +379,8 @@ auto HwcDisplay::AcceptValidatedComposition() -> void {
 auto HwcDisplay::PresentStagedComposition(
     std::optional<int64_t> desired_present_time, SharedFd &out_present_fence,
     std::vector<ReleaseFence> &out_release_fences) -> bool {
+  ATRACE_CALL();
+
   if (IsInHeadlessMode()) {
     return true;
   }
@@ -785,6 +790,8 @@ uint32_t HwcDisplay::GetCurrentVsyncPeriodNs() const {
 
 bool HwcDisplay::TestComposition(
     Backend::ValidatedComposition &composition) const {
+  ATRACE_CALL();
+
   if (IsInHeadlessMode()) {
     return true;
   }
@@ -920,6 +927,8 @@ std::optional<AtomicCommitArgs> HwcDisplay::CreateFrameUpdateCommit(
 bool HwcDisplay::CommitComposition(
     const Backend::CompositionTypeMap &composition,
     SharedFd &out_present_fence) {
+  ATRACE_CALL();
+
   if (IsInHeadlessMode()) {
     ALOGE("%s: Display is in headless mode, should never reach here", __func__);
     return true;
