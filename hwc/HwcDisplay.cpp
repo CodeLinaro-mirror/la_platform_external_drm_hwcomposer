@@ -337,9 +337,6 @@ auto HwcDisplay::ValidateStagedComposition() -> std::vector<ChangedLayer> {
   // The CompositionTypeMap in the ValidatedComposition indicates the
   // composition type that the Backend has determined for each layer.
   auto result = backend_->ValidateDisplay(this);
-
-  // Store plan to ensure shared planes won't be stolen by other display
-  // between ValidateDisplay() and PresentDisplay() calls.
   current_plan_ = result.composition_plan;
 
   // Iterate through the layers to find which layers actually changed.
@@ -964,12 +961,17 @@ bool HwcDisplay::CommitComposition(
                   })) {
     client_layer_.PopulateLayerData();
   }
+
   auto a_args = CreateFrameUpdateCommit(composition);
+  // |current_plan_| can safely be reset now. |a_args| holds its own pointer
+  // which will remain in scope until the commit is finished (successfully or
+  // not).
+  current_plan_.reset();
+
   if (!a_args) {
     ALOGE("Failed to create AtomicCommitArgs for frame composition.");
     return false;
   }
-  current_plan_ = a_args->composition;
 
   if (!GetPipe().atomic_state_manager->ExecuteAtomicCommit(*a_args)) {
     ALOGE("Failed to commit the frame composition.");

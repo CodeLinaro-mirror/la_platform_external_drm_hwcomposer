@@ -300,7 +300,8 @@ class HwcDisplay {
   Colorspace colorspace_{};
   int32_t min_bpc_{};
   std::shared_ptr<hdr_output_metadata> hdr_metadata_;
-
+  // Stored plan to ensure shared planes won't be stolen by other displays
+  // between ValidateDisplay() and PresentDisplay() calls.
   std::shared_ptr<DrmKmsPlan> current_plan_;
 
   SharedFd writeback_complete_fence_;
