@@ -14,20 +14,142 @@
  * limitations under the License.
  */
 
+#include <cstdint>
 #include <memory>
 
 #include <gtest/gtest.h>
+#include <xf86drmMode.h>
 
+#include "DrmConnector.h"
+#include "DrmCrtc.h"
+#include "DrmDevice.h"
 #include "DrmDisplayPipeline.h"
+#include "DrmEncoder.h"
+#include "DrmPlane.h"
 
 namespace android::drm_hwcomposer {
 
 class NoOpBindable : public PipelineBindable<NoOpBindable> {};
 
-class DrmDisplayPipelineTest : public ::testing::Test {};
+class FakeDrmConnector : public DrmConnector {
+ public:
+  FakeDrmConnector(DrmDevice* dev, uint32_t encoder_id)
+      : DrmConnector(nullptr, dev, 0), encoder_id_(encoder_id) {
+  }
+
+  uint32_t GetCurrentEncoderId() const override {
+    return encoder_id_;
+  }
+
+ private:
+  const uint32_t encoder_id_;
+};
+
+class FakeDrmEncoder : public DrmEncoder {
+ public:
+  FakeDrmEncoder(uint32_t id, uint32_t crtc_id)
+      : DrmEncoder(nullptr, 0), id_(id), crtc_id_(crtc_id) {
+  }
+
+  uint32_t GetId() const override {
+    return id_;
+  }
+
+  uint32_t GetCurrentCrtcId() const override {
+    return crtc_id_;
+  }
+
+ private:
+  const uint32_t id_;
+  const uint32_t crtc_id_;
+};
+
+class FakeDrmCrtc : public DrmCrtc {
+ public:
+  explicit FakeDrmCrtc(uint32_t id) : DrmCrtc(nullptr, 0), id_(id) {
+  }
+
+  uint32_t GetId() const override {
+    return id_;
+  }
+
+ private:
+  const uint32_t id_;
+};
+
+class FakeDrmPlane : public DrmPlane {
+ public:
+  FakeDrmPlane(DrmDevice& dev, uint32_t type) : DrmPlane(dev, nullptr) {
+    type_ = type;
+  }
+
+  bool IsCrtcSupported(const DrmCrtc& crtc) const override {
+    return true;
+  }
+};
+
+class FakeDrmDevice : public DrmDevice {
+ public:
+  FakeDrmDevice() : DrmDevice(nullptr, 0) {
+  }
+
+  void AddConnector(std::unique_ptr<DrmConnector> connector) {
+    connectors_.emplace_back(std::move(connector));
+  }
+
+  void AddEncoder(std::unique_ptr<DrmEncoder> encoder) {
+    encoders_.emplace_back(std::move(encoder));
+  }
+
+  void AddCrtc(std::unique_ptr<DrmCrtc> crtc) {
+    crtcs_.emplace_back(std::move(crtc));
+  }
+
+  void AddPlane(std::unique_ptr<DrmPlane> plane) {
+    planes_.emplace_back(std::move(plane));
+  }
+
+  void AddPipelineResources() {
+    AddEncoder(std::make_unique<FakeDrmEncoder>(/*id=*/next_id_,
+                                                /*crtc_id=*/next_id_));
+    AddCrtc(std::make_unique<FakeDrmCrtc>(/*id=*/next_id_));
+    AddConnector(std::make_unique<FakeDrmConnector>(this,
+                                                    /*encoder_id=*/next_id_));
+    AddPlane(std::make_unique<FakeDrmPlane>(*this, DRM_PLANE_TYPE_PRIMARY));
+    ++next_id_;
+  }
+
+ private:
+  uint32_t next_id_ = 0;
+};
+
+class DrmDisplayPipelineTest : public ::testing::Test {
+ public:
+  void SetUp() override {
+    fake_device_ = std::make_unique<FakeDrmDevice>();
+  }
+
+  void TearDown() override {
+    fake_device_.reset();
+  }
+
+  std::unique_ptr<DrmDisplayPipeline> CreatePipeline() {
+    fake_device_->AddPipelineResources();
+
+    return DrmDisplayPipeline::CreatePipeline(
+        *fake_device_->GetConnectors().back());
+  }
+
+  void AddPlane(uint32_t type) {
+    fake_device_->AddPlane(std::make_unique<FakeDrmPlane>(*fake_device_, type));
+  }
+
+ private:
+  std::unique_ptr<FakeDrmDevice> fake_device_ = nullptr;
+};
 
 TEST_F(DrmDisplayPipelineTest, BindPipeline_Success) {
-  const auto pipeline = std::make_unique<DrmDisplayPipeline>();
+  const auto pipeline = CreatePipeline();
   NoOpBindable bindable;
 
   const auto binding = bindable.BindPipeline(pipeline.get(),
@@ -39,7 +161,7 @@ TEST_F(DrmDisplayPipelineTest, BindPipeline_Success) {
 }
 
 TEST_F(DrmDisplayPipelineTest, BindPipeline_SamePipelineReturnsSameBinding) {
-  const auto pipeline = std::make_unique<DrmDisplayPipeline>();
+  const auto pipeline = CreatePipeline();
   NoOpBindable bindable;
 
   const auto binding1 = bindable.BindPipeline(pipeline.get(),
@@ -54,8 +176,8 @@ TEST_F(DrmDisplayPipelineTest, BindPipeline_SamePipelineReturnsSameBinding) {
 
 TEST_F(DrmDisplayPipelineTest,
        BindPipeline_DifferentPipelineReturnsNullBinding) {
-  const auto pipeline1 = std::make_unique<DrmDisplayPipeline>();
-  const auto pipeline2 = std::make_unique<DrmDisplayPipeline>();
+  const auto pipeline1 = CreatePipeline();
+  const auto pipeline2 = CreatePipeline();
   NoOpBindable bindable;
 
   const auto binding1 = bindable.BindPipeline(pipeline1.get(),
@@ -70,8 +192,8 @@ TEST_F(DrmDisplayPipelineTest,
 
 TEST_F(DrmDisplayPipelineTest,
        BindPipeline_ReleasedBindingDoesntPreventNewBinding) {
-  const auto pipeline1 = std::make_unique<DrmDisplayPipeline>();
-  const auto pipeline2 = std::make_unique<DrmDisplayPipeline>();
+  const auto pipeline1 = CreatePipeline();
+  const auto pipeline2 = CreatePipeline();
   NoOpBindable bindable;
 
   auto binding1 = bindable.BindPipeline(pipeline1.get(),
