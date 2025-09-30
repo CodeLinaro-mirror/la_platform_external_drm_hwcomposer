@@ -209,4 +209,72 @@ TEST_F(DrmDisplayPipelineTest,
   EXPECT_EQ(binding2->Get(), &bindable);
 }
 
+TEST_F(DrmDisplayPipelineTest, CreatePipeline_Success) {
+  const auto fake_device = std::make_unique<FakeDrmDevice>();
+  fake_device->AddPipelineResources();
+
+  EXPECT_NE(DrmDisplayPipeline::CreatePipeline(
+                *fake_device->GetConnectors().back()),
+            nullptr);
+}
+
+TEST_F(DrmDisplayPipelineTest, CreatePipeline_TwoBindingSuccess) {
+  const auto fake_device = std::make_unique<FakeDrmDevice>();
+  fake_device->AddPipelineResources();
+
+  const auto pipeline1 = DrmDisplayPipeline::CreatePipeline(
+      *fake_device->GetConnectors().back());
+  EXPECT_NE(pipeline1, nullptr);
+
+  fake_device->AddPipelineResources();
+  const auto pipeline2 = DrmDisplayPipeline::CreatePipeline(
+      *fake_device->GetConnectors().back());
+  EXPECT_NE(pipeline2, nullptr);
+  EXPECT_NE(pipeline1, pipeline2);
+}
+
+TEST_F(DrmDisplayPipelineTest, CreatePipeline_AlreadyBoundFailure) {
+  const auto fake_device = std::make_unique<FakeDrmDevice>();
+  fake_device->AddPipelineResources();
+
+  const auto pipeline1 = DrmDisplayPipeline::CreatePipeline(
+      *fake_device->GetConnectors().back());
+  EXPECT_NE(pipeline1, nullptr);
+
+  EXPECT_DEATH(DrmDisplayPipeline::CreatePipeline(
+                   *fake_device->GetConnectors().back()),
+               "");
+}
+
+TEST_F(DrmDisplayPipelineTest, CreatePipeline_ReleasedBindingSuccess) {
+  const auto fake_device = std::make_unique<FakeDrmDevice>();
+  fake_device->AddPipelineResources();
+
+  auto pipeline1 = DrmDisplayPipeline::CreatePipeline(
+      *fake_device->GetConnectors().back());
+  EXPECT_NE(pipeline1, nullptr);
+
+  pipeline1.reset();
+
+  EXPECT_NE(DrmDisplayPipeline::CreatePipeline(
+                *fake_device->GetConnectors().back()),
+            nullptr);
+}
+
+TEST_F(DrmDisplayPipelineTest, CreatePipeline_NoPrimaryPlaneFailure) {
+  const auto fake_device = std::make_unique<FakeDrmDevice>();
+  fake_device->AddEncoder(std::make_unique<FakeDrmEncoder>(/*id=*/0,
+                                                           /*crtc_id=*/0));
+  fake_device->AddCrtc(std::make_unique<FakeDrmCrtc>(/*id=*/0));
+  fake_device->AddConnector(
+      std::make_unique<FakeDrmConnector>(fake_device.get(),
+                                         /*encoder_id=*/0));
+  fake_device->AddPlane(
+      std::make_unique<FakeDrmPlane>(*fake_device, DRM_PLANE_TYPE_OVERLAY));
+
+  EXPECT_DEATH(DrmDisplayPipeline::CreatePipeline(
+                   *fake_device->GetConnectors().back()),
+               "Primary plane for CRTC 0 not found");
+}
+
 }  // namespace android::drm_hwcomposer
