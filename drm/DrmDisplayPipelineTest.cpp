@@ -277,4 +277,69 @@ TEST_F(DrmDisplayPipelineTest, CreatePipeline_NoPrimaryPlaneFailure) {
                "Primary plane for CRTC 0 not found");
 }
 
+TEST_F(DrmDisplayPipelineTest, GetUsablePlanes_Success) {
+  const auto pipeline = CreatePipeline();
+  ASSERT_NE(pipeline, nullptr);
+
+  AddPlane(DRM_PLANE_TYPE_OVERLAY);
+  AddPlane(DRM_PLANE_TYPE_CURSOR);
+
+  const auto [usable_planes, cursor_plane] = pipeline->GetUsablePlanes();
+  EXPECT_EQ(usable_planes.size(), 2);
+  EXPECT_NE(cursor_plane, nullptr);
+}
+
+TEST_F(DrmDisplayPipelineTest, GetUsablePlanes_SamePipeline) {
+  const auto pipeline = CreatePipeline();
+  ASSERT_NE(pipeline, nullptr);
+
+  AddPlane(DRM_PLANE_TYPE_OVERLAY);
+  AddPlane(DRM_PLANE_TYPE_CURSOR);
+
+  const auto usable_planes_1 = pipeline->GetUsablePlanes();
+  const auto usable_planes_2 = pipeline->GetUsablePlanes();
+  EXPECT_EQ(usable_planes_1, usable_planes_2);
+}
+
+TEST_F(DrmDisplayPipelineTest, GetUsablePlanes_SharedPlanesAlreadyBound) {
+  const auto pipeline1 = CreatePipeline();
+  ASSERT_NE(pipeline1, nullptr);
+  const auto pipeline2 = CreatePipeline();
+  ASSERT_NE(pipeline2, nullptr);
+
+  AddPlane(DRM_PLANE_TYPE_OVERLAY);
+  AddPlane(DRM_PLANE_TYPE_CURSOR);
+
+  const auto [usable_planes_1, cursor_plane_1] = pipeline1->GetUsablePlanes();
+  EXPECT_EQ(usable_planes_1.size(), 2);
+  EXPECT_NE(cursor_plane_1, nullptr);
+
+  const auto [usable_planes_2, cursor_plane_2] = pipeline2->GetUsablePlanes();
+  ASSERT_EQ(usable_planes_2.size(), 1);
+  EXPECT_EQ(usable_planes_2[0]->Get()->GetType(), DRM_PLANE_TYPE_PRIMARY);
+  EXPECT_EQ(cursor_plane_2, nullptr);
+}
+
+TEST_F(DrmDisplayPipelineTest, GetUsablePlanes_SharedPlaneBindingsReleased) {
+  const auto pipeline1 = CreatePipeline();
+  ASSERT_NE(pipeline1, nullptr);
+  const auto pipeline2 = CreatePipeline();
+  ASSERT_NE(pipeline2, nullptr);
+
+  AddPlane(DRM_PLANE_TYPE_OVERLAY);
+  AddPlane(DRM_PLANE_TYPE_CURSOR);
+
+  {
+    const auto [usable_planes, cursor_plane] = pipeline1->GetUsablePlanes();
+    EXPECT_EQ(usable_planes.size(), 2);
+    EXPECT_NE(cursor_plane, nullptr);
+  }
+
+  {
+    const auto [usable_planes, cursor_plane] = pipeline2->GetUsablePlanes();
+    EXPECT_EQ(usable_planes.size(), 2);
+    EXPECT_NE(cursor_plane, nullptr);
+  }
+}
+
 }  // namespace android::drm_hwcomposer
