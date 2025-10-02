@@ -724,6 +724,33 @@ void ComposerClient::ExecuteDisplayCommand(const DisplayCommand& command) {
     return;
   }
 
+  if (command.activeConfig) {
+    ::android::drm_hwcomposer::QueuedConfigTiming unusedTiming;
+    HwcDisplay::ConfigError
+        error = display->QueueConfig(command.activeConfig->configId,
+                                     ::android::drm_hwcomposer::
+                                         ResourceManager::GetTimeMonotonicNs(),
+                                     &unusedTiming);
+    if (error != HwcDisplay::ConfigError::kNone) {
+      ALOGE("Invalid desired mode: %d", static_cast<int32_t>(error));
+      switch (error) {
+        case HwcDisplay::ConfigError::kBadConfig:
+          cmd_result_writer_->AddError(hwc3::Error::kBadConfig);
+          break;
+        case HwcDisplay::ConfigError::kSeamlessNotAllowed:
+          cmd_result_writer_->AddError(hwc3::Error::kSeamlessNotAllowed);
+          break;
+        case HwcDisplay::ConfigError::kSeamlessNotPossible:
+          cmd_result_writer_->AddError(hwc3::Error::kSeamlessNotPossible);
+          break;
+        default:
+          cmd_result_writer_->AddError(hwc3::Error::kBadConfig);
+          break;
+      }
+      return;
+    }
+  }
+
   if (command.brightness) {
     // TODO: Implement support for display brightness.
     cmd_result_writer_->AddError(hwc3::Error::kUnsupported);
