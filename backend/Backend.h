@@ -17,6 +17,8 @@
 #pragma once
 
 #include <map>
+#include <memory>
+#include <tuple>
 #include <vector>
 
 #include "compositor/LayerData.h"
@@ -32,6 +34,15 @@ class Backend {
   // Mapping of the CompositionType that the Backend assigned to each
   // HwcLayer.
   using CompositionTypeMap = std::map<const HwcLayer*, CompositionType>;
+  // Enum of possible reasons that the backend may choose to flatten the
+  // composition.
+  enum class FlattenReason {
+    kUnspecified = 0,
+    kNone,
+    kStaticScene,
+    kValidateFailed,
+    kCtmWithOffset,
+  };
   struct ValidatedComposition {
     // The resulting composition type for each layer.
     CompositionTypeMap composition_types{};
@@ -40,6 +51,8 @@ class Backend {
     // for use by this display. As such, the caller must ensure that the
     // DrmKmsPlan is not destructed before the composition is committed.
     std::shared_ptr<DrmKmsPlan> composition_plan = nullptr;
+    // Reason the composition was flattened, or |kNone| if it wasn't.
+    FlattenReason flatten_reason = FlattenReason::kNone;
   };
 
   virtual ~Backend() = default;
@@ -51,7 +64,7 @@ class Backend {
 
  protected:
   static ValidatedComposition GetFlattenedComposition(
-      const std::vector<const HwcLayer*>& layers);
+      const std::vector<const HwcLayer*>& layers, FlattenReason flatten_reason);
   static bool HardwareSupportsLayerType(CompositionType comp_type);
   static uint32_t CalcPixOps(const ValidatedComposition& validated_composition);
   static uint32_t CalcPixOps(const std::vector<const HwcLayer*>& layers,

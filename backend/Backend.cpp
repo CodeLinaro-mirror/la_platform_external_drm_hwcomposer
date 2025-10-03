@@ -17,12 +17,13 @@
 
 #include "Backend.h"
 
-#include <climits>
+#include <tuple>
+#include <vector>
 
 #include "BackendManager.h"
-#include "bufferinfo/BufferInfoGetter.h"
-#include "drm/DrmHwc.h"
+#include "compositor/LayerData.h"
 #include "hwc/HwcDisplay.h"
+#include "hwc/HwcLayer.h"
 
 namespace android::drm_hwcomposer {
 
@@ -43,14 +44,12 @@ const HwcLayer* GetCursorLayer(const std::vector<const HwcLayer*>& layers) {
 }  // namespace
 
 auto Backend::ValidateDisplay(HwcDisplay* display) -> ValidatedComposition {
-  auto layers = display->GetOrderLayersByZPos();
+  const auto layers = display->GetOrderLayersByZPos();
 
   const FlatteningController* flatcon = display->GetFlatCon();
-  if (flatcon != nullptr) {
-    if (flatcon->ShouldFlatten()) {
-      display->total_stats().frames_flattened++;
-      return GetFlattenedComposition(layers);
-    }
+  if (flatcon != nullptr && flatcon->ShouldFlatten()) {
+    display->total_stats().frames_flattened++;
+    return GetFlattenedComposition(layers, FlattenReason::kStaticScene);
   }
 
   bool use_cursor_plane = false;
@@ -69,7 +68,7 @@ auto Backend::ValidateDisplay(HwcDisplay* display) -> ValidatedComposition {
 
   size_t client_start = 0;
   size_t client_size = 0;
-  ValidatedComposition validated_composition;
+  ValidatedComposition validated_composition{};
 
   // Populates and tests |validated_composition|, returning whether it
   // succeeded.
@@ -115,7 +114,11 @@ auto Backend::ValidateDisplay(HwcDisplay* display) -> ValidatedComposition {
       ++display->total_stats().failed_kms_cursor_validate;
     }
     use_cursor_plane = false;
-    validated_composition = GetFlattenedComposition(layers);
+    validated_composition = GetFlattenedComposition(layers,
+                                                    FlattenReason::
+                                                        kValidateFailed);
+  } else if (display->CtmByGpu()) {
+    validated_composition.flatten_reason = FlattenReason::kCtmWithOffset;
   }
 
   display->total_stats().gpu_pixops += CalcPixOps(validated_composition);
@@ -127,10 +130,11 @@ auto Backend::ValidateDisplay(HwcDisplay* display) -> ValidatedComposition {
 }
 
 Backend::ValidatedComposition Backend::GetFlattenedComposition(
-    const std::vector<const HwcLayer*>& layers) {
+    const std::vector<const HwcLayer*>& layers, FlattenReason flatten_reason) {
   return ValidatedComposition{
       .composition_types = GetCompositionTypes(layers, 0, layers.size(), false),
-      .composition_plan = nullptr};
+      .composition_plan = nullptr,
+      .flatten_reason = flatten_reason};
 }
 
 std::tuple<size_t, size_t> Backend::GetClientLayers(
