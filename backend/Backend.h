@@ -70,7 +70,6 @@ class Backend {
   static ValidatedComposition GetFlattenedComposition(
       const std::vector<const HwcLayer*>& layers, FlattenReason flatten_reason);
   static bool HardwareSupportsLayerType(CompositionType comp_type);
-  static uint32_t CalcPixOps(const ValidatedComposition& validated_composition);
   static uint32_t CalcPixOps(const std::vector<const HwcLayer*>& layers,
                              size_t first_z, size_t size);
   static CompositionTypeMap GetCompositionTypes(

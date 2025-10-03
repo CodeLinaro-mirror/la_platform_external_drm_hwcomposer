@@ -48,8 +48,11 @@ auto Backend::ValidateDisplay(HwcDisplay* display) -> ValidatedComposition {
 
   const FlatteningController* flatcon = display->GetFlatCon();
   if (flatcon != nullptr && flatcon->ShouldFlatten()) {
-    display->total_stats().frames_flattened++;
     return GetFlattenedComposition(layers, FlattenReason::kStaticScene);
+  }
+
+  if (display->CtmByGpu()) {
+    return GetFlattenedComposition(layers, FlattenReason::kCtmWithOffset);
   }
 
   bool use_cursor_plane = false;
@@ -109,25 +112,15 @@ auto Backend::ValidateDisplay(HwcDisplay* display) -> ValidatedComposition {
 
   // Final fallback: convert all layers to client composition.
   if (!success) {
-    ++display->total_stats().failed_kms_validate;
     validated_composition = GetFlattenedComposition(layers,
                                                     FlattenReason::
                                                         kValidateFailed);
-    if (use_cursor_plane) {
-      use_cursor_plane = false;
-      validated_composition.cursor_plane_validated = false;
-      ++display->total_stats().failed_kms_cursor_validate;
-    }
-  } else if (display->CtmByGpu()) {
-    validated_composition.flatten_reason = FlattenReason::kCtmWithOffset;
   }
 
-  display->total_stats().gpu_pixops += CalcPixOps(validated_composition);
-  display->total_stats().total_pixops += CalcPixOps(layers, 0, layers.size());
   if (use_cursor_plane) {
-    validated_composition.cursor_plane_validated = true;
-    ++display->total_stats().cursor_plane_frames;
+    validated_composition.cursor_plane_validated = success;
   }
+
   return validated_composition;
 }
 
@@ -168,18 +161,6 @@ bool Backend::IsClientLayer(const HwcDisplay* display, const HwcLayer* layer) {
 bool Backend::HardwareSupportsLayerType(CompositionType comp_type) {
   return comp_type == CompositionType::kDevice ||
          comp_type == CompositionType::kCursor;
-}
-
-uint32_t Backend::CalcPixOps(
-    const ValidatedComposition& validated_composition) {
-  uint32_t pixops = 0;
-  for (const auto& [layer, comp_type] :
-       validated_composition.composition_types) {
-    if (comp_type == CompositionType::kClient) {
-      pixops += layer->GetPixOps();
-    }
-  }
-  return pixops;
 }
 
 uint32_t Backend::CalcPixOps(const std::vector<const HwcLayer*>& layers,
