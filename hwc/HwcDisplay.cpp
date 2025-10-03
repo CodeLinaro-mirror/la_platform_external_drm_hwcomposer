@@ -343,22 +343,6 @@ auto HwcDisplay::ValidateStagedComposition() -> std::vector<ChangedLayer> {
 
   validated_composition_.emplace(backend_->ValidateDisplay(this));
 
-  if (validated_composition_->flatten_reason ==
-      FlattenReason::kValidateFailed) {
-    ++total_stats_.failed_kms_validate;
-  } else if (validated_composition_->flatten_reason ==
-             FlattenReason::kStaticScene) {
-    ++total_stats_.frames_flattened;
-  }
-
-  if (validated_composition_->cursor_plane_validated.has_value()) {
-    if (validated_composition_->cursor_plane_validated.value()) {
-      ++total_stats_.cursor_plane_frames;
-    } else {
-      ++total_stats_.failed_kms_cursor_validate;
-    }
-  }
-
   // Iterate through the layers to find which layers actually changed.
   std::vector<ChangedLayer> changed_layers;
   for (auto &[id, layer] : layers_) {
@@ -371,11 +355,6 @@ auto HwcDisplay::ValidateStagedComposition() -> std::vector<ChangedLayer> {
     }
     if (layer.IsTypeChanged()) {
       changed_layers.emplace_back(id, layer.GetValidatedType());
-    }
-
-    total_stats_.total_pixops += layer.GetPixOps();
-    if (layer.GetValidatedType() == CompositionType::kClient) {
-      total_stats_.gpu_pixops += layer.GetPixOps();
     }
   }
 
@@ -404,6 +383,7 @@ auto HwcDisplay::AcceptValidatedComposition() -> void {
   }
 }
 
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
 auto HwcDisplay::PresentStagedComposition(
     std::optional<int64_t> desired_present_time, SharedFd &out_present_fence,
     std::vector<ReleaseFence> &out_release_fences) -> bool {
@@ -436,13 +416,35 @@ auto HwcDisplay::PresentStagedComposition(
     WaitForPresentTime(desired_present_time.value(), vperiod_ns);
   }
 
-  // Check if validation was skipped, and populate the composition types as
-  // needed. Otherwise, use the already-validated composition types.
-  if (!validated_composition_.has_value()) {
+  // Check if validation was performed and update related stats. Otherwise
+  // populate the composition types now.
+  if (validated_composition_.has_value()) {
+    if (validated_composition_->flatten_reason ==
+        FlattenReason::kValidateFailed) {
+      ++total_stats_.failed_kms_validate;
+    } else if (validated_composition_->flatten_reason ==
+               FlattenReason::kStaticScene) {
+      ++total_stats_.frames_flattened;
+    }
+    if (validated_composition_->cursor_plane_validated.has_value()) {
+      if (validated_composition_->cursor_plane_validated.value()) {
+        ++total_stats_.cursor_plane_frames;
+      } else {
+        ++total_stats_.failed_kms_cursor_validate;
+      }
+    }
+  } else {
     validated_composition_ = Backend::ValidatedComposition{};
-    for (auto &l : layers_) {
+    for (const auto &[id, layer] : layers_) {
       validated_composition_->composition_types
-          .emplace(&l.second, l.second.GetValidatedType());
+          .emplace(&layer, layer.GetValidatedType());
+    }
+  }
+
+  for (const auto &[id, layer] : layers_) {
+    total_stats_.total_pixops += layer.GetPixOps();
+    if (layer.GetValidatedType() == CompositionType::kClient) {
+      total_stats_.gpu_pixops += layer.GetPixOps();
     }
   }
 
