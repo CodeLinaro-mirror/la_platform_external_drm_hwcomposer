@@ -60,11 +60,12 @@ class Backend {
   };
 
   virtual ~Backend() = default;
-  virtual ValidatedComposition ValidateDisplay(HwcDisplay* display);
+  virtual ValidatedComposition ValidateDisplay(const HwcDisplay* display) const;
   virtual std::tuple<size_t, size_t> GetClientLayers(
       const HwcDisplay* display, const std::vector<const HwcLayer*>& layers,
-      bool use_cursor_plane);
-  virtual bool IsClientLayer(const HwcDisplay* display, const HwcLayer* layer);
+      bool use_cursor_plane) const;
+  virtual bool IsClientLayer(const HwcDisplay* display,
+                             const HwcLayer* layer) const;
 
  protected:
   static ValidatedComposition GetFlattenedComposition(

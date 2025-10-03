@@ -43,7 +43,8 @@ const HwcLayer* GetCursorLayer(const std::vector<const HwcLayer*>& layers) {
 
 }  // namespace
 
-auto Backend::ValidateDisplay(HwcDisplay* display) -> ValidatedComposition {
+auto Backend::ValidateDisplay(const HwcDisplay* display) const
+    -> ValidatedComposition {
   const auto layers = display->GetOrderLayersByZPos();
 
   const FlatteningController* flatcon = display->GetFlatCon();
@@ -57,7 +58,7 @@ auto Backend::ValidateDisplay(HwcDisplay* display) -> ValidatedComposition {
 
   bool use_cursor_plane = false;
   const auto* cursor_layer = GetCursorLayer(layers);
-  auto cursor_plane = display->GetPipe().GetUsablePlanes().second;
+  const auto cursor_plane = display->GetPipe().GetUsablePlanes().second;
   if (cursor_layer != nullptr && cursor_plane != nullptr &&
       !IsClientLayer(display, cursor_layer) &&
       cursor_plane->Get()->IsValidForLayer(&cursor_layer->GetLayerData())) {
@@ -134,7 +135,7 @@ Backend::ValidatedComposition Backend::GetFlattenedComposition(
 
 std::tuple<size_t, size_t> Backend::GetClientLayers(
     const HwcDisplay* display, const std::vector<const HwcLayer*>& layers,
-    bool use_cursor_plane) {
+    bool use_cursor_plane) const {
   size_t client_start = 0;
   size_t client_size = 0;
 
@@ -151,7 +152,8 @@ std::tuple<size_t, size_t> Backend::GetClientLayers(
                              use_cursor_plane);
 }
 
-bool Backend::IsClientLayer(const HwcDisplay* display, const HwcLayer* layer) {
+bool Backend::IsClientLayer(const HwcDisplay* display,
+                            const HwcLayer* layer) const {
   return !HardwareSupportsLayerType(layer->GetSfType()) ||
          !layer->IsLayerUsableAsDevice() || display->CtmByGpu() ||
          (layer->GetLayerData().pi.RequireScalingOrPhasing() &&

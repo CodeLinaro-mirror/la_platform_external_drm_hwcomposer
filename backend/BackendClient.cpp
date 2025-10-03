@@ -21,7 +21,7 @@
 
 namespace android::drm_hwcomposer {
 
-auto BackendClient::ValidateDisplay(HwcDisplay* display)
+auto BackendClient::ValidateDisplay(const HwcDisplay* display) const
     -> ValidatedComposition {
   return GetFlattenedComposition(display->GetOrderLayersByZPos(),
                                  FlattenReason::kNone);
