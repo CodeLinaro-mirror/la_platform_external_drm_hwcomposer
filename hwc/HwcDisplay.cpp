@@ -31,6 +31,7 @@
 #include "drm/DrmConnector.h"
 #include "drm/DrmDisplayPipeline.h"
 #include "drm/DrmHwc.h"
+#include "stats/CompositionStats.h"
 #include "utils/properties.h"
 
 using ColorGamut = ::android::ColorSpace;
@@ -398,7 +399,9 @@ auto HwcDisplay::PresentStagedComposition(
     return true;
   }
 
-  ++total_stats_.total_frames;
+  CompositionAttributes attributes{.display_handle = handle_};
+  CompositionStats stats{};
+  ++stats.total_frames;
 
   // With multiple displays configured at different refresh rates,
   // desired_present_time can be up to almost 2 vsync periods away for the
@@ -419,21 +422,27 @@ auto HwcDisplay::PresentStagedComposition(
   // Check if validation was performed and update related stats. Otherwise
   // populate the composition types now.
   if (validated_composition_.has_value()) {
+    attributes.validation_result = validated_composition_->flatten_reason ==
+                                           FlattenReason::kValidateFailed
+                                       ? ValidationResult::kFailure
+                                       : ValidationResult::kSuccess;
+    attributes.flatten_reason = validated_composition_->flatten_reason;
     if (validated_composition_->flatten_reason ==
         FlattenReason::kValidateFailed) {
-      ++total_stats_.failed_kms_validate;
+      ++stats.failed_kms_validate;
     } else if (validated_composition_->flatten_reason ==
                FlattenReason::kStaticScene) {
-      ++total_stats_.frames_flattened;
+      ++stats.frames_flattened;
     }
     if (validated_composition_->cursor_plane_validated.has_value()) {
       if (validated_composition_->cursor_plane_validated.value()) {
-        ++total_stats_.cursor_plane_frames;
+        ++stats.cursor_plane_frames;
       } else {
-        ++total_stats_.failed_kms_cursor_validate;
+        ++stats.failed_kms_cursor_validate;
       }
     }
   } else {
+    attributes.validation_result = ValidationResult::kSkip;
     validated_composition_ = Backend::ValidatedComposition{};
     for (const auto &[id, layer] : layers_) {
       validated_composition_->composition_types
@@ -442,16 +451,21 @@ auto HwcDisplay::PresentStagedComposition(
   }
 
   for (const auto &[id, layer] : layers_) {
-    total_stats_.total_pixops += layer.GetPixOps();
+    stats.total_pixops += layer.GetPixOps();
     if (layer.GetValidatedType() == CompositionType::kClient) {
-      total_stats_.gpu_pixops += layer.GetPixOps();
+      stats.gpu_pixops += layer.GetPixOps();
     }
   }
 
   if (!CommitStagedComposition(out_present_fence)) {
-    ++total_stats_.failed_kms_present;
+    attributes.present_failed = true;
+    ++stats.failed_kms_present;
+    comp_stats_[attributes] += stats;
     return false;
   }
+
+  attributes.present_failed = false;
+  comp_stats_[attributes] += stats;
 
   // Reset the hdr output metadata blobs so we don't apply it repeatedly.
   hdr_metadata_.reset();
