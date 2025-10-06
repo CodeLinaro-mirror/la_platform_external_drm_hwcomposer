@@ -48,8 +48,11 @@ void CompositionStatsPoller::PollFunc() {
       if (delta.total_frames == 0) {
         return;
       }
-      reporter_->PushAtom(attributes.display_handle, delta.total_frames,
-                          delta.failed_kms_present, delta.failed_kms_validate);
+      reporter_->PushAtom(attributes.display_handle, attributes.present_failed,
+                          attributes.validation_result,
+                          attributes.flatten_reason, delta.total_frames,
+                          delta.layer_count, delta.used_plane_count,
+                          delta.total_pixops, delta.gpu_pixops);
     });
 
     constexpr std::chrono::seconds kPollFrequency = std::chrono::minutes(1);
