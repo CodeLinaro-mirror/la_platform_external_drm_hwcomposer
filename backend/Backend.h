@@ -18,6 +18,7 @@
 
 #include <map>
 #include <memory>
+#include <optional>
 #include <tuple>
 #include <vector>
 
@@ -53,6 +54,9 @@ class Backend {
     std::shared_ptr<DrmKmsPlan> composition_plan = nullptr;
     // Reason the composition was flattened, or |kNone| if it wasn't.
     FlattenReason flatten_reason = FlattenReason::kNone;
+    // Whether the cursor plane was successfully validated, or |nullopt| if it
+    // wasn't attempted.
+    std::optional<bool> cursor_plane_validated = std::nullopt;
   };
 
   virtual ~Backend() = default;

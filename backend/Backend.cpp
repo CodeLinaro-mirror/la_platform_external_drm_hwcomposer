@@ -110,13 +110,14 @@ auto Backend::ValidateDisplay(HwcDisplay* display) -> ValidatedComposition {
   // Final fallback: convert all layers to client composition.
   if (!success) {
     ++display->total_stats().failed_kms_validate;
-    if (use_cursor_plane) {
-      ++display->total_stats().failed_kms_cursor_validate;
-    }
-    use_cursor_plane = false;
     validated_composition = GetFlattenedComposition(layers,
                                                     FlattenReason::
                                                         kValidateFailed);
+    if (use_cursor_plane) {
+      use_cursor_plane = false;
+      validated_composition.cursor_plane_validated = false;
+      ++display->total_stats().failed_kms_cursor_validate;
+    }
   } else if (display->CtmByGpu()) {
     validated_composition.flatten_reason = FlattenReason::kCtmWithOffset;
   }
@@ -124,6 +125,7 @@ auto Backend::ValidateDisplay(HwcDisplay* display) -> ValidatedComposition {
   display->total_stats().gpu_pixops += CalcPixOps(validated_composition);
   display->total_stats().total_pixops += CalcPixOps(layers, 0, layers.size());
   if (use_cursor_plane) {
+    validated_composition.cursor_plane_validated = true;
     ++display->total_stats().cursor_plane_frames;
   }
   return validated_composition;
