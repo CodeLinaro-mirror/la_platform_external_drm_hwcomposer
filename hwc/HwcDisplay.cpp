@@ -402,6 +402,7 @@ auto HwcDisplay::PresentStagedComposition(
   CompositionAttributes attributes{.display_handle = handle_};
   CompositionStats stats{};
   ++stats.total_frames;
+  stats.layer_count += layers_.size();
 
   // With multiple displays configured at different refresh rates,
   // desired_present_time can be up to almost 2 vsync periods away for the
@@ -450,11 +451,27 @@ auto HwcDisplay::PresentStagedComposition(
     }
   }
 
+  bool has_client = false;
   for (const auto &[id, layer] : layers_) {
     stats.total_pixops += layer.GetPixOps();
-    if (layer.GetValidatedType() == CompositionType::kClient) {
-      stats.gpu_pixops += layer.GetPixOps();
+    switch (layer.GetValidatedType()) {
+      case CompositionType::kClient:
+        has_client = true;
+        stats.gpu_pixops += layer.GetPixOps();
+        break;
+      case CompositionType::kDevice:
+      case CompositionType::kCursor:
+        ++stats.used_plane_count;
+        break;
+      case CompositionType::kSolidColor:
+      case CompositionType::kInvalid:
+        ALOGE("Invalid layer type: %d",
+              static_cast<int>(layer.GetValidatedType()));
     }
+  }
+
+  if (has_client) {
+    ++stats.used_plane_count;
   }
 
   if (!CommitStagedComposition(out_present_fence)) {

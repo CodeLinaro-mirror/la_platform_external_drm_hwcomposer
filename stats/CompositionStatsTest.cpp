@@ -49,7 +49,9 @@ static bool operator==(const CompositionStats& lhs,
          lhs.failed_kms_present == rhs.failed_kms_present &&
          lhs.frames_flattened == rhs.frames_flattened &&
          lhs.cursor_plane_frames == rhs.cursor_plane_frames &&
-         lhs.failed_kms_cursor_validate == rhs.failed_kms_cursor_validate;
+         lhs.failed_kms_cursor_validate == rhs.failed_kms_cursor_validate &&
+         lhs.layer_count == rhs.layer_count &&
+         lhs.used_plane_count == rhs.used_plane_count;
 }
 
 // Stream insertion operator for better gtest failure messages.
@@ -63,7 +65,8 @@ static std::ostream& operator<<(std::ostream& os,
      << ", frames_flattened: " << stats.frames_flattened
      << ", cursor_plane_frames: " << stats.cursor_plane_frames
      << ", failed_kms_cursor_validate: " << stats.failed_kms_cursor_validate
-     << " }";
+     << ", layer_count: " << stats.layer_count
+     << ", use_plane_count: " << stats.used_plane_count << " }";
   return os;
 }
 
@@ -109,7 +112,9 @@ class CompositionStatsTrackerTest : public ::testing::Test {
                             .failed_kms_present = base / 20,
                             .frames_flattened = base / 5,
                             .cursor_plane_frames = base / 2,
-                            .failed_kms_cursor_validate = base / 50};
+                            .failed_kms_cursor_validate = base / 50,
+                            .layer_count = 2,
+                            .used_plane_count = 2};
   }
 };
 

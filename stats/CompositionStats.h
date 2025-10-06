@@ -52,6 +52,8 @@ struct CompositionStats {
   uint32_t frames_flattened = 0;
   uint32_t cursor_plane_frames = 0;
   uint32_t failed_kms_cursor_validate = 0;
+  uint32_t layer_count = 0;
+  uint32_t used_plane_count = 0;
 
   // When adding new stats, update the operator+= and operator- below as well as
   // operator== and operator<< which are implemented in the unit test file.

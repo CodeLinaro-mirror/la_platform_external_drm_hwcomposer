@@ -34,6 +34,8 @@ CompositionStats& CompositionStats::operator+=(const CompositionStats& other) {
   frames_flattened += other.frames_flattened;
   cursor_plane_frames += other.cursor_plane_frames;
   failed_kms_cursor_validate += other.failed_kms_cursor_validate;
+  layer_count += other.layer_count;
+  used_plane_count += other.used_plane_count;
   return *this;
 }
 
@@ -46,7 +48,9 @@ CompositionStats operator-(const CompositionStats& a,
           a.failed_kms_present - b.failed_kms_present,
           a.frames_flattened - b.frames_flattened,
           a.cursor_plane_frames - b.cursor_plane_frames,
-          a.failed_kms_cursor_validate - b.failed_kms_cursor_validate};
+          a.failed_kms_cursor_validate - b.failed_kms_cursor_validate,
+          a.layer_count - b.layer_count,
+          a.used_plane_count - b.used_plane_count};
 }
 
 void CompositionStatsTracker::ReportStats(const Callback& callback) {
