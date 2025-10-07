@@ -94,10 +94,6 @@ auto Properties::IsPresentFenceNotReliable() -> bool {
                             0) != 0);
 }
 
-auto Properties::UseConfigGroups() -> bool {
-  return (property_get_bool("ro.vendor.hwc.drm.use_config_groups", 0) != 0);
-}
-
 auto Properties::InternalDisplayNames() -> std::string {
   char buf[PROPERTY_VALUE_MAX] = {};
   property_get("vendor.hwc.drm.internal_display_names", buf, "");
@@ -146,6 +142,10 @@ auto Properties::GetDevicePath() -> std::string {
   // which means that it will try open all devices until an error is met.
   property_get("vendor.hwc.drm.device", path_pattern, "");
   return {path_pattern};
+}
+
+auto Properties::GetEnableXeWorkaround() -> bool {
+  return (property_get_bool("vendor.hwc.drm.enable_xe_workaround", 1) != 0);
 }
 
 }  // namespace android

@@ -29,7 +29,6 @@ enum class CtmHandling {
 class Properties {
  public:
   static auto IsPresentFenceNotReliable() -> bool;
-  static auto UseConfigGroups() -> bool;
   static auto InternalDisplayNames() -> std::string;
   static auto UseOverlayPlanes() -> bool;
   static auto ScaleWithGpu() -> bool;
@@ -37,6 +36,7 @@ class Properties {
   static auto GetCtmHandling() -> CtmHandling;
   static auto GetBackendOverride() -> std::string;
   static auto GetDevicePath() -> std::string;
+  static auto GetEnableXeWorkaround() -> bool;
 };
 
 }  // namespace android

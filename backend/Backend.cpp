@@ -39,6 +39,16 @@ HwcLayer *GetCursorLayer(const std::vector<HwcLayer *> &layers) {
   return *it;
 }
 
+std::pair<uint32_t, uint32_t> GetDisplaySize(const HwcDisplay *display) {
+  const auto *config = display->GetNextConfig();
+  if (config == nullptr) {
+    return std::make_pair(0, 0);
+  }
+
+  return std::make_pair(config->mode.GetRawMode().hdisplay,
+                        config->mode.GetRawMode().vdisplay);
+}
+
 }  // namespace
 
 void Backend::ValidateDisplay(HwcDisplay *display) {
@@ -104,8 +114,10 @@ void Backend::ValidateDisplay(HwcDisplay *display) {
   }
 
   display->total_stats().gpu_pixops += CalcPixOps(layers, client_start,
-                                                  client_size);
-  display->total_stats().total_pixops += CalcPixOps(layers, 0, layers.size());
+                                                  client_size,
+                                                  GetDisplaySize(display));
+  display->total_stats().total_pixops += CalcPixOps(layers, 0, layers.size(),
+                                                    GetDisplaySize(display));
   if (use_cursor_plane) {
     ++display->total_stats().cursor_plane_frames;
   }
@@ -142,14 +154,20 @@ bool Backend::HardwareSupportsLayerType(HwcLayer::CompositionType comp_type) {
 }
 
 uint32_t Backend::CalcPixOps(const std::vector<HwcLayer *> &layers,
-                             size_t first_z, size_t size) {
+                             size_t first_z, size_t size,
+                             std::pair<uint32_t, uint32_t> display_size) {
+  uint32_t whole_display = display_size.first * display_size.second;
   uint32_t pixops = 0;
   for (size_t z_order = 0; z_order < layers.size(); ++z_order) {
     if (z_order >= first_z && z_order < first_z + size) {
-      auto &df = layers[z_order]->GetLayerData().pi.display_frame;
-      if (df.i_rect) {
+      auto *layer = layers[z_order];
+      auto &df = layer->GetLayerData().pi.display_frame;
+      if (df.i_rect.has_value()) {
         pixops += (df.i_rect->right - df.i_rect->left) *
                   (df.i_rect->bottom - df.i_rect->top);
+      } else {
+        // nullopt frame rect means whole display.
+        pixops += whole_display;
       }
     }
   }
@@ -180,23 +198,36 @@ std::tuple<int, int> Backend::GetExtraClientRange(
   // Cursor plane is not counted among |avail_planes|, so the cursor layer
   // shouldn't be counted in |layers_size|.
   if (use_cursor_plane) {
+    ALOGE_IF(layers.empty() || layers.back()->GetSfType() !=
+                                   HwcLayer::CompositionType::kCursor,
+             "Cursor layer was not found at highest z-order");
     --layers_size;
   }
 
-  /*
-   * If more layers than planes, save one plane
-   * for client composited layers
-   */
+  // If there are more layers than planes, save one plane for client composited
+  // layers.
   if (avail_planes < layers_size) {
     avail_planes--;
   }
 
+  // If the cursor plane isn't being used, reserve a plane for the cursor to be
+  // device composited.
+  if (!use_cursor_plane && avail_planes > 0 && layers_size > 0 &&
+      layers.back()->GetSfType() == HwcLayer::CompositionType::kCursor) {
+    avail_planes--;
+    layers_size--;
+  }
+
   const int extra_client = int(layers_size - client_size) - int(avail_planes);
 
+  // If extra layers need to be added to the client range, prepare to perform a
+  // sliding window search.
   if (extra_client > 0) {
     int start = 0;
     size_t steps = 0;
     if (client_size != 0) {
+      // There are already client layers present, so the window needs to
+      // encompass them. Determine the maximum offsets of the ensuing search.
       const int prepend = std::min(client_start, extra_client);
       const int append = std::min(int(layers_size) -
                                       int(client_start + client_size),
@@ -206,13 +237,18 @@ std::tuple<int, int> Backend::GetExtraClientRange(
       steps = 1 + std::min(std::min(append, prepend),
                            int(layers_size) - int(start + client_size));
     } else {
+      // There are no other client layers present, so the window may search the
+      // entire range.
       client_size = extra_client;
       steps = 1 + layers_size - extra_client;
     }
 
+    // Use a sliding window to determine the client range that results in the
+    // fewest GPU pixops.
     uint32_t gpu_pixops = UINT32_MAX;
     for (size_t i = 0; i < steps; i++) {
-      const uint32_t po = CalcPixOps(layers, start + i, client_size);
+      const uint32_t po = CalcPixOps(layers, start + i, client_size,
+                                     GetDisplaySize(display));
       if (po < gpu_pixops) {
         gpu_pixops = po;
         client_start = start + int(i);

@@ -6,17 +6,16 @@ set -e
 function get_repo() {
   local repo_dir="$1"
   local repo_url="$2"
-  local commit="$3"
+  local ref="$3"
 
-  echo "Fetching ${repo_url} at commit ${commit} into ${repo_dir}"
-  rm -rf "${repo_dir}"
+  echo "Fetching ${repo_url} at ref ${ref} into ${repo_dir}"
+  rm --preserve-root "${repo_dir}" -rf
   mkdir -p "${repo_dir}"
   pushd "${repo_dir}"
   git init
   git remote add origin "${repo_url}"
-  git fetch --depth 1 origin "${commit}"
+  git fetch --depth=1 origin "${ref}"
   git checkout FETCH_HEAD
-  git reset --hard
   popd
 }
 
@@ -31,7 +30,10 @@ function my_atexit()
   apt remove -y "${EPHEMERAL_DEPS[@]}"
 
   # clean up the container to avoid storing > 200GB
-  rm "${TOP}" -rf
+  rm --preserve-root "${TOP}" -rf
+
+  # also remove uncompressed CUTTLEFISH_DIR to reduce container size by ~ 3GB
+  rm --preserve-root "${CUTTLEFISH_DIR}" -rf
 }
 
 trap my_atexit EXIT
@@ -41,7 +43,7 @@ trap 'exit 2' HUP INT PIPE TERM
 rm "/cache/${CI_PROJECT_PATH}/cuttlefish.log.txt" || true
 rm "/cache/${CI_PROJECT_PATH}/${CUTTLEFISH_TARBALL}" || true
 
-source "./.ci/setup-test-env.sh"
+source "${FDO_CI_BASH_HELPERS}"
 
 EPHEMERAL_DEPS=(
   binutils
@@ -77,18 +79,16 @@ DEPS=(
 
 export DEBIAN_FRONTEND=noninteractive
 
-section_start install_packages "install_packages"
-set -x
+fdo_log_section_start_collapsed install_packages "install_packages"
 apt-get update
 apt-get upgrade -y
 apt-get install -y --no-install-recommends "${EPHEMERAL_DEPS[@]}"
 apt-get install -y --no-install-recommends "${DEPS[@]}"
 curl -o /usr/local/bin/repo https://storage.googleapis.com/git-repo-downloads/repo
 chmod a+x /usr/local/bin/repo
-set +x
-section_end install_packages
+fdo_log_section_end install_packages
 
-section_start repo_init "repo_init"
+fdo_log_section_start_collapsed repo_init "repo_init"
 
 # avoid accidentally reusing the .repo from previous builds
 rm /cache/.repo -rf
@@ -107,24 +107,32 @@ yes n | repo init \
 
  # Don't increase parallel jobs or they will be denied
 time repo sync --fail-fast --no-tags -j4
-section_end repo_init
+fdo_log_section_end repo_init
 
-section_start customize_repo "customize_repo"
+fdo_log_section_start_collapsed customize_repo "customize_repo"
 
 MESA3D_DIR="${TOP}/external/mesa3d"
 MESA3D_URL="https://gitlab.freedesktop.org/mesa/mesa.git"
-MESA3D_COMMIT=fafdd242850657d58ae66836ee5d154f1187fe8b
-get_repo "${MESA3D_DIR}" "${MESA3D_URL}" "${MESA3D_COMMIT}"
+MESA3D_REF=mesa-25.1.2
+get_repo "${MESA3D_DIR}" "${MESA3D_URL}" "${MESA3D_REF}"
 
 LLVM_PROJECT_DIR="${TOP}/external/llvm-project"
 LLVM_PROJECT_URL="https://github.com/maurossi/llvm-project"
-LLVM_PROJECT_COMMIT=d3ef89ac85fe7c8bc65a6b7871110f32eac76ce1
-get_repo "${LLVM_PROJECT_DIR}" "${LLVM_PROJECT_URL}" "${LLVM_PROJECT_COMMIT}"
+LLVM_PROJECT_REF=release_18.x
+get_repo "${LLVM_PROJECT_DIR}" "${LLVM_PROJECT_URL}" "${LLVM_PROJECT_REF}"
 
 LIBDISPLAY_DIR="${TOP}/external/libdisplay_info"
 LIBDISPLAY_URL="https://android.googlesource.com/platform/external/libdisplay-info"
-LIBDISPLAY_COMMIT=eb514a595897b3a87fde977c9b0db3794bb17730
-get_repo "${LIBDISPLAY_DIR}" "${LIBDISPLAY_URL}" "${LIBDISPLAY_COMMIT}"
+LIBDISPLAY_REF=sdk-release
+get_repo "${LIBDISPLAY_DIR}" "${LIBDISPLAY_URL}" "${LIBDISPLAY_REF}"
+
+DRMHWC_DIR="${TOP}/external/drm_hwcomposer"
+DRMHWC_URL="https://gitlab.freedesktop.org/drm-hwcomposer/drm-hwcomposer.git"
+DRMHWC_REF=main
+get_repo "${DRMHWC_DIR}" "${DRMHWC_URL}" "${DRMHWC_REF}"
+
+# Ensure that __ANDROID_API__ is defined as ANDROID_SDK_VERSION
+sed -i "/cc_defaults[[:space:]]*{/a\    min_sdk_version: \"${ANDROID_SDK_VERSION}\"," "${DRMHWC_DIR}/Android.bp"
 
 # Build tools are restricted to approved locations in aosp
 # https://android.googlesource.com/platform/build/+/main/Changes.md#PATH_Tools
@@ -163,9 +171,14 @@ PRODUCT_PACKAGES += \\
   libglapi \\
   vulkan.lvp
 EOF
-section_end customize_repo
 
-section_start build_cuttlefish "build_cuttlefish"
+# Build drm_hwcomposer apex package
+sed -i 's/ranchu/drm_hwcomposer/' \
+  "${TOP}/device/google/cuttlefish/shared/graphics/device_vendor.mk"
+
+fdo_log_section_end customize_repo
+
+fdo_log_section_start_collapsed build_cuttlefish "build_cuttlefish"
 source build/envsetup.sh
 export TARGET_BUILD_VARIANT=userdebug # needed for adb root and remount
 export TARGET_PRODUCT=aosp_cf_x86_64_phone
@@ -175,10 +188,9 @@ lunch "${TARGET_PRODUCT}-${TARGET_RELEASE}-${TARGET_BUILD_VARIANT}"
 time make -j"${FDO_CI_CONCURRENT:-4}" > "/cuttlefish.log.txt" 2>&1 # Silent or job logs will exceed limit
 echo "Build of ${TARGET_PRODUCT}-${TARGET_RELEASE}-${TARGET_BUILD_VARIANT} complete."
 
-section_end build_cuttlefish
+fdo_log_section_end build_cuttlefish
 
-section_start get_cuttlefish_images "get_cuttlefish_images"
-set -x
+fdo_log_section_start_collapsed get_cuttlefish_images "get_cuttlefish_images"
 
 CUTTLEFISH_DIR="/cuttlefish"
 mkdir -p "${CUTTLEFISH_DIR}"
@@ -200,10 +212,15 @@ PHONE_FILES=(
 );
 
 for file in "${PHONE_FILES[@]}"; do cp -v "$file" "${CUTTLEFISH_DIR}/"; done;
-cd "${TOP}"
-cp -r  "${TOP}/out/host/linux-x86/cvd-host_package" "${CUTTLEFISH_DIR}"
+cp -r  "${TOP}/out/host/linux-x86/cvd-host_package/." "${CUTTLEFISH_DIR}"
+
+# Get keys and certificates for signing future apex packages
+cp "${TOP}/hardware/interfaces/apexkey/com.android.hardware.x509.pem" "${CUTTLEFISH_DIR}"
+cp "${TOP}/hardware/interfaces/apexkey/com.android.hardware.pk8" "${CUTTLEFISH_DIR}"
+cp "${TOP}/hardware/interfaces/apexkey/com.android.hardware.pem" "${CUTTLEFISH_DIR}"
+cp "${TOP}/hardware/interfaces/apexkey/com.android.hardware.avbpubkey" "${CUTTLEFISH_DIR}"
 
 : "${CUTTLEFISH_TARBALL:?CUTTLEFISH_TARBALL is not set}"
 
 tar -cf - "${CUTTLEFISH_DIR}" | xz --best -e -T"${FDO_CI_CONCURRENT:-4}" > "/${CUTTLEFISH_TARBALL}" || true
-section_end get_cuttlefish_images
+fdo_log_section_end get_cuttlefish_images

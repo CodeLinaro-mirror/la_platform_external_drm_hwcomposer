@@ -16,9 +16,7 @@
 
 #pragma once
 
-#include <atomic>
 #include <optional>
-#include <sstream>
 
 #include <ui/GraphicTypes.h>
 
@@ -28,7 +26,6 @@
 #include "compositor/FlatteningController.h"
 #include "compositor/LayerData.h"
 #include "drm/DrmAtomicStateManager.h"
-#include "drm/ResourceManager.h"
 #include "drm/VSyncWorker.h"
 #include "stats/CompositionStats.h"
 
@@ -54,7 +51,7 @@ class HwcDisplay {
     kBadConfig,
     kSeamlessNotAllowed,
     kSeamlessNotPossible,
-    kConfigFailed,
+    kConfigFailed
   };
 
   enum DisplayType { kInternal, kExternal, kVirtual };
@@ -76,9 +73,7 @@ class HwcDisplay {
 
   auto GetDisplayName() -> std::string;
 
-  const HwcDisplayConfigs &GetDisplayConfigs() const {
-    return configs_;
-  }
+  auto GetDisplayConfigs() const -> std::vector<HwcDisplayConfig>;
 
   // Get the config representing the mode that has been committed to KMS.
   auto GetCurrentConfig() const -> const HwcDisplayConfig *;
@@ -88,16 +83,22 @@ class HwcDisplay {
   // is queued up to take effect in the future.
   auto GetLastRequestedConfig() const -> const HwcDisplayConfig *;
 
+  // Get the config that will be active during the next commit. If a config
+  // change has been staged, it will be returned iff the scheduled time has
+  // arrived. Otherwise the current config will be returned.
+  const HwcDisplayConfig *GetNextConfig() const;
+
   // Set a config synchronously. If the requested config fails to be committed,
   // this will return with an error. Otherwise, the config will have been
   // committed to the kernel on successful return.
   ConfigError SetConfig(ConfigId config);
 
-  // Queue a configuration change to take effect in the future.
-  auto QueueConfig(ConfigId config, int64_t desired_time, bool seamless,
+  // Queues a configuration change to take effect in the future. All queued
+  // configurations are seamless.
+  auto QueueConfig(ConfigId config, int64_t desired_time,
                    QueuedConfigTiming *out_timing) -> ConfigError;
 
-  // Get the HwcDisplayConfig, or nullptor if none.
+  // Get the HwcDisplayConfig, or nullptr if none.
   auto GetConfig(ConfigId config_id) const -> const HwcDisplayConfig *;
 
   auto GetDisplayBoundsMm() -> std::pair<int32_t, int32_t>;
@@ -234,6 +235,15 @@ class HwcDisplay {
 
   uint32_t GetCurrentVsyncPeriodNs() const;
 
+  // Returns a client's layer if one was already provided and its size matches
+  // the new config, otherwise allocates a new one.
+  std::optional<LayerData> GetModesetLayerData(
+      const HwcDisplayConfig *new_config);
+
+  // Seamless-tests all configs against the active config for future seamless
+  // transitions and update the config groups.
+  void SetConfigGroupsForActiveConfig();
+
   HwcDisplayConfigs configs_;
 
   DrmHwc *const hwc_;
@@ -278,7 +288,7 @@ class HwcDisplay {
   bool Init();
 
   void SetHdrOutputMetadata(ui::Hdr hdrType);
-  void SetOutputType(uint32_t hdr_output_type);
+  void SetOutputType(OutputType hdr_output_type);
 
   auto GetEdid() -> EdidWrapperUnique & {
     return GetPipe().connector->Get()->GetParsedEdid();
@@ -287,7 +297,7 @@ class HwcDisplay {
   std::shared_ptr<FrontendDisplayBase> frontend_private_data_;
 
   // Workaround for b:398935643
-  bool wa_clear_fence_after_commit_ = false;
+  bool wa_sync_fence_before_commit_ = false;
 };
 
 }  // namespace android
