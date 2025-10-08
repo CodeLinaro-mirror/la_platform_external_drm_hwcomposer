@@ -45,8 +45,8 @@
 namespace android::drm_hwcomposer {
 
 auto DrmAtomicStateManager::CreateInstance(DrmDisplayPipeline *pipe)
-    -> std::shared_ptr<DrmAtomicStateManager> {
-  auto dasm = std::shared_ptr<DrmAtomicStateManager>(
+    -> std::unique_ptr<DrmAtomicStateManager> {
+  auto dasm = std::unique_ptr<DrmAtomicStateManager>(
       new DrmAtomicStateManager());
 
   dasm->pipe_ = pipe;

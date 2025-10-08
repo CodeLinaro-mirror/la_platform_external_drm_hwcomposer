@@ -81,7 +81,7 @@ struct AtomicCommitArgs {
 class DrmAtomicStateManager {
  public:
   static auto CreateInstance(DrmDisplayPipeline *pipe)
-      -> std::shared_ptr<DrmAtomicStateManager>;
+      -> std::unique_ptr<DrmAtomicStateManager>;
 
   ~DrmAtomicStateManager();
 

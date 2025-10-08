@@ -105,7 +105,7 @@ struct DrmDisplayPipeline {
   std::shared_ptr<BindingOwner<DrmCrtc>> crtc;
   std::shared_ptr<BindingOwner<DrmPlane>> primary_plane;
 
-  std::shared_ptr<DrmAtomicStateManager> atomic_state_manager;
+  std::unique_ptr<DrmAtomicStateManager> atomic_state_manager;
   std::unique_ptr<CompositionPlanner> backend;
 };
 
