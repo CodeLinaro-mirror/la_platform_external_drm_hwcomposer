@@ -99,7 +99,6 @@ clean:
 # IStats includes are not available in aospless
 SKIP_FILES := \
     compositor/FlatteningControllerTests.cpp \
-    drm/DrmDisplayPipelineTest.cpp \
     stats/CompositionStatsTest.cpp \
     stats/CompositionStatsAtomReporterDesktop.cpp \
 
