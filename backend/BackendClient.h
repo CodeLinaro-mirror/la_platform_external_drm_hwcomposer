@@ -22,8 +22,7 @@ namespace android::drm_hwcomposer {
 
 class BackendClient : public Backend {
  public:
-  auto ValidateDisplay(const HwcDisplay* display) const
-      -> ValidatedComposition override;
+  auto ValidateDisplay(HwcDisplay* display) -> ValidatedComposition override;
 };
 
 }  // namespace android::drm_hwcomposer

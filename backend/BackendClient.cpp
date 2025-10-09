@@ -21,10 +21,9 @@
 
 namespace android::drm_hwcomposer {
 
-auto BackendClient::ValidateDisplay(const HwcDisplay* display) const
+auto BackendClient::ValidateDisplay(HwcDisplay* display)
     -> ValidatedComposition {
-  return GetFlattenedComposition(display->GetOrderLayersByZPos(),
-                                 FlattenReason::kNone);
+  return GetFlattenedComposition(display->GetOrderLayersByZPos());
 }
 
 // clang-format off

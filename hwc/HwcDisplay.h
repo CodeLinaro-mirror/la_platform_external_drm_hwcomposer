@@ -197,8 +197,8 @@ class HwcDisplay {
 
   bool ForcedScalingWithGpu() const;
 
-  const std::map<CompositionAttributes, CompositionStats> &comp_stats() const {
-    return comp_stats_;
+  CompositionStats &total_stats() {
+    return total_stats_;
   }
 
   /* Headless mode required to keep SurfaceFlinger alive when all display are
@@ -270,17 +270,6 @@ class HwcDisplay {
   // transitions and update the config groups.
   void SetConfigGroupsForActiveConfig();
 
-  void SetColorMatrixToIdentity();
-
-  bool Init();
-
-  void SetHdrOutputMetadata(ui::Hdr hdrType);
-  void SetOutputType(OutputType hdr_output_type);
-
-  auto GetEdid() const -> const EdidWrapperUnique & {
-    return edid_wrapper_;
-  }
-
   HwcDisplayConfigs configs_;
 
   DrmHwc *const hwc_;
@@ -322,7 +311,18 @@ class HwcDisplay {
   SharedFd writeback_complete_fence_;
 
   uint32_t frame_no_ = 0;
-  std::map<CompositionAttributes, CompositionStats> comp_stats_{};
+  CompositionStats total_stats_;
+
+  void SetColorMatrixToIdentity();
+
+  bool Init();
+
+  void SetHdrOutputMetadata(ui::Hdr hdrType);
+  void SetOutputType(OutputType hdr_output_type);
+
+  auto GetEdid() const -> const EdidWrapperUnique & {
+    return edid_wrapper_;
+  }
 
   std::shared_ptr<FrontendDisplayBase> frontend_private_data_;
 };
