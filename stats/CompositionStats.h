@@ -20,28 +20,7 @@
 #include <functional>
 #include <map>
 
-#include "backend/Backend.h"
-
 namespace android::drm_hwcomposer {
-
-enum class ValidationResult {
-  kUnspecified = 0,
-  kSuccess,
-  kFailure,
-  kSkip,
-};
-
-struct CompositionAttributes {
-  int64_t display_handle = 0;
-  bool present_failed = false;
-  ValidationResult validation_result = ValidationResult::kSkip;
-  Backend::FlattenReason flatten_reason = Backend::FlattenReason::kNone;
-
-  // When adding new attributes, update the operator< below as well as
-  // operator== which is implemented in the unit test file.
-};
-
-bool operator<(const CompositionAttributes& a, const CompositionAttributes& b);
 
 struct CompositionStats {
   uint32_t total_frames = 0;
@@ -52,26 +31,21 @@ struct CompositionStats {
   uint32_t frames_flattened = 0;
   uint32_t cursor_plane_frames = 0;
   uint32_t failed_kms_cursor_validate = 0;
-  uint32_t layer_count = 0;
-  uint32_t used_plane_count = 0;
 
-  // When adding new stats, update the operator+= and operator- below as well as
+  // When adding new stats, update the operator- below as well as
   // operator== and operator<< which are implemented in the unit test file.
-
-  CompositionStats& operator+=(const CompositionStats& other);
 };
 
 // Used for calculating the delta between two CompositionStats.
 CompositionStats operator-(const CompositionStats& a,
                            const CompositionStats& b);
 
-// Interface for a reporter which pulls CompositionStats bucketed by
-// CompositionAttributes.
+// Interface for a reporter of per-display CompositionStats.
 class CompositionStatsProvider {
  public:
-  // Get cumulative stats per unique attributes.
+  // Get cumulative stats per display.
   virtual auto PullCompositionStats()
-      -> std::map<CompositionAttributes, CompositionStats> = 0;
+      -> std::map<int64_t, CompositionStats> = 0;
   virtual ~CompositionStatsProvider() = default;
 };
 
@@ -79,22 +53,21 @@ class CompositionStatsProvider {
 // and keeps track of the previous stats state in order to calculate the deltas.
 class CompositionStatsTracker {
  public:
-  // Arguments are the attributes, the cumulative stats, and the stats delta.
-  using Callback = std::function<void(const CompositionAttributes& attributes,
+  // Arguments are the display ID, the cumulative stats, and the stats delta.
+  using Callback = std::function<void(int64_t display_handle,
                                       const CompositionStats& cumulative,
                                       const CompositionStats& delta)>;
   explicit CompositionStatsTracker(CompositionStatsProvider* provider)
       : provider_(provider) {
   }
 
-  // Callback will be called for each unique attribute (empty entries are
-  // skipped), with the cumulative stats and the stats delta from the previous
-  // invocation.
+  // Callback will be called for each display, with the cumulative
+  // stats and the stats delta from the previous invocation.
   void ReportStats(const Callback& callback);
 
  private:
   CompositionStatsProvider* provider_;
-  std::map<CompositionAttributes, CompositionStats> previous_stats_;
+  std::map<int64_t, CompositionStats> previous_stats_;
 };
 
 }  // namespace android::drm_hwcomposer

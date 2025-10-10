@@ -29,12 +29,10 @@
 #include "drm/DrmAtomicStateManager.h"
 #include "drm/VSyncWorker.h"
 #include "stats/CompositionStats.h"
-#include "utils/EdidWrapper.h"
 
 namespace android::drm_hwcomposer {
 
 using DisplayHandle = int64_t;
-using EdidWrapperUnique = std::unique_ptr<EdidWrapper>;
 
 class Backend;
 class DrmHwc;
@@ -197,8 +195,8 @@ class HwcDisplay {
 
   bool ForcedScalingWithGpu() const;
 
-  const std::map<CompositionAttributes, CompositionStats> &comp_stats() const {
-    return comp_stats_;
+  CompositionStats &total_stats() {
+    return total_stats_;
   }
 
   /* Headless mode required to keep SurfaceFlinger alive when all display are
@@ -243,9 +241,10 @@ class HwcDisplay {
   // The caller must do a test commit on the returned args to ensure that the
   // hardware can perform the commit.
   std::optional<AtomicCommitArgs> CreateFrameUpdateCommit(
-      const Backend::ValidatedComposition &composition) const;
+      const Backend::CompositionTypeMap &composition) const;
 
-  bool CommitStagedComposition(SharedFd &out_present_fence);
+  bool CommitComposition(const Backend::CompositionTypeMap &composition,
+                         SharedFd &out_present_fence);
 
   // Update HwcDisplay state tracking to reflect what was committed in |a_args|.
   // This should be called after a successful commit.
@@ -270,22 +269,9 @@ class HwcDisplay {
   // transitions and update the config groups.
   void SetConfigGroupsForActiveConfig();
 
-  void SetColorMatrixToIdentity();
-
-  bool Init();
-
-  void SetHdrOutputMetadata(ui::Hdr hdrType);
-  void SetOutputType(OutputType hdr_output_type);
-
-  auto GetEdid() const -> const EdidWrapperUnique & {
-    return edid_wrapper_;
-  }
-
   HwcDisplayConfigs configs_;
 
   DrmHwc *const hwc_;
-
-  EdidWrapperUnique edid_wrapper_ = std::make_unique<EdidWrapper>();
 
   int64_t staged_mode_change_time_{};
   std::optional<ConfigId> staged_mode_config_id_{};
@@ -314,15 +300,24 @@ class HwcDisplay {
   Colorspace colorspace_{};
   int32_t min_bpc_{};
   std::shared_ptr<hdr_output_metadata> hdr_metadata_;
-  // Most recent result of ValidateStagedComposition. Must be kept alive until
-  // the composition is committed.
-  std::optional<Backend::ValidatedComposition>
-      validated_composition_ = std::nullopt;
+
+  std::shared_ptr<DrmKmsPlan> current_plan_;
 
   SharedFd writeback_complete_fence_;
 
   uint32_t frame_no_ = 0;
-  std::map<CompositionAttributes, CompositionStats> comp_stats_{};
+  CompositionStats total_stats_;
+
+  void SetColorMatrixToIdentity();
+
+  bool Init();
+
+  void SetHdrOutputMetadata(ui::Hdr hdrType);
+  void SetOutputType(OutputType hdr_output_type);
+
+  auto GetEdid() const -> EdidWrapperUnique & {
+    return GetPipe().connector->Get()->GetParsedEdid();
+  }
 
   std::shared_ptr<FrontendDisplayBase> frontend_private_data_;
 };

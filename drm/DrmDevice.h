@@ -34,8 +34,6 @@ class DrmPlane;
 class ResourceManager;
 
 class DrmDevice {
-  friend class FakeDrmDevice;
-
  public:
   ~DrmDevice() = default;
 

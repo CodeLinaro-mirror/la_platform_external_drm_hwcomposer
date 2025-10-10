@@ -30,8 +30,6 @@ namespace android::drm_hwcomposer {
 class DrmDevice;
 
 class DrmCrtc : public PipelineBindable<DrmCrtc> {
-  friend class FakeDrmCrtc;
-
  public:
   static auto CreateInstance(DrmDevice &dev, uint32_t crtc_id, uint32_t index)
       -> std::unique_ptr<DrmCrtc>;
@@ -40,9 +38,7 @@ class DrmCrtc : public PipelineBindable<DrmCrtc> {
   DrmCrtc(const DrmCrtc &) = delete;
   DrmCrtc &operator=(const DrmCrtc &) = delete;
 
-  virtual ~DrmCrtc() = default;
-
-  virtual uint32_t GetId() const {
+  auto GetId() const {
     return crtc_->crtc_id;
   }
 
