@@ -1176,7 +1176,8 @@ bool HwcDisplay::CtmByGpu() const {
   if (color_transform_is_identity_)
     return false;
 
-  if (GetPipe().crtc->Get()->GetCtmProperty() && !ctm_has_offset_)
+  if (!hwc_->GetResMan().UseColorPipeline() &&
+      GetPipe().crtc->Get()->GetCtmProperty() && !ctm_has_offset_)
     return false;
 
   if (hwc_->GetResMan().GetCtmHandling() == CtmHandling::kDrmOrIgnore)

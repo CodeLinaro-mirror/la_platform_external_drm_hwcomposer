@@ -36,6 +36,7 @@
 #include "drm/DrmProperty.h"
 #include "drm/DrmUnique.h"
 #include "drm/ResourceManager.h"
+#include "drm/drm.h"
 #include "utils/fd.h"
 #include "utils/log.h"
 
@@ -91,6 +92,11 @@ auto DrmDevice::Init(const char *path) -> int {
     ALOGI("Failed to set writeback cap %d", ret);
   }
 #endif
+
+  if (res_man_->UseColorPipeline()) {
+    ret = drmSetClientCap(*GetFd(), DRM_CLIENT_CAP_PLANE_COLOR_PIPELINE, 1);
+    ALOGW_IF(ret != 0, "Failed to set color pipeline cap %d", ret);
+  }
 
   uint64_t cap_value = 0;
   if (drmGetCap(*GetFd(), DRM_CAP_ADDFB2_MODIFIERS, &cap_value) != 0) {

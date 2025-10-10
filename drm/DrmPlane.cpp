@@ -28,6 +28,7 @@
 #include "drm/DrmCrtc.h"
 #include "drm/DrmDevice.h"
 #include "drm/DrmFbImporter.h"
+#include "drm/ResourceManager.h"
 #include "utils/log.h"
 
 namespace android::drm_hwcomposer {
@@ -39,6 +40,14 @@ void ClipSourceCrop(FRect &src, const BufferInfo &buffer_info) {
   src.top = std::max(src.top, 0.F);
   src.right = std::min(src.right, static_cast<float>(buffer_info.width));
   src.bottom = std::min(src.bottom, static_cast<float>(buffer_info.height));
+}
+
+bool VerifyColorPipeline(
+    std::vector<std::unique_ptr<DrmColorOp>> &color_pipeline) {
+  if (color_pipeline.empty()) {
+    return false;
+  }
+  return true;
 }
 }  // namespace
 
@@ -119,7 +128,7 @@ int DrmPlane::Init() {
 
   GetPlaneProperty("IN_FENCE_FD", in_fence_fd_property_, Presence::kOptional);
 
-  if (HasNonRgbFormat()) {
+  if (!drm_->GetResMan().UseColorPipeline() && HasNonRgbFormat()) {
     if (GetPlaneProperty("COLOR_ENCODING", color_encoding_property_,
                          Presence::kOptional)) {
       color_encoding_property_.AddEnumToMap("ITU-R BT.709 YCbCr",
@@ -141,6 +150,36 @@ int DrmPlane::Init() {
       color_range_property_.AddEnumToMap("YCbCr limited range",
                                          BufferSampleRange::kLimitedRange,
                                          color_range_enum_map_);
+    }
+  }
+
+  if (drm_->GetResMan().UseColorPipeline() &&
+      GetPlaneProperty("COLOR_PIPELINE", color_pipeline_property_,
+                       Presence::kOptional)) {
+    // Get color pipeline start nodes
+    const auto color_pipelines = color_pipeline_property_.GetEnumValues();
+    for (const uint64_t &color_pipeline_start_id : color_pipelines) {
+      int color_op_index = 0;
+      uint64_t color_op_id = color_pipeline_start_id;
+
+      // Map all color ops in the pipeline
+      while (color_op_id > 0) {
+        auto color_op = DrmColorOp::CreateInstance(*drm_, color_op_id,
+                                                   color_op_index++);
+        if (!color_op) {
+          ALOGW("Found invalid color op with id %lu", color_op_id);
+          break;
+        }
+        color_op_id = color_op->GetNextProperty().GetValue().value_or(0);
+        color_pipeline_.push_back(std::move(color_op));
+      }
+
+      // Verify all necessary color ops are present
+      if (VerifyColorPipeline(color_pipeline_)) {
+        break;
+      } else {
+        color_pipeline_.clear();
+      }
     }
   }
 
@@ -351,13 +390,15 @@ auto DrmPlane::AtomicSetState(drmModeAtomicReq &pset, LayerData &layer,
     return -EINVAL;
   }
 
-  if (color_encoding_enum_map_.count(layer.bi->color_space) != 0 &&
+  if (!drm_->GetResMan().UseColorPipeline() &&
+      color_encoding_enum_map_.count(layer.bi->color_space) != 0 &&
       !color_encoding_property_.AtomicSet(pset, color_encoding_enum_map_.at(
                                                     layer.bi->color_space))) {
     return -EINVAL;
   }
 
-  if (color_range_enum_map_.count(layer.bi->sample_range) != 0 &&
+  if (!drm_->GetResMan().UseColorPipeline() &&
+      color_range_enum_map_.count(layer.bi->sample_range) != 0 &&
       !color_range_property_.AtomicSet(pset, color_range_enum_map_.at(
                                                  layer.bi->sample_range))) {
     return -EINVAL;
