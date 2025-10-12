@@ -22,7 +22,9 @@
 #include "DrmAtomicStateManager.h"
 
 #include <drm/drm_mode.h>
+#if HAS_LIBSYNC
 #include <sync/sync.h>
+#endif  // HAS_LIBSYNC
 #include <utils/Trace.h>
 
 #include <cassert>
@@ -52,6 +54,7 @@ DrmAtomicStateManager::~DrmAtomicStateManager() {
 }
 
 void DrmAtomicStateManager::WaitLastFrame() {
+#if HAS_LIBSYNC
   SharedFd present_fence;
   {
     std::lock_guard lock(mutex_);
@@ -75,6 +78,7 @@ void DrmAtomicStateManager::WaitLastFrame() {
       CleanupPriorFrameResources();
     }
   }
+#endif  // HAS_LIBSYNC
 }
 
 void DrmAtomicStateManager::CleanFailedCommit() {
@@ -119,6 +123,7 @@ bool DrmAtomicStateManager::CommitFrame(AtomicCommitArgs &args) {
   auto *drm = pipe_->device;
 
   if (args.test_only) {
+    ATRACE_NAME("TestOnlyCommit");
     auto err = drmModeAtomicCommit(*drm->GetFd(),
                                    atomic_request->property_set.get(),
                                    flags | DRM_MODE_ATOMIC_TEST_ONLY, drm);
@@ -134,14 +139,20 @@ bool DrmAtomicStateManager::CommitFrame(AtomicCommitArgs &args) {
   bool nonblock = !args.blocking && !args.active;
 
   flags |= nonblock ? DRM_MODE_ATOMIC_NONBLOCK : 0U;
-  auto err = drmModeAtomicCommit(*drm->GetFd(),
-                                 atomic_request->property_set.get(), flags,
-                                 drm);
+  int err = 0;
+  {
+    ATRACE_NAME((nonblock ? "Commit_nonblock" : "Commit_block"));
+    err = drmModeAtomicCommit(*drm->GetFd(), atomic_request->property_set.get(),
+                              flags, drm);
+  }
+
   if (err != 0 && args.seamless) {
     ALOGE(
         "Seamless commit failed, retrying a full modeset (visual artifacts may "
         "be observed). Error: %s",
         strerror_r(errno, err_buf, error_buf_max_size));
+
+    ATRACE_NAME("SeamlessFallbackFullModesetCommit");
 
     err = drmModeAtomicCommit(*drm->GetFd(), atomic_request->property_set.get(),
                               flags | DRM_MODE_ATOMIC_ALLOW_MODESET, drm);
@@ -194,6 +205,7 @@ void DrmAtomicStateManager::CheckDoubleSettingState(
   }
 }
 
+#if HAS_LIBSYNC
 bool DrmAtomicStateManager::SetWriteBackFenceIfNeeded(
     const AtomicCommitArgs &args, AtomicRequest &request) {
   if (!pipe_->writeback_connector || !args.writeback_fb) {
@@ -227,11 +239,19 @@ bool DrmAtomicStateManager::SetWriteBackFenceIfNeeded(
 
   // Wait on input fence if provided
   if (args.writeback_release_fence) {
+    ATRACE_NAME("WritebackFenceWait");
     sync_wait(*args.writeback_release_fence, -1);
   }
 
   return true;
 }
+#else
+// NOLINTNEXTLINE(readability-convert-member-functions-to-static)
+bool DrmAtomicStateManager::SetWriteBackFenceIfNeeded(
+    const AtomicCommitArgs & /* args */, AtomicRequest & /* request */) {
+  return false;
+}
+#endif  // HAS_LIBSYNC
 
 bool DrmAtomicStateManager::SetOutputFence(AtomicRequest &request) {
   auto *crtc = pipe_->crtc->Get();
@@ -501,6 +521,7 @@ DrmAtomicStateManager::GetAtomicModeReqForArgs(AtomicCommitArgs &args) {
 }
 
 void DrmAtomicStateManager::ThreadFn() {
+#if HAS_LIBSYNC
   int tracking_at_the_moment = -1;
 
   for (;;) {
@@ -547,6 +568,7 @@ void DrmAtomicStateManager::ThreadFn() {
   }
 
   ALOGI("DrmAtomicStateManager thread exit");
+#endif  // HAS_LIBSYNC
 }
 
 void DrmAtomicStateManager::CleanupPriorFrameResources() {
