@@ -734,6 +734,15 @@ void ComposerClient::ExecuteDisplayCommand(const DisplayCommand& command) {
                                      ::android::drm_hwcomposer::
                                          ResourceManager::GetTimeMonotonicNs(),
                                      &unusedTiming);
+    if (error == HwcDisplay::kSeamlessNotAllowed) {
+      ALOGE_IF(command.activeConfig->seamlessRequired,
+               "Seamless modeset not possible with requested config=%d. "
+               "Falling "
+               "back to a blocking full modeset.",
+               command.activeConfig->configId);
+
+      error = display->SetConfig(command.activeConfig->configId);
+    }
     if (error != HwcDisplay::ConfigError::kNone) {
       ALOGE("Invalid desired mode: %d", static_cast<int32_t>(error));
       switch (error) {
