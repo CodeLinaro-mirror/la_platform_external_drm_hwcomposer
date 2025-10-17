@@ -660,9 +660,10 @@ bool HwcDisplay::Init() {
   }
 
   if (!IsInHeadlessMode()) {
-    auto ret = BackendManager::GetInstance().SetBackendForDisplay(this);
-    if (ret) {
-      ALOGE("Failed to set backend for d=%d %d\n", int(handle_), ret);
+    backend_ = BackendManager::GetInstance().CreateBackendForConnector(
+        pipeline_->connector->Get());
+    if (!backend_) {
+      ALOGE("Failed to set backend for d=%d\n", int(handle_));
       return false;
     }
     auto flatcbk = (struct FlatConCallbacks){
@@ -1307,10 +1308,6 @@ void HwcDisplay::SetHdrOutputMetadata(ui::Hdr type) {
 
 const Backend *HwcDisplay::backend() const {
   return backend_.get();
-}
-
-void HwcDisplay::set_backend(std::unique_ptr<Backend> backend) {
-  backend_ = std::move(backend);
 }
 
 bool HwcDisplay::NeedsClientLayerUpdate() const {

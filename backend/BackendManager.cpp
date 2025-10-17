@@ -43,15 +43,6 @@ int BackendManager::RegisterBackend(const std::string &name,
   return 0;
 }
 
-int BackendManager::SetBackendForDisplay(HwcDisplay *display) {
-  display->set_backend(
-      CreateBackendForConnector(display->GetPipe().connector->Get()));
-  if (display->backend() == nullptr) {
-    return -EINVAL;
-  }
-  return 0;
-}
-
 std::unique_ptr<Backend> BackendManager::CreateBackendForConnector(
     const DrmConnector *connector) {
   auto driver_name(connector->GetDev().GetName());

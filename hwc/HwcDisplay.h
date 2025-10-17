@@ -186,7 +186,6 @@ class HwcDisplay {
   }
 
   const Backend *backend() const;
-  void set_backend(std::unique_ptr<Backend> backend);
 
   auto layers() -> std::map<ILayerId, HwcLayer> & {
     return layers_;
