@@ -27,7 +27,6 @@
 #include <utils/Trace.h>
 
 #include "backend/Backend.h"
-#include "backend/BackendManager.h"
 #include "compositor/DisplayInfo.h"
 #include "drm/DrmConnector.h"
 #include "drm/DrmDisplayPipeline.h"
@@ -343,7 +342,7 @@ auto HwcDisplay::ValidateStagedComposition() -> std::vector<ChangedLayer> {
     flatcon_->NewFrame();
   }
 
-  validated_composition_.emplace(backend_->ValidateDisplay(this));
+  validated_composition_.emplace(pipeline_->backend->ValidateDisplay(this));
 
   // Iterate through the layers to find which layers actually changed.
   std::vector<ChangedLayer> changed_layers;
@@ -638,7 +637,6 @@ void HwcDisplay::Deinit() {
     GetPipe().atomic_state_manager->ExecuteAtomicCommit(a_args);
 
     validated_composition_.reset();
-    backend_.reset();
     flatcon_.reset();
   }
 
@@ -660,12 +658,6 @@ bool HwcDisplay::Init() {
   }
 
   if (!IsInHeadlessMode()) {
-    backend_ = BackendManager::GetInstance().CreateBackendForConnector(
-        pipeline_->connector->Get());
-    if (!backend_) {
-      ALOGE("Failed to set backend for d=%d\n", int(handle_));
-      return false;
-    }
     auto flatcbk = (struct FlatConCallbacks){
         .trigger = [this]() { hwc_->SendRefreshEventToClient(handle_); }};
     flatcon_ = std::make_unique<FlatteningController>(flatcbk,
@@ -1304,10 +1296,6 @@ void HwcDisplay::SetHdrOutputMetadata(ui::Hdr type) {
   auto whitePoint = gamut.getWhitePoint();
   m->white_point.x = ToU16ColorValue(whitePoint.x);
   m->white_point.y = ToU16ColorValue(whitePoint.y);
-}
-
-const Backend *HwcDisplay::backend() const {
-  return backend_.get();
 }
 
 bool HwcDisplay::NeedsClientLayerUpdate() const {

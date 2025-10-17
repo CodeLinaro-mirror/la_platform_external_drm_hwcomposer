@@ -185,8 +185,6 @@ class HwcDisplay {
     return &it->second;
   }
 
-  const Backend *backend() const;
-
   auto layers() -> std::map<ILayerId, HwcLayer> & {
     return layers_;
   }
