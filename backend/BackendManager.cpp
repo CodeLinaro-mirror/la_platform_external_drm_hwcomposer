@@ -44,27 +44,35 @@ int BackendManager::RegisterBackend(const std::string &name,
 }
 
 int BackendManager::SetBackendForDisplay(HwcDisplay *display) {
-  auto driver_name(display->GetPipe().device->GetName());
+  display->set_backend(
+      CreateBackendForConnector(display->GetPipe().connector->Get()));
+  if (display->backend() == nullptr) {
+    return -EINVAL;
+  }
+  return 0;
+}
+
+std::unique_ptr<Backend> BackendManager::CreateBackendForConnector(
+    const DrmConnector *connector) {
+  auto driver_name(connector->GetDev().GetName());
   std::string backend_name = Properties::GetBackendOverride();
   if (backend_name.empty()) {
     backend_name = driver_name;
   }
 
-  display->set_backend(GetBackendByName(backend_name));
-  if (display->backend() == nullptr) {
-    ALOGE("Failed to set backend '%s' for '%s' and driver '%s'",
-          backend_name.c_str(),
-          display->GetPipe().connector->Get()->GetName().c_str(),
+  auto backend = GetBackendByName(backend_name);
+  if (backend == nullptr) {
+    ALOGE("Failed to create backend '%s' for '%s' and driver '%s'",
+          backend_name.c_str(), connector->GetName().c_str(),
           driver_name.c_str());
-    return -EINVAL;
+    return nullptr;
   }
 
-  ALOGI("Backend '%s' for '%s' and driver '%s' was successfully set",
-        backend_name.c_str(),
-        display->GetPipe().connector->Get()->GetName().c_str(),
+  ALOGI("Backend '%s' for '%s' and driver '%s' was successfully created",
+        backend_name.c_str(), connector->GetName().c_str(),
         driver_name.c_str());
 
-  return 0;
+  return backend;
 }
 
 std::unique_ptr<Backend> BackendManager::GetBackendByName(std::string &name) {

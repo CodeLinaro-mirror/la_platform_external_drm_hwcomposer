@@ -41,6 +41,8 @@ class BackendManager {
   int RegisterBackend(const std::string &name,
                       BackendConstructorT backend_constructor);
   int SetBackendForDisplay(HwcDisplay *display);
+  std::unique_ptr<Backend> CreateBackendForConnector(
+      const DrmConnector *connector);
   std::unique_ptr<Backend> GetBackendByName(std::string &name);
 
  private:
