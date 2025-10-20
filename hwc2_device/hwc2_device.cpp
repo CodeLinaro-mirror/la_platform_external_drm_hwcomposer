@@ -34,7 +34,7 @@
 #include "hwc/HwcLayer.h"
 #include "utils/log.h"
 
-namespace android {
+namespace android::drm_hwcomposer {
 
 static int32_t ConfigErrorToHWC2(HwcDisplay::ConfigError result) {
   switch (result) {
@@ -1190,17 +1190,16 @@ static int32_t SetLayerCompositionType(hwc2_device_t *device,
   HwcLayer::LayerProperties layer_properties;
   switch (static_cast<HWC2::Composition>(type)) {
     case HWC2::Composition::Client:
-      layer_properties.composition_type = HwcLayer::CompositionType::kClient;
+      layer_properties.composition_type = CompositionType::kClient;
       break;
     case HWC2::Composition::Device:
-      layer_properties.composition_type = HwcLayer::CompositionType::kDevice;
+      layer_properties.composition_type = CompositionType::kDevice;
       break;
     case HWC2::Composition::SolidColor:
-      layer_properties
-          .composition_type = HwcLayer::CompositionType::kSolidColor;
+      layer_properties.composition_type = CompositionType::kSolidColor;
       break;
     case HWC2::Composition::Cursor:
-      layer_properties.composition_type = HwcLayer::CompositionType::kCursor;
+      layer_properties.composition_type = CompositionType::kCursor;
       break;
     default:
       ALOGE("Unsupported composition type t=%d", type);
@@ -1259,11 +1258,10 @@ static int32_t SetLayerSourceCrop(hwc2_device_t *device, hwc2_display_t display,
   GET_LAYER(layer);
 
   HwcLayer::LayerProperties layer_properties;
-  layer_properties.source_crop = {
-      .f_rect = SrcRectInfo::FRect{.left = crop.left,
-                                   .top = crop.top,
-                                   .right = crop.right,
-                                   .bottom = crop.bottom}};
+  layer_properties.source_crop = {.f_rect = FRect{.left = crop.left,
+                                                  .top = crop.top,
+                                                  .right = crop.right,
+                                                  .bottom = crop.bottom}};
   ilayer->SetLayerProperties(layer_properties);
 
   return 0;
@@ -1491,11 +1489,11 @@ static int HookDevOpen(const struct hw_module_t *module, const char *name,
   return 0;
 }
 
-}  // namespace android
+}  // namespace android::drm_hwcomposer
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 static struct hw_module_methods_t hwc2_module_methods = {
-    .open = android::HookDevOpen,
+    .open = android::drm_hwcomposer::HookDevOpen,
 };
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)

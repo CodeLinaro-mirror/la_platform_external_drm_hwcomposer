@@ -27,26 +27,7 @@
 #include "utils/log.h"
 #include "utils/properties.h"
 
-namespace android {
-
-template <class O>
-auto PipelineBindable<O>::BindPipeline(DrmDisplayPipeline *pipeline,
-                                       bool return_object_if_bound)
-    -> std::shared_ptr<BindingOwner<O>> {
-  auto owner_object = owner_object_.lock();
-  if (owner_object) {
-    if (bound_pipeline_ == pipeline && return_object_if_bound) {
-      return owner_object;
-    }
-
-    return {};
-  }
-  owner_object = std::make_shared<BindingOwner<O>>(static_cast<O *>(this));
-
-  owner_object_ = owner_object;
-  bound_pipeline_ = pipeline;
-  return owner_object;
-}
+namespace android::drm_hwcomposer {
 
 static auto TryCreatePipeline(DrmDevice &dev, DrmConnector &connector,
                               DrmEncoder &enc, DrmCrtc &crtc)
@@ -161,7 +142,7 @@ auto DrmDisplayPipeline::CreatePipeline(DrmConnector &connector)
   return {};
 }
 
-auto DrmDisplayPipeline::GetUsablePlanes() -> UsablePlanes {
+auto DrmDisplayPipeline::GetUsablePlanes() const -> UsablePlanes {
   UsablePlanes pair;
   auto &[planes, cursor] = pair;
 
@@ -208,4 +189,4 @@ DrmDisplayPipeline::~DrmDisplayPipeline() {
     atomic_state_manager->StopThread();
 }
 
-}  // namespace android
+}  // namespace android::drm_hwcomposer

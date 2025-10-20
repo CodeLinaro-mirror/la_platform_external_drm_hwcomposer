@@ -23,7 +23,7 @@
 #include "compositor/LayerData.h"
 #include "utils/fd.h"
 
-namespace android {
+namespace android::drm_hwcomposer {
 
 class HwcDisplay;
 
@@ -41,13 +41,6 @@ class HwcLayer {
   struct Slot {
     int32_t slot_id;
     SharedFd fence;
-  };
-  enum class CompositionType {
-    kInvalid,
-    kClient,
-    kDevice,
-    kSolidColor,
-    kCursor
   };
   // A set of properties to be validated.
   struct LayerProperties {
@@ -95,7 +88,11 @@ class HwcLayer {
     return z_order_;
   }
 
-  auto &GetLayerData() {
+  LayerData &GetLayerData() {
+    return layer_data_;
+  }
+
+  const LayerData &GetLayerData() const {
     return layer_data_;
   }
 
@@ -108,6 +105,10 @@ class HwcLayer {
   auto SetFrontendPrivateData(std::shared_ptr<FrontendLayerBase> data) {
     frontend_private_data_ = std::move(data);
   }
+
+  // Returns the number of pixel operations this layer would require if it were
+  // client-composited.
+  uint32_t GetPixOps() const;
 
  private:
   // sf_type_ stores the initial type given to us by surfaceflinger,
@@ -150,4 +151,4 @@ class HwcLayer {
   bool IsLayerUsableAsDevice() const;
 };
 
-}  // namespace android
+}  // namespace android::drm_hwcomposer

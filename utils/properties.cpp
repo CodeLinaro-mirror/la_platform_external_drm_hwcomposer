@@ -82,7 +82,7 @@ auto inline property_get_bool(const char *key, int8_t default_value) -> int8_t {
 }  // namespace
 #endif
 
-namespace android {
+namespace android::drm_hwcomposer {
 
 /**
  * @brief Determine if the "Present Not Reliable" property is enabled.
@@ -144,8 +144,4 @@ auto Properties::GetDevicePath() -> std::string {
   return {path_pattern};
 }
 
-auto Properties::GetEnableXeWorkaround() -> bool {
-  return (property_get_bool("vendor.hwc.drm.enable_xe_workaround", 1) != 0);
-}
-
-}  // namespace android
+}  // namespace android::drm_hwcomposer

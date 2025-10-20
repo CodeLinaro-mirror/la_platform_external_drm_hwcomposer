@@ -22,16 +22,19 @@
 
 #include "HwcDisplayConfigs.h"
 #include "HwcLayer.h"
+#include "backend/Backend.h"
 #include "compositor/DisplayInfo.h"
 #include "compositor/FlatteningController.h"
 #include "compositor/LayerData.h"
 #include "drm/DrmAtomicStateManager.h"
 #include "drm/VSyncWorker.h"
 #include "stats/CompositionStats.h"
+#include "utils/EdidWrapper.h"
 
-namespace android {
+namespace android::drm_hwcomposer {
 
 using DisplayHandle = int64_t;
+using EdidWrapperUnique = std::unique_ptr<EdidWrapper>;
 
 class Backend;
 class DrmHwc;
@@ -56,6 +59,14 @@ class HwcDisplay {
 
   enum DisplayType { kInternal, kExternal, kVirtual };
 
+  enum class HdcpState : int {
+    kUndesired,
+    kDesired,
+    kPending,
+    kEnabled,
+    kRetry
+  };
+
   HwcDisplay(DisplayHandle handle, bool is_virtual, DrmHwc *hwc);
   HwcDisplay(const HwcDisplay &) = delete;
   ~HwcDisplay();
@@ -66,12 +77,13 @@ class HwcDisplay {
   /* SetPipeline should be carefully used only by DrmHwcTwo hotplug handlers */
   void SetPipeline(std::shared_ptr<DrmDisplayPipeline> pipeline);
 
-  bool CreateComposition(AtomicCommitArgs &a_args);
-  std::vector<HwcLayer *> GetOrderLayersByZPos();
+  bool TestComposition(Backend::ValidatedComposition &composition) const;
+
+  std::vector<const HwcLayer *> GetOrderLayersByZPos() const;
 
   std::string Dump();
 
-  auto GetDisplayName() -> std::string;
+  auto GetDisplayName() const -> std::string;
 
   auto GetDisplayConfigs() const -> std::vector<HwcDisplayConfig>;
 
@@ -106,7 +118,7 @@ class HwcDisplay {
   // To be called after SetDisplayProperties. Returns an empty vector if the
   // requested layers have been validated, otherwise the vector describes
   // the requested composition type changes.
-  using ChangedLayer = std::pair<ILayerId, HwcLayer::CompositionType>;
+  using ChangedLayer = std::pair<ILayerId, CompositionType>;
   auto ValidateStagedComposition() -> std::vector<ChangedLayer>;
 
   // Mark previously validated properties as ready to present.
@@ -127,7 +139,7 @@ class HwcDisplay {
   auto GetRawEdid() -> std::vector<uint8_t>;
 
   // Get the port id that this display is plugged into.
-  auto GetPort() -> uint8_t;
+  auto GetPort() const -> uint8_t;
 
   auto SetContentType(ContentType content_type) {
     content_type_ = content_type;
@@ -159,6 +171,9 @@ class HwcDisplay {
   void GetHdrCapabilities(std::vector<ui::Hdr> *types, float *max_luminance,
                           float *max_average_luminance, float *min_luminance);
 
+  auto IsHdcpPropertyPresent() -> bool;
+  auto StartHdcp(bool start) -> bool;
+
   bool IsWritebackSupported();
   bool SetWritebackEnabled(bool enabled);
   SharedFd GetWritebackBufferFence();
@@ -173,22 +188,28 @@ class HwcDisplay {
   const Backend *backend() const;
   void set_backend(std::unique_ptr<Backend> backend);
 
-  auto GetHwc() {
-    return hwc_;
-  }
-
   auto layers() -> std::map<ILayerId, HwcLayer> & {
     return layers_;
+  }
+
+  auto layers() const -> const std::map<ILayerId, HwcLayer> & {
+    return layers_;
+  }
+
+  const auto &GetPipe() const {
+    return *pipeline_;
   }
 
   auto &GetPipe() {
     return *pipeline_;
   }
 
-  bool CtmByGpu();
+  bool CtmByGpu() const;
 
-  CompositionStats &total_stats() {
-    return total_stats_;
+  bool ForcedScalingWithGpu() const;
+
+  const std::map<CompositionAttributes, CompositionStats> &comp_stats() const {
+    return comp_stats_;
   }
 
   /* Headless mode required to keep SurfaceFlinger alive when all display are
@@ -197,14 +218,14 @@ class HwcDisplay {
    * to prevent the crash. See:
    * https://source.android.com/devices/graphics/hotplug#handling-common-scenarios
    */
-  bool IsInHeadlessMode() {
+  bool IsInHeadlessMode() const {
     return !pipeline_;
   }
 
   void Deinit();
 
-  auto GetFlatCon() {
-    return flatcon_;
+  const FlatteningController *GetFlatCon() const {
+    return flatcon_.get();
   }
 
   auto GetClientLayer() -> HwcLayer & {
@@ -220,11 +241,27 @@ class HwcDisplay {
     virtual_disp_height_ = height;
   }
 
-  auto getDisplayPhysicalOrientation() -> std::optional<PanelOrientation>;
+  auto getDisplayPhysicalOrientation() const -> std::optional<PanelOrientation>;
 
   bool NeedsClientLayerUpdate() const;
 
+  std::pair<uint32_t, uint32_t> GetSize() const;
+
  private:
+  // Create AtomicCommitArgs to commit at the next vsync. Returns nullopt if
+  // such AtomicCommitArgs cannot be created due to lack of drm resources or
+  // invalid HwcDisplay or HwcLayer state.
+  // The caller must do a test commit on the returned args to ensure that the
+  // hardware can perform the commit.
+  std::optional<AtomicCommitArgs> CreateFrameUpdateCommit(
+      const Backend::ValidatedComposition &composition) const;
+
+  bool CommitStagedComposition(SharedFd &out_present_fence);
+
+  // Update HwcDisplay state tracking to reflect what was committed in |a_args|.
+  // This should be called after a successful commit.
+  void ApplyCommitChanges(const AtomicCommitArgs &a_args);
+
   AtomicCommitArgs CreateModesetCommit(
       const HwcDisplayConfig *config,
       const std::optional<LayerData> &modeset_layer);
@@ -244,9 +281,22 @@ class HwcDisplay {
   // transitions and update the config groups.
   void SetConfigGroupsForActiveConfig();
 
+  void SetColorMatrixToIdentity();
+
+  bool Init();
+
+  void SetHdrOutputMetadata(ui::Hdr hdrType);
+  void SetOutputType(OutputType hdr_output_type);
+
+  auto GetEdid() const -> const EdidWrapperUnique & {
+    return edid_wrapper_;
+  }
+
   HwcDisplayConfigs configs_;
 
   DrmHwc *const hwc_;
+
+  EdidWrapperUnique edid_wrapper_ = std::make_unique<EdidWrapper>();
 
   int64_t staged_mode_change_time_{};
   std::optional<ConfigId> staged_mode_config_id_{};
@@ -254,7 +304,7 @@ class HwcDisplay {
   std::shared_ptr<DrmDisplayPipeline> pipeline_;
 
   std::unique_ptr<Backend> backend_;
-  std::shared_ptr<FlatteningController> flatcon_;
+  std::unique_ptr<FlatteningController> flatcon_;
 
   std::unique_ptr<VSyncWorker> vsync_worker_;
   bool vsync_event_en_{};
@@ -275,29 +325,19 @@ class HwcDisplay {
   Colorspace colorspace_{};
   int32_t min_bpc_{};
   std::shared_ptr<hdr_output_metadata> hdr_metadata_;
-
-  std::shared_ptr<DrmKmsPlan> current_plan_;
+  // Most recent result of ValidateStagedComposition. Must be kept alive until
+  // the composition is committed.
+  std::optional<Backend::ValidatedComposition>
+      validated_composition_ = std::nullopt;
 
   SharedFd writeback_complete_fence_;
 
   uint32_t frame_no_ = 0;
-  CompositionStats total_stats_;
+  std::map<CompositionAttributes, CompositionStats> comp_stats_{};
 
-  void SetColorMatrixToIdentity();
-
-  bool Init();
-
-  void SetHdrOutputMetadata(ui::Hdr hdrType);
-  void SetOutputType(OutputType hdr_output_type);
-
-  auto GetEdid() -> EdidWrapperUnique & {
-    return GetPipe().connector->Get()->GetParsedEdid();
-  }
+  HwcDisplay::HdcpState hdcp_state_ = HdcpState::kUndesired;
 
   std::shared_ptr<FrontendDisplayBase> frontend_private_data_;
-
-  // Workaround for b:398935643
-  bool wa_sync_fence_before_commit_ = false;
 };
 
-}  // namespace android
+}  // namespace android::drm_hwcomposer

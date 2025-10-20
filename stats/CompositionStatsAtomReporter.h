@@ -18,7 +18,10 @@
 
 #include <memory>
 
-namespace android {
+#include "CompositionStats.h"
+#include "backend/Backend.h"
+
+namespace android::drm_hwcomposer {
 
 // CompositionStatsAtomReporter is a wrapper around creation of a VendorAtom
 // and pushing it to the IStats::reportVendorAtom interface.
@@ -29,10 +32,13 @@ class CompositionStatsAtomReporter {
   static std::unique_ptr<CompositionStatsAtomReporter> Create();
 
   // Pushes a Vendor Atom to IStats::reportVendorAtom.
-  virtual void PushAtom(int64_t display_handle, int64_t presented_frame_count,
-                        int64_t present_failed_count,
-                        int64_t validate_failed_count) = 0;
+  virtual void PushAtom(int64_t display_handle, bool present_failed,
+                        ValidationResult validation_result,
+                        Backend::FlattenReason flatten_reason,
+                        int64_t frame_count, int64_t layer_count,
+                        int64_t used_plane_count, uint64_t total_pixops,
+                        uint64_t gpu_pixops) = 0;
   virtual ~CompositionStatsAtomReporter() = default;
 };
 
-}  // namespace android
+}  // namespace android::drm_hwcomposer

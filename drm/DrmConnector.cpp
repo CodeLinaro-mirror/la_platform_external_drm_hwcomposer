@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-#include <drm/drm_mode.h>
 #define LOG_TAG "drmhwc"
 
 #include "DrmConnector.h"
 
+#include <drm/drm_mode.h>
 #include <xf86drmMode.h>
 
 #include <array>
@@ -29,7 +29,6 @@
 
 #include "DrmDevice.h"
 #include "compositor/DisplayInfo.h"
-#include "utils/log.h"
 
 #ifndef DRM_MODE_CONNECTOR_SPI
 // NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
@@ -41,7 +40,7 @@
 #define DRM_MODE_CONNECTOR_USB 20
 #endif
 
-namespace android {
+namespace android::drm_hwcomposer {
 
 constexpr size_t kTypesCount = 21;
 
@@ -87,14 +86,6 @@ auto DrmConnector::Init()-> bool {
       !GetConnectorProperty("CRTC_ID", &crtc_id_property_)) {
     return false;
   }
-
-  UpdateEdidProperty();
-#if HAS_LIBDISPLAY_INFO
-  auto edid = LibdisplayEdidWrapper::Create(GetEdidBlob());
-  edid_wrapper_ = edid ? std::move(edid) : std::make_unique<EdidWrapper>();
-#else
-  edid_wrapper_ = std::make_unique<EdidWrapper>();
-#endif
 
   if (IsWriteback()) {
     if (!GetConnectorProperty("WRITEBACK_PIXEL_FORMATS",
@@ -153,8 +144,14 @@ auto DrmConnector::Init()-> bool {
 
   GetOptionalConnectorProperty("content type", &content_type_property_);
 
+  GetOptionalConnectorProperty("Content Protection",
+                               &content_protection_property_);
+
   GetOptionalConnectorProperty("HDR_OUTPUT_METADATA",
                                &hdr_output_metadata_property_);
+
+  GetOptionalConnectorProperty("HDCP Content Type",
+                               &hdcp_content_type_property_);
 
   GetOptionalConnectorProperty("min bpc", &min_bpc_property_);
 
@@ -302,4 +299,4 @@ std::optional<PanelOrientation> DrmConnector::GetPanelOrientation() {
   return {};
 }
 
-}  // namespace android
+}  // namespace android::drm_hwcomposer

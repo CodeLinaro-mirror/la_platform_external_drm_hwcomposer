@@ -18,10 +18,12 @@
 
 #if HAS_LIBDISPLAY_INFO
 
+#include <ui/GraphicTypes.h>
+
 #include "utils/EdidWrapper.h"
 #include "utils/log.h"
 
-namespace android {
+namespace android::drm_hwcomposer {
 
 auto LibdisplayEdidWrapper::Create(DrmModePropertyBlobUnique blob)
     -> std::unique_ptr<LibdisplayEdidWrapper> {
@@ -110,5 +112,6 @@ auto LibdisplayEdidWrapper::GetBoundsMm() -> std::pair<int32_t, int32_t> {
   return {dtd->horiz_image_mm, dtd->vert_image_mm};
 }
 
-}  // namespace android
+}  // namespace android::drm_hwcomposer
+
 #endif

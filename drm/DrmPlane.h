@@ -25,7 +25,7 @@
 #include "DrmProperty.h"
 #include "compositor/LayerData.h"
 
-namespace android {
+namespace android::drm_hwcomposer {
 
 class DrmDevice;
 struct LayerData;
@@ -37,15 +37,19 @@ struct drm_plane_size_hint_local {
 };
 
 class DrmPlane : public PipelineBindable<DrmPlane> {
+  friend class FakeDrmPlane;
+
  public:
   DrmPlane(const DrmPlane &) = delete;
   DrmPlane &operator=(const DrmPlane &) = delete;
 
+  virtual ~DrmPlane() = default;
+
   static auto CreateInstance(DrmDevice &dev, uint32_t plane_id)
       -> std::unique_ptr<DrmPlane>;
 
-  bool IsCrtcSupported(const DrmCrtc &crtc) const;
-  bool IsValidForLayer(LayerData *layer);
+  virtual bool IsCrtcSupported(const DrmCrtc &crtc) const;
+  bool IsValidForLayer(const LayerData *layer);
 
   auto GetType() const {
     return type_;
@@ -108,4 +112,5 @@ class DrmPlane : public PipelineBindable<DrmPlane> {
   uint64_t transform_enum_mask_ = DRM_MODE_ROTATE_0;
   std::vector<drm_plane_size_hint_local> size_hints_;
 };
-}  // namespace android
+
+}  // namespace android::drm_hwcomposer

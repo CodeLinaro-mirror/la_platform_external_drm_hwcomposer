@@ -19,6 +19,8 @@
 #include <array>
 #include <cstdint>
 
+namespace android::drm_hwcomposer {
+
 /*
  * 4x4 Identity matrix used for color transformations.
  */
@@ -100,3 +102,18 @@ struct QueuedConfigTiming {
   // The time when the display will start to refresh at the new vsync period.
   int64_t new_vsync_time_ns;
 };
+
+// Enum for HDCP Content Type
+enum class HdcpContentType : int {
+  kType0,  // This corresponds to DRM_MODE_HDCP_CONTENT_TYPE0
+  kType1   // This corresponds to DRM_MODE_HDCP_CONTENT_TYPE1
+};
+
+// Enum for HDCP Status
+enum class ContentProtection {
+  kUndesired,  // This corresponds to DRM_MODE_CONTENT_PROTECTION_UNDESIRED
+  kDesired,    // This corresponds to DRM_MODE_CONTENT_PROTECTION_DESIRED
+  kEnabled,    // This corresponds to DRM_MODE_CONTENT_PROTECTION_ENABLED
+};
+
+}  // namespace android::drm_hwcomposer

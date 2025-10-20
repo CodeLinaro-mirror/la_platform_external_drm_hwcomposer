@@ -27,15 +27,14 @@
 #include "DrmProperty.h"
 #include "DrmUnique.h"
 #include "compositor/DisplayInfo.h"
-#include "utils/EdidWrapper.h"
 
-namespace android {
+namespace android::drm_hwcomposer {
 
 class DrmDevice;
 
-using EdidWrapperUnique = std::unique_ptr<EdidWrapper>;
-
 class DrmConnector : public PipelineBindable<DrmConnector> {
+  friend class FakeDrmConnector;
+
  public:
   static auto CreateInstance(DrmDevice &dev, uint32_t connector_id,
                              uint32_t index) -> std::unique_ptr<DrmConnector>;
@@ -43,11 +42,10 @@ class DrmConnector : public PipelineBindable<DrmConnector> {
   DrmConnector(const DrmProperty &) = delete;
   DrmConnector &operator=(const DrmProperty &) = delete;
 
+  virtual ~DrmConnector() = default;
+
   int UpdateEdidProperty();
   auto GetEdidBlob() -> DrmModePropertyBlobUnique;
-  auto GetParsedEdid() -> EdidWrapperUnique & {
-    return edid_wrapper_;
-  }
 
   auto GetDev() const -> DrmDevice & {
     return *drm_;
@@ -61,7 +59,7 @@ class DrmConnector : public PipelineBindable<DrmConnector> {
     return index_in_res_array_;
   }
 
-  auto GetCurrentEncoderId() const {
+  virtual uint32_t GetCurrentEncoderId() const {
     return connector_->encoder_id;
   }
 
@@ -115,12 +113,20 @@ class DrmConnector : public PipelineBindable<DrmConnector> {
     return content_type_property_;
   }
 
+  auto &GetContentProtectionProperty() const {
+    return content_protection_property_;
+  }
+
   auto &GetMinBpcProperty() const {
     return min_bpc_property_;
   }
 
   auto &GetHdrOutputMetadataProperty() const {
     return hdr_output_metadata_property_;
+  }
+
+  auto &GetHdcpContentTypeProperty() const {
+    return hdcp_content_type_property_;
   }
 
   auto &GetWritebackFbIdProperty() const {
@@ -166,8 +172,6 @@ class DrmConnector : public PipelineBindable<DrmConnector> {
     return GetConnectorProperty(prop_name, property, /*is_optional=*/true);
   }
 
-  EdidWrapperUnique edid_wrapper_;
-
   const uint32_t index_in_res_array_;
 
   std::vector<DrmMode> modes_;
@@ -177,8 +181,10 @@ class DrmConnector : public PipelineBindable<DrmConnector> {
   DrmProperty edid_property_;
   DrmProperty colorspace_property_;
   DrmProperty content_type_property_;
+  DrmProperty content_protection_property_;
   DrmProperty min_bpc_property_;
   DrmProperty hdr_output_metadata_property_;
+  DrmProperty hdcp_content_type_property_;
 
   DrmProperty link_status_property_;
   DrmProperty panel_orientation_;
@@ -190,4 +196,5 @@ class DrmConnector : public PipelineBindable<DrmConnector> {
   std::map<Colorspace, uint64_t> colorspace_enum_map_;
   std::map<uint64_t, PanelOrientation> panel_orientation_enum_map_;
 };
-}  // namespace android
+
+}  // namespace android::drm_hwcomposer

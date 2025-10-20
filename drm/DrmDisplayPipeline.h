@@ -19,7 +19,7 @@
 #include <memory>
 #include <vector>
 
-namespace android {
+namespace android::drm_hwcomposer {
 
 class DrmConnector;
 class DrmDevice;
@@ -42,12 +42,27 @@ class PipelineBindable {
     return bound_pipeline_;
   }
 
-  auto BindPipeline(DrmDisplayPipeline *pipeline,
+  // Header implementation required for template instantiation.
+  auto BindPipeline(const DrmDisplayPipeline *pipeline,
                     bool return_object_if_bound = false)
-      -> std::shared_ptr<BindingOwner<O>>;
+      -> std::shared_ptr<BindingOwner<O>> {
+    auto owner_object = owner_object_.lock();
+    if (owner_object) {
+      if (bound_pipeline_ == pipeline && return_object_if_bound) {
+        return owner_object;
+      }
+
+      return {};
+    }
+    owner_object = std::make_shared<BindingOwner<O>>(static_cast<O *>(this));
+
+    owner_object_ = owner_object;
+    bound_pipeline_ = pipeline;
+    return owner_object;
+  }
 
  private:
-  DrmDisplayPipeline *bound_pipeline_;
+  const DrmDisplayPipeline *bound_pipeline_;
   std::weak_ptr<BindingOwner<O>> owner_object_;
 };
 
@@ -75,7 +90,7 @@ struct DrmDisplayPipeline {
   static auto CreatePipeline(DrmConnector &connector)
       -> std::unique_ptr<DrmDisplayPipeline>;
 
-  auto GetUsablePlanes() -> UsablePlanes;
+  auto GetUsablePlanes() const -> UsablePlanes;
 
   DrmConnector *FindWritebackConnectorForPipeline() const;
 
@@ -92,4 +107,4 @@ struct DrmDisplayPipeline {
   std::shared_ptr<DrmAtomicStateManager> atomic_state_manager;
 };
 
-}  // namespace android
+}  // namespace android::drm_hwcomposer

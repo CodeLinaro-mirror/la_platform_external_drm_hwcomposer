@@ -25,11 +25,13 @@
 #include "DrmProperty.h"
 #include "DrmUnique.h"
 
-namespace android {
+namespace android::drm_hwcomposer {
 
 class DrmDevice;
 
 class DrmCrtc : public PipelineBindable<DrmCrtc> {
+  friend class FakeDrmCrtc;
+
  public:
   static auto CreateInstance(DrmDevice &dev, uint32_t crtc_id, uint32_t index)
       -> std::unique_ptr<DrmCrtc>;
@@ -38,7 +40,9 @@ class DrmCrtc : public PipelineBindable<DrmCrtc> {
   DrmCrtc(const DrmCrtc &) = delete;
   DrmCrtc &operator=(const DrmCrtc &) = delete;
 
-  auto GetId() const {
+  virtual ~DrmCrtc() = default;
+
+  virtual uint32_t GetId() const {
     return crtc_->crtc_id;
   }
 
@@ -76,4 +80,5 @@ class DrmCrtc : public PipelineBindable<DrmCrtc> {
   DrmProperty mode_property_;
   DrmProperty out_fence_ptr_property_;
 };
-}  // namespace android
+
+}  // namespace android::drm_hwcomposer

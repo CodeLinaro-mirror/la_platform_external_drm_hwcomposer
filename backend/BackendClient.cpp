@@ -17,13 +17,14 @@
 #include "BackendClient.h"
 
 #include "BackendManager.h"
+#include "hwc/HwcDisplay.h"
 
-namespace android {
+namespace android::drm_hwcomposer {
 
-void BackendClient::ValidateDisplay(HwcDisplay *display) {
-  for (auto &[layer_handle, layer] : display->layers()) {
-    layer.SetValidatedType(HwcLayer::CompositionType::kClient);
-  }
+auto BackendClient::ValidateDisplay(const HwcDisplay* display) const
+    -> ValidatedComposition {
+  return GetFlattenedComposition(display->GetOrderLayersByZPos(),
+                                 FlattenReason::kNone);
 }
 
 // clang-format off
@@ -31,4 +32,4 @@ void BackendClient::ValidateDisplay(HwcDisplay *display) {
 REGISTER_BACKEND("client", BackendClient);
 // clang-format on
 
-}  // namespace android
+}  // namespace android::drm_hwcomposer

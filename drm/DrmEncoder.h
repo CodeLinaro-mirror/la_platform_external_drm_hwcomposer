@@ -25,9 +25,11 @@
 #include "DrmCrtc.h"
 #include "DrmDisplayPipeline.h"
 
-namespace android {
+namespace android::drm_hwcomposer {
 
 class DrmEncoder : public PipelineBindable<DrmEncoder> {
+  friend class FakeDrmEncoder;
+
  public:
   static auto CreateInstance(DrmDevice &dev, uint32_t encoder_id,
                              uint32_t index) -> std::unique_ptr<DrmEncoder>;
@@ -35,7 +37,9 @@ class DrmEncoder : public PipelineBindable<DrmEncoder> {
   DrmEncoder(const DrmEncoder &) = delete;
   DrmEncoder &operator=(const DrmEncoder &) = delete;
 
-  auto GetId() const {
+  virtual ~DrmEncoder() = default;
+
+  virtual uint32_t GetId() const {
     return enc_->encoder_id;
   };
 
@@ -51,7 +55,7 @@ class DrmEncoder : public PipelineBindable<DrmEncoder> {
     return (enc_->possible_crtcs & (1 << crtc.GetIndexInResArray())) != 0;
   }
 
-  auto GetCurrentCrtcId() {
+  virtual uint32_t GetCurrentCrtcId() const {
     return enc_->crtc_id;
   }
 
@@ -63,4 +67,4 @@ class DrmEncoder : public PipelineBindable<DrmEncoder> {
 
   const uint32_t index_in_res_array_;
 };
-}  // namespace android
+}  // namespace android::drm_hwcomposer

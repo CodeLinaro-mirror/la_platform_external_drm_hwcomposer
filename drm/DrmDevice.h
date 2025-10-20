@@ -27,13 +27,15 @@
 #include "bufferinfo/BufferInfo.h"
 #include "utils/fd.h"
 
-namespace android {
+namespace android::drm_hwcomposer {
 
 class DrmFbImporter;
 class DrmPlane;
 class ResourceManager;
 
 class DrmDevice {
+  friend class FakeDrmDevice;
+
  public:
   ~DrmDevice() = default;
 
@@ -114,6 +116,7 @@ class DrmDevice {
   }
 
   auto RefreshConnectors() -> void;
+  auto ResetConnectorsAndCrtcs() -> void;
 
  private:
   explicit DrmDevice(ResourceManager *res_man, uint32_t index);
@@ -141,4 +144,4 @@ class DrmDevice {
   ResourceManager *const res_man_;
 };
 
-}  // namespace android
+}  // namespace android::drm_hwcomposer
