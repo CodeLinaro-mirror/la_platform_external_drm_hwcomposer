@@ -49,7 +49,7 @@ auto DrmColorOp::CreateInstance(DrmDevice &dev, uint64_t color_op_id,
                                 uint32_t index) -> std::unique_ptr<DrmColorOp> {
   auto color_op = MakeDrmModeColorOpUnique(*dev.GetFd(), color_op_id);
   if (!color_op) {
-    ALOGE("Failed to get ColorOp %lu, index %d", color_op_id);
+    ALOGE("Failed to get ColorOp %lu, index %d", color_op_id, index);
     return {};
   }
 
@@ -65,6 +65,16 @@ auto DrmColorOp::CreateInstance(DrmDevice &dev, uint64_t color_op_id,
   if (GetColorOpProperty(dev, *c, "NEXT", &c->next_) != 0 ||
       !c->next_.GetValue().has_value()) {
     ALOGE("Failed to get NEXT property");
+    return {};
+  }
+
+  if (GetColorOpProperty(dev, *c, "BYPASS", &c->bypass_) != 0) {
+    ALOGE("Failed to get BYPASS property");
+    return {};
+  }
+
+  if (GetColorOpProperty(dev, *c, "DATA", &c->data_) != 0) {
+    ALOGE("Failed to get DATA property");
     return {};
   }
 

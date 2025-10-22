@@ -65,6 +65,7 @@ DrmDevice::DrmDevice(ResourceManager *res_man, uint32_t index)
   drm_fb_importer_ = std::make_unique<DrmFbImporter>(*this);
 }
 
+// NOLINTBEGIN(readability-function-cognitive-complexity)
 auto DrmDevice::Init(const char *path) -> int {
   /* TODO: Use drmOpenControl here instead */
   fd_ = MakeSharedFd(open(path, O_RDWR | O_CLOEXEC));
@@ -178,6 +179,7 @@ auto DrmDevice::Init(const char *path) -> int {
 
   return 0;
 }
+// NOLINTEND(readability-function-cognitive-complexity)
 
 auto DrmDevice::RegisterUserPropertyBlob(void *data, size_t length) const
     -> DrmModeUserPropertyBlobUnique {

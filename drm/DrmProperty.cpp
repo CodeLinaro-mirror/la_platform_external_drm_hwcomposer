@@ -90,11 +90,11 @@ std::vector<uint64_t> DrmProperty::GetEnumValues() const {
     return {};
   }
 
-  if (enums_.size() <= 0) {
+  if (enums_.empty()) {
     return {};
   }
 
-  std::vector<uint64_t> enums;
+  std::vector<uint64_t> enums(enums_.size());
   for (const auto &it : enums_) {
     enums.emplace_back(it.value);
   }

@@ -61,6 +61,28 @@ class DrmColorOp : public PipelineBindable<DrmColorOp> {
     return next_;
   }
 
+  auto &GetBypassProperty() const {
+    return bypass_;
+  }
+
+  auto &GetDataProperty() const {
+    return data_;
+  }
+
+  // Convenience method for setting the BYPASS property
+  bool SetBypassValue(drmModeAtomicReq &pset, bool bypass) {
+    int err = 0;
+    uint64_t bypass_value = 0;
+    std::tie(err, bypass_value) = bypass ? bypass_.RangeMax()
+                                         : bypass_.RangeMin();
+    if (err != 0) {
+      ALOGE("Failed to get BYPASS range value, errno=%d", err);
+      return false;
+    }
+
+    return bypass_.AtomicSet(pset, bypass_value);
+  };
+
   std::string DumpState();
 
  private:
@@ -74,6 +96,10 @@ class DrmColorOp : public PipelineBindable<DrmColorOp> {
 
   DrmProperty type_;
   DrmProperty next_;
+  DrmProperty bypass_;
+
+  // Optional property
+  DrmProperty data_;
 };
 
 }  // namespace android::drm_hwcomposer
