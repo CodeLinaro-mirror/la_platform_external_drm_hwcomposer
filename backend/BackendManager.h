@@ -42,9 +42,10 @@ class BackendManager {
                       BackendConstructorT backend_constructor);
   std::unique_ptr<Backend> CreateBackendForConnector(
       const DrmConnector *connector);
-  std::unique_ptr<Backend> GetBackendByName(std::string &name);
 
  private:
+  std::unique_ptr<Backend> GetBackendByName(std::string &name);
+
   BackendManager() = default;
 
   static const std::vector<std::string> kClientDevices;
