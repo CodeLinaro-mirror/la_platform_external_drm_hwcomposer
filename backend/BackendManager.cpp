@@ -43,9 +43,21 @@ int BackendManager::RegisterBackend(const std::string &name,
   return 0;
 }
 
+std::unique_ptr<DrmDisplayPipeline> BackendManager::CreatePipelineForConnector(
+    DrmConnector &connector) {
+  auto pipeline = DrmDisplayPipeline::CreatePipeline(connector);
+  if (pipeline) {
+    pipeline->backend = CreateBackendForConnector(connector);
+  }
+  if (!pipeline || !pipeline->backend) {
+    return nullptr;
+  }
+  return pipeline;
+}
+
 std::unique_ptr<Backend> BackendManager::CreateBackendForConnector(
-    const DrmConnector *connector) {
-  auto driver_name(connector->GetDev().GetName());
+    const DrmConnector &connector) {
+  auto driver_name(connector.GetDev().GetName());
   std::string backend_name = Properties::GetBackendOverride();
   if (backend_name.empty()) {
     backend_name = driver_name;
@@ -54,14 +66,13 @@ std::unique_ptr<Backend> BackendManager::CreateBackendForConnector(
   auto backend = GetBackendByName(backend_name);
   if (backend == nullptr) {
     ALOGE("Failed to create backend '%s' for '%s' and driver '%s'",
-          backend_name.c_str(), connector->GetName().c_str(),
+          backend_name.c_str(), connector.GetName().c_str(),
           driver_name.c_str());
     return nullptr;
   }
 
   ALOGI("Backend '%s' for '%s' and driver '%s' was successfully created",
-        backend_name.c_str(), connector->GetName().c_str(),
-        driver_name.c_str());
+        backend_name.c_str(), connector.GetName().c_str(), driver_name.c_str());
 
   return backend;
 }

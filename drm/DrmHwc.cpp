@@ -24,7 +24,6 @@
 #include <sstream>
 #include <utility>
 
-#include "backend/BackendManager.h"
 #include "stats/CompositionStats.h"
 #include "utils/log.h"
 #include "utils/properties.h"
@@ -129,8 +128,6 @@ bool DrmHwc::BindDisplay(std::shared_ptr<DrmDisplayPipeline> pipeline) {
         pipeline->connector->Get()->GetName().c_str(), (int)disp_handle,
         disp_handle == kPrimaryDisplay ? " (Primary)" : "");
 
-  pipeline->backend = BackendManager::GetInstance().CreateBackendForConnector(
-      pipeline->connector->Get());
   displays_[disp_handle]->SetPipeline(pipeline);
   display_handles_[pipeline] = disp_handle;
 
@@ -185,9 +182,6 @@ std::optional<DisplayHandle> DrmHwc::CreateVirtualDisplay(uint32_t width,
                                            /* is_virtual */ true, this);
 
   disp->SetVirtualDisplayResolution(width, height);
-  virtual_pipeline->backend = BackendManager::GetInstance()
-                                  .CreateBackendForConnector(
-                                      virtual_pipeline->connector->Get());
   disp->SetPipeline(virtual_pipeline);
   displays_[new_display_handle] = std::move(disp);
   return new_display_handle;

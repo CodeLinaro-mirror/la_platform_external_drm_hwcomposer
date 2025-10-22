@@ -40,10 +40,14 @@ class BackendManager {
   static BackendManager &GetInstance();
   int RegisterBackend(const std::string &name,
                       BackendConstructorT backend_constructor);
-  std::unique_ptr<Backend> CreateBackendForConnector(
-      const DrmConnector *connector);
+
+  std::unique_ptr<DrmDisplayPipeline> CreatePipelineForConnector(
+      DrmConnector &connector);
 
  private:
+  std::unique_ptr<Backend> CreateBackendForConnector(
+      const DrmConnector &connector);
+
   std::unique_ptr<Backend> GetBackendByName(std::string &name);
 
   BackendManager() = default;
