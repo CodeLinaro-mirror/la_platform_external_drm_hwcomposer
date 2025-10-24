@@ -144,8 +144,4 @@ auto Properties::GetDevicePath() -> std::string {
   return {path_pattern};
 }
 
-auto Properties::GetEnableXeWorkaround() -> bool {
-  return (property_get_bool("vendor.hwc.drm.enable_xe_workaround", 1) != 0);
-}
-
 }  // namespace android

@@ -82,6 +82,9 @@
     {
       "name": "TestHwcComposition"
     },
+    {
+      "name": "VkmsTestHwcWriteback"
+    },
     // IGT Tests
     {
       "name": "IgtCoreAuthTestCases"
