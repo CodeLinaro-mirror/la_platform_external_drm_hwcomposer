@@ -22,7 +22,9 @@
 #include "DrmAtomicStateManager.h"
 
 #include <drm/drm_mode.h>
+#if HAS_LIBSYNC
 #include <sync/sync.h>
+#endif  // HAS_LIBSYNC
 #include <utils/Trace.h>
 
 #include <cassert>
@@ -52,6 +54,7 @@ DrmAtomicStateManager::~DrmAtomicStateManager() {
 }
 
 void DrmAtomicStateManager::WaitLastFrame() {
+#if HAS_LIBSYNC
   SharedFd present_fence;
   {
     std::lock_guard lock(mutex_);
@@ -75,6 +78,7 @@ void DrmAtomicStateManager::WaitLastFrame() {
       CleanupPriorFrameResources();
     }
   }
+#endif  // HAS_LIBSYNC
 }
 
 void DrmAtomicStateManager::CleanFailedCommit() {
@@ -201,6 +205,7 @@ void DrmAtomicStateManager::CheckDoubleSettingState(
   }
 }
 
+#if HAS_LIBSYNC
 bool DrmAtomicStateManager::SetWriteBackFenceIfNeeded(
     const AtomicCommitArgs &args, AtomicRequest &request) {
   if (!pipe_->writeback_connector || !args.writeback_fb) {
@@ -240,6 +245,13 @@ bool DrmAtomicStateManager::SetWriteBackFenceIfNeeded(
 
   return true;
 }
+#else
+// NOLINTNEXTLINE(readability-convert-member-functions-to-static)
+bool DrmAtomicStateManager::SetWriteBackFenceIfNeeded(
+    const AtomicCommitArgs & /* args */, AtomicRequest & /* request */) {
+  return false;
+}
+#endif  // HAS_LIBSYNC
 
 bool DrmAtomicStateManager::SetOutputFence(AtomicRequest &request) {
   auto *crtc = pipe_->crtc->Get();
@@ -338,6 +350,25 @@ bool DrmAtomicStateManager::SetContentTypeIfNeeded(const AtomicCommitArgs &args,
   return connector->GetContentTypeProperty().AtomicSet(*request.property_set,
                                                        static_cast<uint64_t>(
                                                            *args.content_type));
+}
+
+bool DrmAtomicStateManager::SetContentProtectionIfNeeded(
+    const AtomicCommitArgs &args, AtomicRequest &request) {
+  auto *connector = pipe_->connector->Get();
+  if (!args.content_protection.has_value() ||
+      !args.hdcp_content_type.has_value() ||
+      !connector->GetContentProtectionProperty() ||
+      !connector->GetHdcpContentTypeProperty()) {
+    return true;
+  }
+  if (!connector->GetContentProtectionProperty()
+           .AtomicSet(*request.property_set,
+                      static_cast<uint64_t>(args.content_protection.value()))) {
+    return false;
+  }
+  return connector->GetHdcpContentTypeProperty()
+      .AtomicSet(*request.property_set,
+                 static_cast<uint64_t>(args.hdcp_content_type.value()));
 }
 
 bool DrmAtomicStateManager::SetHdrMetadataIfNeeded(const AtomicCommitArgs &args,
@@ -491,6 +522,11 @@ DrmAtomicStateManager::GetAtomicModeReqForArgs(AtomicCommitArgs &args) {
     return nullptr;
   }
 
+  if (!SetContentProtectionIfNeeded(args, *atomic_request)) {
+    ALOGE("Failed to set Content Protection and HDCP Content Type");
+    return nullptr;
+  }
+
   if (!SetHdrMetadataIfNeeded(args, *atomic_request)) {
     ALOGE("Failed to set HDR metadata");
     return nullptr;
@@ -509,6 +545,7 @@ DrmAtomicStateManager::GetAtomicModeReqForArgs(AtomicCommitArgs &args) {
 }
 
 void DrmAtomicStateManager::ThreadFn() {
+#if HAS_LIBSYNC
   int tracking_at_the_moment = -1;
 
   for (;;) {
@@ -555,6 +592,7 @@ void DrmAtomicStateManager::ThreadFn() {
   }
 
   ALOGI("DrmAtomicStateManager thread exit");
+#endif  // HAS_LIBSYNC
 }
 
 void DrmAtomicStateManager::CleanupPriorFrameResources() {
