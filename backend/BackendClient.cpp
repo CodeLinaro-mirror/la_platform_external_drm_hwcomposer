@@ -27,9 +27,21 @@ auto BackendClient::ValidateDisplay(const HwcDisplay* display) const
                                  FlattenReason::kNone);
 }
 
-// clang-format off
+class ClientBackendPipelineCreator : public BackendManager::PipelineCreator {
+ public:
+  ClientBackendPipelineCreator() : BackendManager::PipelineCreator("client") {
+  }
+  std::unique_ptr<DrmDisplayPipeline> CreatePipeline(
+      DrmConnector& connector) override {
+    auto pipeline = DrmDisplayPipeline::CreatePipeline(connector);
+    if (pipeline) {
+      pipeline->backend = std::make_unique<BackendClient>();
+    }
+    return pipeline;
+  }
+};
+
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables, cert-err58-cpp)
-REGISTER_BACKEND("client", BackendClient);
-// clang-format on
+static ClientBackendPipelineCreator client_backend;
 
 }  // namespace android::drm_hwcomposer

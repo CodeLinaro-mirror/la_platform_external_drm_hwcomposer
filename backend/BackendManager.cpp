@@ -31,53 +31,53 @@ const std::vector<std::string> BackendManager::kClientDevices = {
     "pl111",
 };
 
+BackendManager::PipelineCreator::PipelineCreator(const std::string &name)
+    : name_(name) {
+  BackendManager::GetInstance().RegisterBackend(name, this);
+}
+
+BackendManager::PipelineCreator::~PipelineCreator() {
+  BackendManager::GetInstance().UnregisterBackend(name_);
+}
+
 BackendManager &BackendManager::GetInstance() {
   static BackendManager backend_manager;
 
   return backend_manager;
 }
 
-int BackendManager::RegisterBackend(const std::string &name,
-                                    BackendConstructorT backend_constructor) {
-  available_backends_[name] = std::move(backend_constructor);
-  return 0;
+void BackendManager::RegisterBackend(const std::string &name,
+                                     PipelineCreator *pipeline_creator) {
+  available_backends_[name] = pipeline_creator;
+}
+
+void BackendManager::UnregisterBackend(const std::string &name) {
+  available_backends_.erase(name);
 }
 
 std::unique_ptr<DrmDisplayPipeline> BackendManager::CreatePipelineForConnector(
     DrmConnector &connector) {
-  auto pipeline = DrmDisplayPipeline::CreatePipeline(connector);
-  if (pipeline) {
-    pipeline->backend = CreateBackendForConnector(connector);
-  }
-  if (!pipeline || !pipeline->backend) {
-    return nullptr;
-  }
-  return pipeline;
-}
-
-std::unique_ptr<Backend> BackendManager::CreateBackendForConnector(
-    const DrmConnector &connector) {
   auto driver_name(connector.GetDev().GetName());
   std::string backend_name = Properties::GetBackendOverride();
   if (backend_name.empty()) {
     backend_name = driver_name;
   }
 
-  auto backend = GetBackendByName(backend_name);
+  auto *backend = GetBackendByName(backend_name);
   if (backend == nullptr) {
-    ALOGE("Failed to create backend '%s' for '%s' and driver '%s'",
+    ALOGE("Failed to find backend '%s' for '%s' and driver '%s'",
           backend_name.c_str(), connector.GetName().c_str(),
           driver_name.c_str());
     return nullptr;
   }
+  ALOGI("Found Backend '%s' for '%s' and driver '%s'", backend_name.c_str(),
+        connector.GetName().c_str(), driver_name.c_str());
 
-  ALOGI("Backend '%s' for '%s' and driver '%s' was successfully created",
-        backend_name.c_str(), connector.GetName().c_str(), driver_name.c_str());
-
-  return backend;
+  return backend->CreatePipeline(connector);
 }
 
-std::unique_ptr<Backend> BackendManager::GetBackendByName(std::string &name) {
+BackendManager::PipelineCreator *BackendManager::GetBackendByName(
+    std::string &name) {
   if (available_backends_.empty()) {
     ALOGE("No backends are specified");
     return nullptr;
@@ -89,7 +89,7 @@ std::unique_ptr<Backend> BackendManager::GetBackendByName(std::string &name) {
     name = it == kClientDevices.end() ? "generic" : "client";
   }
 
-  return available_backends_[name]();
+  return available_backends_[name];
 }
 
 }  // namespace android::drm_hwcomposer

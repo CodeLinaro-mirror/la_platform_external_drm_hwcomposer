@@ -262,9 +262,21 @@ std::tuple<size_t, size_t> Backend::GetExtraClientRange(
   return std::make_tuple(client_start, client_size);
 }
 
-// clang-format off
+class GenericBackendPipelineCreator : public BackendManager::PipelineCreator {
+ public:
+  GenericBackendPipelineCreator() : BackendManager::PipelineCreator("generic") {
+  }
+  std::unique_ptr<DrmDisplayPipeline> CreatePipeline(
+      DrmConnector& connector) override {
+    auto pipeline = DrmDisplayPipeline::CreatePipeline(connector);
+    if (pipeline) {
+      pipeline->backend = std::make_unique<Backend>();
+    }
+    return pipeline;
+  }
+};
+
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables, cert-err58-cpp)
-REGISTER_BACKEND("generic", Backend);
-// clang-format on
+static GenericBackendPipelineCreator generic_backend;
 
 }  // namespace android::drm_hwcomposer
