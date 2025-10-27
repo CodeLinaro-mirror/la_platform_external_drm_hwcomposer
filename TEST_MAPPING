@@ -42,19 +42,10 @@
           "include-filter": "android.graphics.cts.ASurfaceTextureTest"
         },
         {
-          "include-filter": "android.graphics.cts.BasicVulkanGpuTest0"
-        },
-        {
           "include-filter": "android.graphics.cts.BitmapColorSpaceTest"
         },
         {
           "include-filter": "android.graphics.cts.ColorSpaceTest"
-        },
-        {
-          "include-filter": "android.graphics.cts.EGL14Test"
-        },
-        {
-          "include-filter": "android.graphics.cts.EGL15Test"
         },
         {
           "include-filter": "android.graphics.cts.FrameRateOverrideTest"
@@ -70,12 +61,26 @@
         },
         {
           "include-filter": "android.graphics.cts.SetFrameRateTest"
+        }
+      ]
+    },
+    {
+      "name": "CtsGpuTestCases",
+      "options": [
+        {
+          "include-filter": "android.gpu.cts.EGL14Test"
         },
         {
-          "include-filter": "android.graphics.cts.VulkanFeaturesTest0"
+          "include-filter": "android.gpu.cts.EGL15Test"
         },
         {
-          "include-filter": "android.graphics.cts.VulkanPreTransformTest"
+          "include-filter": "android.gpu.vulkan.cts.BasicVulkanGpuTest"
+        },
+        {
+          "include-filter": "android.gpu.vulkan.cts.VulkanFeaturesTest"
+        },
+        {
+          "include-filter": "android.gpu.vulkan.cts.VulkanPreTransformTest"
         }
       ]
     },
