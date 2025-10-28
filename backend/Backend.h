@@ -61,13 +61,14 @@ class Backend {
 
   virtual ~Backend() = default;
   virtual ValidatedComposition ValidateDisplay(const HwcDisplay* display) const;
+
+ protected:
   virtual std::tuple<size_t, size_t> GetClientLayers(
       const HwcDisplay* display, const std::vector<const HwcLayer*>& layers,
       bool use_cursor_plane) const;
   virtual bool IsClientLayer(const HwcDisplay* display,
                              const HwcLayer* layer) const;
 
- protected:
   static ValidatedComposition GetFlattenedComposition(
       const std::vector<const HwcLayer*>& layers, FlattenReason flatten_reason);
   static bool HardwareSupportsLayerType(CompositionType comp_type);
