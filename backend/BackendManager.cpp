@@ -48,6 +48,10 @@ BackendManager &BackendManager::GetInstance() {
 
 void BackendManager::RegisterBackend(const std::string &name,
                                      PipelineCreator *pipeline_creator) {
+  if (available_backends_.count(name) != 0) {
+    ALOGE("Backend %s already registered.", name.c_str());
+    return;
+  }
   available_backends_[name] = pipeline_creator;
 }
 
