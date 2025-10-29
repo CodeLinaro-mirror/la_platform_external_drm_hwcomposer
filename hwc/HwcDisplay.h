@@ -41,6 +41,7 @@ class DisplayHotplugConnectModeDetectedAtomReporter;
 class DrmHwc;
 class EdidWrapper;
 class FlatteningController;
+class HdcpController;
 class VSyncWorker;
 
 struct AtomicCommitArgs;
@@ -71,14 +72,6 @@ class HwcDisplay {
   };
 
   enum DisplayType { kInternal, kExternal, kVirtual };
-
-  enum class HdcpState : int {
-    kUndesired,
-    kDesired,
-    kPending,
-    kEnabled,
-    kRetry
-  };
 
   HwcDisplay(DisplayHandle handle, bool is_virtual, DrmHwc *hwc);
   HwcDisplay(const HwcDisplay &) = delete;
@@ -188,7 +181,8 @@ class HwcDisplay {
                           float *max_average_luminance, float *min_luminance);
 
   auto IsHdcpPropertyPresent() -> bool;
-  auto StartHdcp(bool start) -> bool;
+  auto StartHdcp() -> bool;
+  auto StopHdcp() -> bool;
 
   bool IsWritebackSupported();
   bool SetWritebackEnabled(bool enabled);
@@ -239,6 +233,10 @@ class HwcDisplay {
 
   const FlatteningController *GetFlatCon() const {
     return flatcon_.get();
+  }
+
+  const HdcpController *GetHdcpController() const {
+    return hdcpcon_.get();
   }
 
   auto GetClientLayer() -> HwcLayer & {
@@ -324,6 +322,7 @@ class HwcDisplay {
   std::shared_ptr<DrmDisplayPipeline> pipeline_;
 
   std::unique_ptr<FlatteningController> flatcon_;
+  std::unique_ptr<HdcpController> hdcpcon_;
 
   std::unique_ptr<VSyncWorker> vsync_worker_;
   bool vsync_event_en_{};
@@ -355,8 +354,6 @@ class HwcDisplay {
 
   uint32_t frame_no_ = 0;
   std::map<CompositionAttributes, CompositionStats> comp_stats_{};
-
-  HwcDisplay::HdcpState hdcp_state_ = HdcpState::kUndesired;
 
   std::shared_ptr<FrontendDisplayBase> frontend_private_data_;
 
