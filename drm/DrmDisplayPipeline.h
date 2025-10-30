@@ -21,7 +21,7 @@
 
 namespace android::drm_hwcomposer {
 
-class Backend;
+class CompositionPlanner;
 class DrmConnector;
 class DrmDevice;
 class DrmPlane;
@@ -106,7 +106,7 @@ struct DrmDisplayPipeline {
   std::shared_ptr<BindingOwner<DrmPlane>> primary_plane;
 
   std::shared_ptr<DrmAtomicStateManager> atomic_state_manager;
-  std::unique_ptr<Backend> backend;
+  std::unique_ptr<CompositionPlanner> backend;
 };
 
 }  // namespace android::drm_hwcomposer

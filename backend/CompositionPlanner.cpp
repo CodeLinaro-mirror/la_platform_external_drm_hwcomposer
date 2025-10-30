@@ -15,7 +15,7 @@
  */
 #define LOG_TAG "drmhwc"
 
-#include "Backend.h"
+#include "CompositionPlanner.h"
 
 #include <tuple>
 #include <vector>
@@ -43,7 +43,7 @@ const HwcLayer* GetCursorLayer(const std::vector<const HwcLayer*>& layers) {
 
 }  // namespace
 
-auto Backend::ValidateDisplay(const HwcDisplay* display) const
+auto CompositionPlanner::ValidateDisplay(const HwcDisplay* display) const
     -> ValidatedComposition {
   const auto layers = display->GetOrderLayersByZPos();
 
@@ -125,7 +125,8 @@ auto Backend::ValidateDisplay(const HwcDisplay* display) const
   return validated_composition;
 }
 
-Backend::ValidatedComposition Backend::GetFlattenedComposition(
+CompositionPlanner::ValidatedComposition
+CompositionPlanner::GetFlattenedComposition(
     const std::vector<const HwcLayer*>& layers, FlattenReason flatten_reason) {
   return ValidatedComposition{
       .composition_types = GetCompositionTypes(layers, 0, layers.size(), false),
@@ -133,7 +134,7 @@ Backend::ValidatedComposition Backend::GetFlattenedComposition(
       .flatten_reason = flatten_reason};
 }
 
-std::tuple<size_t, size_t> Backend::GetClientLayers(
+std::tuple<size_t, size_t> CompositionPlanner::GetClientLayers(
     const HwcDisplay* display, const std::vector<const HwcLayer*>& layers,
     bool use_cursor_plane) const {
   size_t client_start = 0;
@@ -152,21 +153,21 @@ std::tuple<size_t, size_t> Backend::GetClientLayers(
                              use_cursor_plane);
 }
 
-bool Backend::IsClientLayer(const HwcDisplay* display,
-                            const HwcLayer* layer) const {
+bool CompositionPlanner::IsClientLayer(const HwcDisplay* display,
+                                       const HwcLayer* layer) const {
   return !HardwareSupportsLayerType(layer->GetSfType()) ||
          !layer->IsLayerUsableAsDevice() || display->CtmByGpu() ||
          (layer->GetLayerData().pi.RequireScalingOrPhasing() &&
           display->ForcedScalingWithGpu());
 }
 
-bool Backend::HardwareSupportsLayerType(CompositionType comp_type) {
+bool CompositionPlanner::HardwareSupportsLayerType(CompositionType comp_type) {
   return comp_type == CompositionType::kDevice ||
          comp_type == CompositionType::kCursor;
 }
 
-uint32_t Backend::CalcPixOps(const std::vector<const HwcLayer*>& layers,
-                             size_t first_z, size_t size) {
+uint32_t CompositionPlanner::CalcPixOps(
+    const std::vector<const HwcLayer*>& layers, size_t first_z, size_t size) {
   uint32_t pixops = 0;
   ALOGE_IF(first_z + size > layers.size(),
            "CalcPixOps provided range outside of layers");
@@ -177,9 +178,9 @@ uint32_t Backend::CalcPixOps(const std::vector<const HwcLayer*>& layers,
   return pixops;
 }
 
-auto Backend::GetCompositionTypes(const std::vector<const HwcLayer*>& layers,
-                                  size_t client_first_z, size_t client_size,
-                                  bool use_cursor_plane) -> CompositionTypeMap {
+auto CompositionPlanner::GetCompositionTypes(
+    const std::vector<const HwcLayer*>& layers, size_t client_first_z,
+    size_t client_size, bool use_cursor_plane) -> CompositionTypeMap {
   CompositionTypeMap composition_types;
   for (size_t z_order = 0; z_order < layers.size(); ++z_order) {
     if (z_order >= client_first_z && z_order < client_first_z + client_size) {
@@ -194,7 +195,7 @@ auto Backend::GetCompositionTypes(const std::vector<const HwcLayer*>& layers,
   return composition_types;
 }
 
-std::tuple<size_t, size_t> Backend::GetExtraClientRange(
+std::tuple<size_t, size_t> CompositionPlanner::GetExtraClientRange(
     const HwcDisplay* display, const std::vector<const HwcLayer*>& layers,
     size_t client_start, size_t client_size, bool use_cursor_plane) {
   size_t avail_planes = display->GetPipe().GetUsablePlanes().first.size();
@@ -236,10 +237,12 @@ std::tuple<size_t, size_t> Backend::GetExtraClientRange(
       // There are already client layers present, so the window needs to
       // encompass them. Determine the maximum offsets of the ensuing search.
       const size_t prepend = std::min(client_start, extra_client);
-      const size_t append = std::min(layers_size - (client_start + client_size), extra_client);
+      const size_t append = std::min(layers_size - (client_start + client_size),
+                                     extra_client);
       start = client_start - prepend;
       client_size += extra_client;
-      steps = 1 + std::min(std::min(append, prepend), layers_size - (start + client_size));
+      steps = 1 + std::min(std::min(append, prepend),
+                           layers_size - (start + client_size));
     } else {
       // There are no other client layers present, so the window may search the
       // entire range.
@@ -270,13 +273,14 @@ class GenericBackendPipelineCreator : public BackendManager::PipelineCreator {
       DrmConnector& connector) override {
     auto pipeline = DrmDisplayPipeline::CreatePipeline(connector);
     if (pipeline) {
-      pipeline->backend = std::make_unique<Backend>();
+      pipeline->backend = std::make_unique<CompositionPlanner>();
     }
     return pipeline;
   }
 };
 
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables, cert-err58-cpp)
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables,
+// cert-err58-cpp)
 static GenericBackendPipelineCreator generic_backend;
 
 }  // namespace android::drm_hwcomposer

@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-#include "BackendClient.h"
+#include "ClientCompositionPlanner.h"
 
 #include "BackendManager.h"
 #include "hwc/HwcDisplay.h"
 
 namespace android::drm_hwcomposer {
 
-auto BackendClient::ValidateDisplay(const HwcDisplay* display) const
+auto ClientCompositionPlanner::ValidateDisplay(const HwcDisplay* display) const
     -> ValidatedComposition {
   return GetFlattenedComposition(display->GetOrderLayersByZPos(),
                                  FlattenReason::kNone);
@@ -35,13 +35,14 @@ class ClientBackendPipelineCreator : public BackendManager::PipelineCreator {
       DrmConnector& connector) override {
     auto pipeline = DrmDisplayPipeline::CreatePipeline(connector);
     if (pipeline) {
-      pipeline->backend = std::make_unique<BackendClient>();
+      pipeline->backend = std::make_unique<ClientCompositionPlanner>();
     }
     return pipeline;
   }
 };
 
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables, cert-err58-cpp)
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables,
+// cert-err58-cpp)
 static ClientBackendPipelineCreator client_backend;
 
 }  // namespace android::drm_hwcomposer

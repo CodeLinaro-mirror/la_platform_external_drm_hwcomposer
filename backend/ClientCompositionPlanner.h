@@ -16,11 +16,11 @@
 
 #pragma once
 
-#include "Backend.h"
+#include "CompositionPlanner.h"
 
 namespace android::drm_hwcomposer {
 
-class BackendClient : public Backend {
+class ClientCompositionPlanner : public CompositionPlanner {
  public:
   auto ValidateDisplay(const HwcDisplay* display) const
       -> ValidatedComposition override;

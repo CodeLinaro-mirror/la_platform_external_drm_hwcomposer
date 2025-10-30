@@ -30,7 +30,7 @@ struct DrmKmsPlan;
 class HwcDisplay;
 class HwcLayer;
 
-class Backend {
+class CompositionPlanner {
  public:
   // Mapping of the CompositionType that the Backend assigned to each
   // HwcLayer.
@@ -59,7 +59,7 @@ class Backend {
     std::optional<bool> cursor_plane_validated = std::nullopt;
   };
 
-  virtual ~Backend() = default;
+  virtual ~CompositionPlanner() = default;
   virtual ValidatedComposition ValidateDisplay(const HwcDisplay* display) const;
 
  protected:

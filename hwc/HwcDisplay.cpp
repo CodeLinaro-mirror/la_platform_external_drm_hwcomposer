@@ -26,7 +26,7 @@
 #include <ui/ColorSpace.h>
 #include <utils/Trace.h>
 
-#include "backend/Backend.h"
+#include "backend/CompositionPlanner.h"
 #include "compositor/DisplayInfo.h"
 #include "drm/DrmConnector.h"
 #include "drm/DrmDisplayPipeline.h"
@@ -38,7 +38,7 @@ using ColorGamut = ::android::ColorSpace;
 
 namespace android::drm_hwcomposer {
 
-using FlattenReason = Backend::FlattenReason;
+using FlattenReason = CompositionPlanner::FlattenReason;
 
 namespace {
 
@@ -444,7 +444,7 @@ auto HwcDisplay::PresentStagedComposition(
     }
   } else {
     attributes.validation_result = ValidationResult::kSkip;
-    validated_composition_ = Backend::ValidatedComposition{};
+    validated_composition_ = CompositionPlanner::ValidatedComposition{};
     for (const auto &[id, layer] : layers_) {
       validated_composition_->composition_types
           .emplace(&layer, layer.GetValidatedType());
@@ -910,7 +910,7 @@ uint32_t HwcDisplay::GetCurrentVsyncPeriodNs() const {
 }
 
 bool HwcDisplay::TestComposition(
-    Backend::ValidatedComposition &composition) const {
+    CompositionPlanner::ValidatedComposition &composition) const {
   ATRACE_CALL();
 
   if (IsInHeadlessMode()) {
@@ -932,7 +932,7 @@ bool HwcDisplay::TestComposition(
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
 std::optional<AtomicCommitArgs> HwcDisplay::CreateFrameUpdateCommit(
-    const Backend::ValidatedComposition &composition) const {
+    const CompositionPlanner::ValidatedComposition &composition) const {
   if (IsInHeadlessMode()) {
     ALOGE("%s: Display is in headless mode, should never reach here", __func__);
     return AtomicCommitArgs{};

@@ -21,7 +21,7 @@
 #include <string>
 #include <vector>
 
-#include "Backend.h"
+#include "CompositionPlanner.h"
 
 namespace android::drm_hwcomposer {
 
