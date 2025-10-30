@@ -15,6 +15,7 @@ src_common = files(
     'backend/BackendManager.cpp',
     'backend/GenericCompositionPlanner.cpp',
     'backend/ClientCompositionPlanner.cpp',
+    'backend/GenericPipelineCreator.cpp',
     'hwc/HwcDisplayConfigs.cpp',
     'hwc/HwcDisplay.cpp',
     'hwc/HwcLayer.cpp',

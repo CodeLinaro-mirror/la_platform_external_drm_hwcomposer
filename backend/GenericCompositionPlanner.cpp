@@ -266,22 +266,4 @@ std::tuple<size_t, size_t> GenericCompositionPlanner::GetExtraClientRange(
   return std::make_tuple(client_start, client_size);
 }
 
-class GenericBackendPipelineCreator : public BackendManager::PipelineCreator {
- public:
-  GenericBackendPipelineCreator() : BackendManager::PipelineCreator("generic") {
-  }
-  std::unique_ptr<DrmDisplayPipeline> CreatePipeline(
-      DrmConnector& connector) override {
-    auto pipeline = DrmDisplayPipeline::CreatePipeline(connector);
-    if (pipeline) {
-      pipeline->backend = std::make_unique<GenericCompositionPlanner>();
-    }
-    return pipeline;
-  }
-};
-
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables,
-// cert-err58-cpp)
-static GenericBackendPipelineCreator generic_backend;
-
 }  // namespace android::drm_hwcomposer

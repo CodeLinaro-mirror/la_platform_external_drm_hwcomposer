@@ -95,6 +95,7 @@ filegroup {
         "backend/GenericCompositionPlanner.cpp",
         "backend/ClientCompositionPlanner.cpp",
         "backend/BackendManager.cpp",
+        "backend/GenericPipelineCreator.cpp",
 
         "hwc/HwcDisplay.cpp",
         "hwc/HwcDisplayConfigs.cpp",
