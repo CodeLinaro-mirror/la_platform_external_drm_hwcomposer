@@ -17,14 +17,16 @@
 #include "ClientCompositionPlanner.h"
 
 #include "BackendManager.h"
+#include "GenericCompositionPlanner.h"
 #include "hwc/HwcDisplay.h"
 
 namespace android::drm_hwcomposer {
 
 auto ClientCompositionPlanner::ValidateDisplay(const HwcDisplay* display) const
     -> ValidatedComposition {
-  return GetFlattenedComposition(display->GetOrderLayersByZPos(),
-                                 FlattenReason::kNone);
+  return GenericCompositionPlanner::
+      GetFlattenedComposition(display->GetOrderLayersByZPos(),
+                              FlattenReason::kNone);
 }
 
 class ClientBackendPipelineCreator : public BackendManager::PipelineCreator {

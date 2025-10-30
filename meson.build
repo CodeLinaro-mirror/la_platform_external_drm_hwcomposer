@@ -13,7 +13,7 @@ src_common = files(
     'compositor/DrmKmsPlan.cpp',
     'compositor/FlatteningController.cpp',
     'backend/BackendManager.cpp',
-    'backend/CompositionPlanner.cpp',
+    'backend/GenericCompositionPlanner.cpp',
     'backend/ClientCompositionPlanner.cpp',
     'hwc/HwcDisplayConfigs.cpp',
     'hwc/HwcDisplay.cpp',

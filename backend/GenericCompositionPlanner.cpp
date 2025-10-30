@@ -15,7 +15,7 @@
  */
 #define LOG_TAG "drmhwc"
 
-#include "CompositionPlanner.h"
+#include "GenericCompositionPlanner.h"
 
 #include <tuple>
 #include <vector>
@@ -43,7 +43,7 @@ const HwcLayer* GetCursorLayer(const std::vector<const HwcLayer*>& layers) {
 
 }  // namespace
 
-auto CompositionPlanner::ValidateDisplay(const HwcDisplay* display) const
+auto GenericCompositionPlanner::ValidateDisplay(const HwcDisplay* display) const
     -> ValidatedComposition {
   const auto layers = display->GetOrderLayersByZPos();
 
@@ -126,7 +126,7 @@ auto CompositionPlanner::ValidateDisplay(const HwcDisplay* display) const
 }
 
 CompositionPlanner::ValidatedComposition
-CompositionPlanner::GetFlattenedComposition(
+GenericCompositionPlanner::GetFlattenedComposition(
     const std::vector<const HwcLayer*>& layers, FlattenReason flatten_reason) {
   return ValidatedComposition{
       .composition_types = GetCompositionTypes(layers, 0, layers.size(), false),
@@ -134,9 +134,9 @@ CompositionPlanner::GetFlattenedComposition(
       .flatten_reason = flatten_reason};
 }
 
-std::tuple<size_t, size_t> CompositionPlanner::GetClientLayers(
+std::tuple<size_t, size_t> GenericCompositionPlanner::GetClientLayers(
     const HwcDisplay* display, const std::vector<const HwcLayer*>& layers,
-    bool use_cursor_plane) const {
+    bool use_cursor_plane) {
   size_t client_start = 0;
   size_t client_size = 0;
 
@@ -153,20 +153,21 @@ std::tuple<size_t, size_t> CompositionPlanner::GetClientLayers(
                              use_cursor_plane);
 }
 
-bool CompositionPlanner::IsClientLayer(const HwcDisplay* display,
-                                       const HwcLayer* layer) const {
+bool GenericCompositionPlanner::IsClientLayer(const HwcDisplay* display,
+                                              const HwcLayer* layer) {
   return !HardwareSupportsLayerType(layer->GetSfType()) ||
          !layer->IsLayerUsableAsDevice() || display->CtmByGpu() ||
          (layer->GetLayerData().pi.RequireScalingOrPhasing() &&
           display->ForcedScalingWithGpu());
 }
 
-bool CompositionPlanner::HardwareSupportsLayerType(CompositionType comp_type) {
+bool GenericCompositionPlanner::HardwareSupportsLayerType(
+    CompositionType comp_type) {
   return comp_type == CompositionType::kDevice ||
          comp_type == CompositionType::kCursor;
 }
 
-uint32_t CompositionPlanner::CalcPixOps(
+uint32_t GenericCompositionPlanner::CalcPixOps(
     const std::vector<const HwcLayer*>& layers, size_t first_z, size_t size) {
   uint32_t pixops = 0;
   ALOGE_IF(first_z + size > layers.size(),
@@ -178,7 +179,7 @@ uint32_t CompositionPlanner::CalcPixOps(
   return pixops;
 }
 
-auto CompositionPlanner::GetCompositionTypes(
+auto GenericCompositionPlanner::GetCompositionTypes(
     const std::vector<const HwcLayer*>& layers, size_t client_first_z,
     size_t client_size, bool use_cursor_plane) -> CompositionTypeMap {
   CompositionTypeMap composition_types;
@@ -195,7 +196,7 @@ auto CompositionPlanner::GetCompositionTypes(
   return composition_types;
 }
 
-std::tuple<size_t, size_t> CompositionPlanner::GetExtraClientRange(
+std::tuple<size_t, size_t> GenericCompositionPlanner::GetExtraClientRange(
     const HwcDisplay* display, const std::vector<const HwcLayer*>& layers,
     size_t client_start, size_t client_size, bool use_cursor_plane) {
   size_t avail_planes = display->GetPipe().GetUsablePlanes().first.size();
@@ -273,7 +274,7 @@ class GenericBackendPipelineCreator : public BackendManager::PipelineCreator {
       DrmConnector& connector) override {
     auto pipeline = DrmDisplayPipeline::CreatePipeline(connector);
     if (pipeline) {
-      pipeline->backend = std::make_unique<CompositionPlanner>();
+      pipeline->backend = std::make_unique<GenericCompositionPlanner>();
     }
     return pipeline;
   }

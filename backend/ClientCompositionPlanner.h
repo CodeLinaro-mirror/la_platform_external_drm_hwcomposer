@@ -20,6 +20,8 @@
 
 namespace android::drm_hwcomposer {
 
+// Implementation of CompositionPlanner that uses client composition for all
+// layers.
 class ClientCompositionPlanner : public CompositionPlanner {
  public:
   auto ValidateDisplay(const HwcDisplay* display) const

@@ -92,7 +92,7 @@ filegroup {
         "drm/UEventListener.cpp",
         "drm/VSyncWorker.cpp",
 
-        "backend/CompositionPlanner.cpp",
+        "backend/GenericCompositionPlanner.cpp",
         "backend/ClientCompositionPlanner.cpp",
         "backend/BackendManager.cpp",
 
