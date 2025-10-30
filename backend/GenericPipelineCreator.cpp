@@ -21,6 +21,10 @@
 
 namespace android::drm_hwcomposer {
 
+GenericPipelineCreator::GenericPipelineCreator()
+    : GenericPipelineCreator("generic") {
+}
+
 GenericPipelineCreator::GenericPipelineCreator(const std::string& name)
     : BackendManager::PipelineCreator(name) {
 }
@@ -39,7 +43,7 @@ GenericPipelineCreator::CreateCompositionPlanner() {
   return std::make_unique<GenericCompositionPlanner>();
 }
 
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-static GenericPipelineCreator generic_pipeline_creator("generic");
+// NOLINTNEXTLINE(cert-err58-cpp)
+GenericPipelineCreator GenericPipelineCreator::instance;
 
 }  // namespace android::drm_hwcomposer

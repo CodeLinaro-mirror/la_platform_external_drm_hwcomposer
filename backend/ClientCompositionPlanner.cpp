@@ -31,16 +31,19 @@ class ClientCompositionPlanner : public CompositionPlanner {
 
 class ClientBackendPipelineCreator : public GenericPipelineCreator {
  public:
-  ClientBackendPipelineCreator() : GenericPipelineCreator("client") {
-  }
   std::unique_ptr<CompositionPlanner> CreateCompositionPlanner() override {
     return std::make_unique<ClientCompositionPlanner>();
   }
+
+ private:
+  ClientBackendPipelineCreator() : GenericPipelineCreator("client") {
+  }
+
+  static ClientBackendPipelineCreator instance;
 };
 
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables,
-// cert-err58-cpp)
-static ClientBackendPipelineCreator client_backend;
+// NOLINTNEXTLINE(cert-err58-cpp)
+ClientBackendPipelineCreator ClientBackendPipelineCreator::instance;
 
 }  // namespace
 }  // namespace android::drm_hwcomposer

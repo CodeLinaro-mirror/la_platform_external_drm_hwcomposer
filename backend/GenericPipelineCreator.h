@@ -25,15 +25,20 @@ namespace android::drm_hwcomposer {
 // using generic heuristics on top of upstream drm uAPI.
 class GenericPipelineCreator : public BackendManager::PipelineCreator {
  public:
-  explicit GenericPipelineCreator(const std::string& name);
   std::unique_ptr<DrmDisplayPipeline> CreatePipeline(
       DrmConnector& connector) override;
 
  protected:
+  explicit GenericPipelineCreator(const std::string& name);
+
   // Create a new GenericCompositionPlanner by default. Classes can override
   // this to create different composition planners while using the default logic
   // to create a DrmDisplayPipeline.
   virtual std::unique_ptr<CompositionPlanner> CreateCompositionPlanner();
+
+ private:
+  GenericPipelineCreator();
+  static GenericPipelineCreator instance;
 };
 
 }  // namespace android::drm_hwcomposer
