@@ -94,6 +94,7 @@ filegroup {
 
         "backend/GenericCompositionPlanner.cpp",
         "backend/ClientCompositionPlanner.cpp",
+        "backend/CompositionPlanner.cpp",
         "backend/BackendManager.cpp",
         "backend/GenericPipelineCreator.cpp",
 

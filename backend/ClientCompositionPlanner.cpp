@@ -14,32 +14,27 @@
  * limitations under the License.
  */
 
-#include "ClientCompositionPlanner.h"
-
-#include "BackendManager.h"
 #include "GenericCompositionPlanner.h"
+#include "GenericPipelineCreator.h"
 #include "hwc/HwcDisplay.h"
 
 namespace android::drm_hwcomposer {
-
-auto ClientCompositionPlanner::ValidateDisplay(const HwcDisplay* display) const
-    -> ValidatedComposition {
-  return GenericCompositionPlanner::
-      GetFlattenedComposition(display->GetOrderLayersByZPos(),
-                              FlattenReason::kNone);
-}
-
-class ClientBackendPipelineCreator : public BackendManager::PipelineCreator {
+namespace {
+class ClientCompositionPlanner : public CompositionPlanner {
  public:
-  ClientBackendPipelineCreator() : BackendManager::PipelineCreator("client") {
+  auto ValidateDisplay(const HwcDisplay* display) const
+      -> ValidatedComposition override {
+    return GetFlattenedComposition(display->GetOrderLayersByZPos(),
+                                   FlattenReason::kNone);
   }
-  std::unique_ptr<DrmDisplayPipeline> CreatePipeline(
-      DrmConnector& connector) override {
-    auto pipeline = DrmDisplayPipeline::CreatePipeline(connector);
-    if (pipeline) {
-      pipeline->backend = std::make_unique<ClientCompositionPlanner>();
-    }
-    return pipeline;
+};
+
+class ClientBackendPipelineCreator : public GenericPipelineCreator {
+ public:
+  ClientBackendPipelineCreator() : GenericPipelineCreator("client") {
+  }
+  std::unique_ptr<CompositionPlanner> CreateCompositionPlanner() override {
+    return std::make_unique<ClientCompositionPlanner>();
   }
 };
 
@@ -47,4 +42,5 @@ class ClientBackendPipelineCreator : public BackendManager::PipelineCreator {
 // cert-err58-cpp)
 static ClientBackendPipelineCreator client_backend;
 
+}  // namespace
 }  // namespace android::drm_hwcomposer

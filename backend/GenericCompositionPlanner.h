@@ -31,11 +31,6 @@ class GenericCompositionPlanner : public CompositionPlanner {
   ValidatedComposition ValidateDisplay(
       const HwcDisplay* display) const override;
 
-  // Returns a ValidatedComposition that assigns all HwcLayers to client
-  // composition.
-  static ValidatedComposition GetFlattenedComposition(
-      const std::vector<const HwcLayer*>& layers, FlattenReason flatten_reason);
-
  private:
   static std::tuple<size_t, size_t> GetClientLayers(
       const HwcDisplay* display, const std::vector<const HwcLayer*>& layers,

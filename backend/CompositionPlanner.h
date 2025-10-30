@@ -64,6 +64,11 @@ class CompositionPlanner {
   virtual ~CompositionPlanner() = default;
   virtual ValidatedComposition ValidateDisplay(
       const HwcDisplay* display) const = 0;
+
+  // Returns a ValidatedComposition that assigns all HwcLayers to client
+  // composition.
+  static ValidatedComposition GetFlattenedComposition(
+      const std::vector<const HwcLayer*>& layers, FlattenReason flatten_reason);
 };
 
 }  // namespace android::drm_hwcomposer

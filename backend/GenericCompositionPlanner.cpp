@@ -125,15 +125,6 @@ auto GenericCompositionPlanner::ValidateDisplay(const HwcDisplay* display) const
   return validated_composition;
 }
 
-CompositionPlanner::ValidatedComposition
-GenericCompositionPlanner::GetFlattenedComposition(
-    const std::vector<const HwcLayer*>& layers, FlattenReason flatten_reason) {
-  return ValidatedComposition{
-      .composition_types = GetCompositionTypes(layers, 0, layers.size(), false),
-      .composition_plan = nullptr,
-      .flatten_reason = flatten_reason};
-}
-
 std::tuple<size_t, size_t> GenericCompositionPlanner::GetClientLayers(
     const HwcDisplay* display, const std::vector<const HwcLayer*>& layers,
     bool use_cursor_plane) {
