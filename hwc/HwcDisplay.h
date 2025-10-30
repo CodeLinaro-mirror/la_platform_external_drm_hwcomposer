@@ -301,7 +301,6 @@ class HwcDisplay {
 
   std::shared_ptr<DrmDisplayPipeline> pipeline_;
 
-  std::unique_ptr<CompositionPlanner> backend_;
   std::unique_ptr<FlatteningController> flatcon_;
 
   std::unique_ptr<VSyncWorker> vsync_worker_;
