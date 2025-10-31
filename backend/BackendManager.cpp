@@ -24,19 +24,21 @@
 
 namespace android::drm_hwcomposer {
 
+namespace {
+// List of devices that should default to client composition.
 // NOLINTNEXTLINE(cert-err58-cpp)
-const std::vector<std::string> BackendManager::kClientDevices = {
+const std::vector<std::string> kClientDevices = {
     "kirin",
     "mediatek-drm",
     "pl111",
 };
+}  // namespace
 
-BackendManager::PipelineCreator::PipelineCreator(const std::string &name)
-    : name_(name) {
+BackendManager::Backend::Backend(const std::string &name) : name_(name) {
   BackendManager::GetInstance().RegisterBackend(name, this);
 }
 
-BackendManager::PipelineCreator::~PipelineCreator() {
+BackendManager::Backend::~Backend() {
   BackendManager::GetInstance().UnregisterBackend(name_);
 }
 
@@ -47,12 +49,12 @@ BackendManager &BackendManager::GetInstance() {
 }
 
 void BackendManager::RegisterBackend(const std::string &name,
-                                     PipelineCreator *pipeline_creator) {
+                                     Backend *backend) {
   if (available_backends_.count(name) != 0) {
     ALOGE("Backend %s already registered.", name.c_str());
     return;
   }
-  available_backends_[name] = pipeline_creator;
+  available_backends_[name] = backend;
 }
 
 void BackendManager::UnregisterBackend(const std::string &name) {
@@ -80,8 +82,7 @@ std::unique_ptr<DrmDisplayPipeline> BackendManager::CreatePipelineForConnector(
   return backend->CreatePipeline(connector);
 }
 
-BackendManager::PipelineCreator *BackendManager::GetBackendByName(
-    std::string &name) {
+BackendManager::Backend *BackendManager::GetBackendByName(std::string &name) {
   if (available_backends_.empty()) {
     ALOGE("No backends are specified");
     return nullptr;

@@ -92,11 +92,11 @@ filegroup {
         "drm/UEventListener.cpp",
         "drm/VSyncWorker.cpp",
 
-        "backend/GenericCompositionPlanner.cpp",
-        "backend/ClientCompositionPlanner.cpp",
-        "backend/CompositionPlanner.cpp",
         "backend/BackendManager.cpp",
-        "backend/GenericPipelineCreator.cpp",
+        "backend/ClientBackend.cpp",
+        "backend/CompositionPlanner.cpp",
+        "backend/GenericBackend.cpp",
+        "backend/GenericCompositionPlanner.cpp",
 
         "hwc/HwcDisplay.cpp",
         "hwc/HwcDisplayConfigs.cpp",

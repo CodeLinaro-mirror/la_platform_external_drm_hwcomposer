@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
+#include "GenericBackend.h"
 #include "GenericCompositionPlanner.h"
-#include "GenericPipelineCreator.h"
 #include "hwc/HwcDisplay.h"
 
 namespace android::drm_hwcomposer {
@@ -29,21 +29,21 @@ class ClientCompositionPlanner : public CompositionPlanner {
   }
 };
 
-class ClientBackendPipelineCreator : public GenericPipelineCreator {
+class ClientBackend : public GenericBackend {
  public:
   std::unique_ptr<CompositionPlanner> CreateCompositionPlanner() override {
     return std::make_unique<ClientCompositionPlanner>();
   }
 
  private:
-  ClientBackendPipelineCreator() : GenericPipelineCreator("client") {
+  ClientBackend() : GenericBackend("client") {
   }
 
-  static ClientBackendPipelineCreator instance;
+  static ClientBackend instance;
 };
 
 // NOLINTNEXTLINE(cert-err58-cpp)
-ClientBackendPipelineCreator ClientBackendPipelineCreator::instance;
+ClientBackend ClientBackend::instance;
 
 }  // namespace
 }  // namespace android::drm_hwcomposer

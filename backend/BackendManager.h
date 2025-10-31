@@ -25,19 +25,25 @@
 
 namespace android::drm_hwcomposer {
 
+// BackendManager is a singleton that manages the registration of Backends and
+// finding a Backend which can be used to create a DrmDisplayPipeline for a
+// DrmConnector.
 class BackendManager {
  public:
-  // PipelineCreator implementations should inherit from this class and provide
-  // a name that will not collide with other PipelineCreators.
-  class PipelineCreator {
+  // Backend is the top-level interface for any driver-specific or custom logic
+  // for configuring a DrmDisplayPipeline for a DrmConnector, as well as
+  // driver-specific or custom composition rules in a CompositionPlanner
+  // implementation.
+  class Backend {
    public:
-    // PipelineCreator will register a creator called |name| on construction,
-    // and deregister on destruction.
-    explicit PipelineCreator(const std::string &name);
-    virtual ~PipelineCreator();
+    // Backend base class will register a backend called |name| on construction,
+    // and deregister on destruction. The name must be unique across all
+    // Backends.
+    explicit Backend(const std::string &name);
+    virtual ~Backend();
 
-    // Create a DrmDisplayPipeline for the given DrmConnector. The
-    // implementation will also create the Backend for this DrmDisplayPipeline.
+    // Create a DrmDisplayPipeline for the given DrmConnector, including
+    // creating the CompositionPlanner for this DrmDisplayPipeline.
     virtual std::unique_ptr<DrmDisplayPipeline> CreatePipeline(
         DrmConnector &connector) = 0;
 
@@ -46,21 +52,18 @@ class BackendManager {
   };
 
   static BackendManager &GetInstance();
-  void RegisterBackend(const std::string &name,
-                       PipelineCreator *pipeline_creator);
+  void RegisterBackend(const std::string &name, Backend *backend);
   void UnregisterBackend(const std::string &name);
 
   std::unique_ptr<DrmDisplayPipeline> CreatePipelineForConnector(
       DrmConnector &connector);
 
  private:
-  PipelineCreator *GetBackendByName(std::string &name);
+  Backend *GetBackendByName(std::string &name);
 
   BackendManager() = default;
 
-  static const std::vector<std::string> kClientDevices;
-
-  std::map<std::string, PipelineCreator *> available_backends_;
+  std::map<std::string, Backend *> available_backends_;
 };
 
 }  // namespace android::drm_hwcomposer

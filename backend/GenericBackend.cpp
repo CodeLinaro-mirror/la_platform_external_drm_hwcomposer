@@ -14,22 +14,21 @@
  * limitations under the License.
  */
 
-#include "backend/GenericPipelineCreator.h"
+#include "backend/GenericBackend.h"
 
 #include "backend/GenericCompositionPlanner.h"
 #include "drm/DrmDisplayPipeline.h"
 
 namespace android::drm_hwcomposer {
 
-GenericPipelineCreator::GenericPipelineCreator()
-    : GenericPipelineCreator("generic") {
+GenericBackend::GenericBackend() : GenericBackend("generic") {
 }
 
-GenericPipelineCreator::GenericPipelineCreator(const std::string& name)
-    : BackendManager::PipelineCreator(name) {
+GenericBackend::GenericBackend(const std::string& name)
+    : BackendManager::Backend(name) {
 }
 
-std::unique_ptr<DrmDisplayPipeline> GenericPipelineCreator::CreatePipeline(
+std::unique_ptr<DrmDisplayPipeline> GenericBackend::CreatePipeline(
     DrmConnector& connector) {
   auto pipeline = DrmDisplayPipeline::CreatePipeline(connector);
   if (pipeline) {
@@ -38,12 +37,11 @@ std::unique_ptr<DrmDisplayPipeline> GenericPipelineCreator::CreatePipeline(
   return pipeline;
 }
 
-std::unique_ptr<CompositionPlanner>
-GenericPipelineCreator::CreateCompositionPlanner() {
+std::unique_ptr<CompositionPlanner> GenericBackend::CreateCompositionPlanner() {
   return std::make_unique<GenericCompositionPlanner>();
 }
 
 // NOLINTNEXTLINE(cert-err58-cpp)
-GenericPipelineCreator GenericPipelineCreator::instance;
+GenericBackend GenericBackend::instance;
 
 }  // namespace android::drm_hwcomposer
