@@ -18,18 +18,23 @@
 
 #include <optional>
 
-#include <ui/GraphicTypes.h>
-
 #include "HwcDisplayConfigs.h"
 #include "HwcLayer.h"
 #include "backend/CompositionPlanner.h"
 #include "compositor/DisplayInfo.h"
-#include "compositor/FlatteningController.h"
 #include "compositor/LayerData.h"
 #include "drm/DrmAtomicStateManager.h"
 #include "drm/VSyncWorker.h"
 #include "stats/CompositionStats.h"
 #include "utils/EdidWrapper.h"
+
+namespace aidl::android::hardware::graphics::common {
+enum class Hdr;
+}  // namespace aidl::android::hardware::graphics::common
+
+namespace android::ui {
+using aidl::android::hardware::graphics::common::Hdr;
+}  // namespace android::ui
 
 namespace android::drm_hwcomposer {
 
@@ -38,6 +43,7 @@ using EdidWrapperUnique = std::unique_ptr<EdidWrapper>;
 
 class CompositionPlanner;
 class DrmHwc;
+class FlatteningController;
 
 class FrontendDisplayBase {
  public:

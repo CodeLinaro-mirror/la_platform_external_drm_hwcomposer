@@ -20,6 +20,7 @@
 #include <thread>
 
 #include "compositor/FlatteningController.h"
+#include "hwc/HwcDisplay.h"
 
 using ::testing::StrictMock;
 
@@ -28,6 +29,7 @@ namespace android::drm_hwcomposer {
 namespace {
 constexpr auto kTestTimeout = std::chrono::milliseconds(100);
 constexpr auto kTimeoutEpsilon = std::chrono::milliseconds(50);
+constexpr DisplayHandle kHandle = {0};
 }  // namespace
 
 class MockFlatConCallbacks {
@@ -43,7 +45,8 @@ class FlatteningControllerTest : public ::testing::Test {
 
 TEST_F(FlatteningControllerTest, DisabledOnCreation) {
   FlatConCallbacks cbks = {.trigger = EmptyTrigger};
-  auto flat_con = std::make_unique<FlatteningController>(cbks, kTestTimeout);
+  auto flat_con = std::make_unique<FlatteningController>(kHandle, cbks,
+                                                         kTestTimeout);
 
   EXPECT_FALSE(flat_con->ShouldFlatten());
 
@@ -54,7 +57,8 @@ TEST_F(FlatteningControllerTest, DisabledOnCreation) {
 
 TEST_F(FlatteningControllerTest, EnabledAfterNewFrame) {
   FlatConCallbacks cbks = {.trigger = EmptyTrigger};
-  auto flat_con = std::make_unique<FlatteningController>(cbks, kTestTimeout);
+  auto flat_con = std::make_unique<FlatteningController>(kHandle, cbks,
+                                                         kTestTimeout);
 
   flat_con->NewFrame();
   EXPECT_FALSE(flat_con->ShouldFlatten());
@@ -66,7 +70,8 @@ TEST_F(FlatteningControllerTest, EnabledAfterNewFrame) {
 
 TEST_F(FlatteningControllerTest, DisabledAfterCallingDisable) {
   FlatConCallbacks cbks = {.trigger = EmptyTrigger};
-  auto flat_con = std::make_unique<FlatteningController>(cbks, kTestTimeout);
+  auto flat_con = std::make_unique<FlatteningController>(kHandle, cbks,
+                                                         kTestTimeout);
 
   flat_con->NewFrame();
   std::this_thread::sleep_for(kTestTimeout + kTimeoutEpsilon);
@@ -82,7 +87,8 @@ TEST_F(FlatteningControllerTest, DisabledAfterCallingDisable) {
 TEST_F(FlatteningControllerTest, TriggersCallbackAfterTimeout) {
   StrictMock<MockFlatConCallbacks> mock_cb;
   FlatConCallbacks cbks = {.trigger = [&]() { mock_cb.Trigger(); }};
-  auto flat_con = std::make_unique<FlatteningController>(cbks, kTestTimeout);
+  auto flat_con = std::make_unique<FlatteningController>(kHandle, cbks,
+                                                         kTestTimeout);
 
   EXPECT_CALL(mock_cb, Trigger()).Times(1);
 
@@ -94,7 +100,8 @@ TEST_F(FlatteningControllerTest, TriggersCallbackAfterTimeout) {
 TEST_F(FlatteningControllerTest, ShouldFlattenAfterFirstNewFrame) {
   StrictMock<MockFlatConCallbacks> mock_cb;
   FlatConCallbacks cbks = {.trigger = [&]() { mock_cb.Trigger(); }};
-  auto flat_con = std::make_unique<FlatteningController>(cbks, kTestTimeout);
+  auto flat_con = std::make_unique<FlatteningController>(kHandle, cbks,
+                                                         kTestTimeout);
 
   EXPECT_CALL(mock_cb, Trigger()).Times(1);
 
@@ -112,7 +119,8 @@ TEST_F(FlatteningControllerTest, ShouldFlattenAfterFirstNewFrame) {
 TEST_F(FlatteningControllerTest, ShouldNotFlattenAfterSecondNewFrame) {
   StrictMock<MockFlatConCallbacks> mock_cb;
   FlatConCallbacks cbks = {.trigger = [&]() { mock_cb.Trigger(); }};
-  auto flat_con = std::make_unique<FlatteningController>(cbks, kTestTimeout);
+  auto flat_con = std::make_unique<FlatteningController>(kHandle, cbks,
+                                                         kTestTimeout);
 
   EXPECT_CALL(mock_cb, Trigger()).Times(1);
 
@@ -145,7 +153,8 @@ TEST_F(FlatteningControllerTest, TriggersCallbackAtCorrectTime) {
     triggered = true;
     cv.notify_one();
   }};
-  auto flat_con = std::make_unique<FlatteningController>(cbks, kTestTimeout);
+  auto flat_con = std::make_unique<FlatteningController>(kHandle, cbks,
+                                                         kTestTimeout);
 
   start_time = std::chrono::steady_clock::now();
   flat_con->NewFrame();
@@ -174,7 +183,8 @@ TEST_F(FlatteningControllerTest, ResetsTimeoutOnNewFrame) {
     triggered = true;
     cv.notify_one();
   }};
-  auto flat_con = std::make_unique<FlatteningController>(cbks, kTestTimeout);
+  auto flat_con = std::make_unique<FlatteningController>(kHandle, cbks,
+                                                         kTestTimeout);
 
   flat_con->NewFrame();
   std::this_thread::sleep_for(kTestTimeout / 2);

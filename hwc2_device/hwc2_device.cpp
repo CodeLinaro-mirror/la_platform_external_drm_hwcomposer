@@ -17,8 +17,6 @@
 // NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
 // #define LOG_NDEBUG 0 // Uncomment to see HWC2 API calls in logcat
 
-#include "hardware/hwcomposer2.h"
-#include "system/graphics-base-v1.1.h"
 #define LOG_TAG "drmhwc"
 
 #include <cassert>
@@ -27,11 +25,14 @@
 #include <optional>
 
 #include <cutils/native_handle.h>
+#include <ui/GraphicTypes.h>
 
 #include "DrmHwcTwo.h"
 #include "backend/CompositionPlanner.h"
 #include "compositor/DisplayInfo.h"
+#include "hardware/hwcomposer2.h"
 #include "hwc/HwcLayer.h"
+#include "system/graphics-base-v1.1.h"
 #include "utils/log.h"
 
 namespace android::drm_hwcomposer {

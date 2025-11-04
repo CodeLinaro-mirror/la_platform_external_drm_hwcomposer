@@ -12,6 +12,7 @@ inc_include = [include_directories('.')]
 src_common = files(
     'compositor/DrmKmsPlan.cpp',
     'compositor/FlatteningController.cpp',
+    'compositor/FlatteningEventAtomReporter.cpp',
     'backend/BackendManager.cpp',
     'backend/GenericCompositionPlanner.cpp',
     'backend/ClientBackend.cpp',

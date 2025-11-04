@@ -24,10 +24,12 @@
 #include <sstream>
 
 #include <ui/ColorSpace.h>
+#include <ui/GraphicTypes.h>
 #include <utils/Trace.h>
 
 #include "backend/CompositionPlanner.h"
 #include "compositor/DisplayInfo.h"
+#include "compositor/FlatteningController.h"
 #include "drm/DrmConnector.h"
 #include "drm/DrmDisplayPipeline.h"
 #include "drm/DrmHwc.h"
@@ -660,7 +662,7 @@ bool HwcDisplay::Init() {
   if (!IsInHeadlessMode()) {
     auto flatcbk = (struct FlatConCallbacks){
         .trigger = [this]() { hwc_->SendRefreshEventToClient(handle_); }};
-    flatcon_ = std::make_unique<FlatteningController>(flatcbk,
+    flatcon_ = std::make_unique<FlatteningController>(handle_, flatcbk,
                                                       kFlatteningTimeout);
 
 #if HAS_LIBDISPLAY_INFO

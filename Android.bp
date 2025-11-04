@@ -280,6 +280,7 @@ cc_test_host {
         "bufferinfo/BufferInfoGetter.cpp",
         "compositor/FlatteningController.cpp",
         "compositor/FlatteningControllerTests.cpp",
+        "compositor/FlatteningEventAtomReporter.cpp",
         "drm/DrmAtomicStateManager.cpp",
         "drm/DrmConnector.cpp",
         "drm/DrmCrtc.cpp",
@@ -328,7 +329,11 @@ soong_config_string_variable {
 
 drm_hwcomposer_atom_reporter_library {
     name: "drm_hwcomposer_atom_reporter",
+    srcs: [
+        "compositor/FlatteningController.cpp",
+    ],
     shared_libs: [
+        "libbase",
         "libc++",
         "libdrm",
         "libhardware",
@@ -338,6 +343,7 @@ drm_hwcomposer_atom_reporter_library {
         atom_reporter: {
             desktop: {
                 srcs: [
+                    "compositor/FlatteningEventAtomReporterDesktop.cpp",
                     "stats/CompositionStatsAtomReporterDesktop.cpp",
                 ],
                 shared_libs: [
@@ -348,6 +354,7 @@ drm_hwcomposer_atom_reporter_library {
             },
             conditions_default: {
                 srcs: [
+                    "compositor/FlatteningEventAtomReporter.cpp",
                     "stats/CompositionStatsAtomReporter.cpp",
                 ],
             },

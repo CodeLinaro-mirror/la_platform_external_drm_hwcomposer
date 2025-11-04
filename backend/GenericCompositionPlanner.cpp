@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "BackendManager.h"
+#include "compositor/FlatteningController.h"
 #include "compositor/LayerData.h"
 #include "hwc/HwcDisplay.h"
 #include "hwc/HwcLayer.h"
