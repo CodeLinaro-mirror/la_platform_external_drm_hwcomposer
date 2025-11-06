@@ -20,7 +20,7 @@
 
 namespace android::drm_hwcomposer {
 
-struct DrmKmsPlan;
+struct LayerToPlaneJoiningPlan;
 class HwcDisplay;
 class HwcLayer;
 

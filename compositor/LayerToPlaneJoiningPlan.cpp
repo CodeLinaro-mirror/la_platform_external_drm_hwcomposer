@@ -16,7 +16,7 @@
 
 #define LOG_TAG "drmhwc"
 
-#include "DrmKmsPlan.h"
+#include "LayerToPlaneJoiningPlan.h"
 
 #include "drm/DrmDevice.h"
 #include "drm/DrmPlane.h"
@@ -24,11 +24,11 @@
 
 namespace android::drm_hwcomposer {
 
-auto DrmKmsPlan::CreateDrmKmsPlan(const DrmDisplayPipeline &pipe,
-                                  std::vector<LayerData> composition,
-                                  std::optional<LayerData> cursor_layer)
-    -> std::unique_ptr<DrmKmsPlan> {
-  auto plan = std::make_unique<DrmKmsPlan>();
+auto LayerToPlaneJoiningPlan::CreateLayerToPlaneJoiningPlan(
+    const DrmDisplayPipeline &pipe, std::vector<LayerData> composition,
+    std::optional<LayerData> cursor_layer)
+    -> std::unique_ptr<LayerToPlaneJoiningPlan> {
+  auto plan = std::make_unique<LayerToPlaneJoiningPlan>();
 
   auto [avail_planes, cursor_plane] = pipe.GetUsablePlanes();
 

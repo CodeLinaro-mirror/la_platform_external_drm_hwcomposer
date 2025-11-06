@@ -24,8 +24,8 @@
 #include <queue>
 
 #include "compositor/DisplayInfo.h"
-#include "compositor/DrmKmsPlan.h"
 #include "compositor/LayerData.h"
+#include "compositor/LayerToPlaneJoiningPlan.h"
 #include "drm/DrmPlane.h"
 #include "drm/ResourceManager.h"
 #include "drm/VSyncWorker.h"
@@ -40,7 +40,7 @@ struct AtomicCommitArgs {
   bool seamless = false;
   std::optional<DrmMode> display_mode;
   std::optional<bool> active;
-  std::shared_ptr<DrmKmsPlan> composition;
+  std::shared_ptr<LayerToPlaneJoiningPlan> composition;
   std::shared_ptr<drm_color_ctm> color_matrix;
   std::optional<Colorspace> colorspace;
   std::optional<ContentType> content_type;

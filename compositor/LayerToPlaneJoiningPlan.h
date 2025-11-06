@@ -25,7 +25,7 @@ namespace android::drm_hwcomposer {
 
 class DrmDevice;
 
-struct DrmKmsPlan {
+struct LayerToPlaneJoiningPlan {
   struct LayerToPlaneJoining {
     LayerData layer;
     std::shared_ptr<BindingOwner<DrmPlane>> plane;
@@ -34,10 +34,10 @@ struct DrmKmsPlan {
 
   std::vector<LayerToPlaneJoining> plan;
 
-  static auto CreateDrmKmsPlan(
+  static auto CreateLayerToPlaneJoiningPlan(
       const DrmDisplayPipeline &pipe, std::vector<LayerData> composition,
       std::optional<LayerData> cursor_layer = std::nullopt)
-      -> std::unique_ptr<DrmKmsPlan>;
+      -> std::unique_ptr<LayerToPlaneJoiningPlan>;
 };
 
 }  // namespace android::drm_hwcomposer

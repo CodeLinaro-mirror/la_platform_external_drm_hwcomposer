@@ -85,7 +85,7 @@ void DrmAtomicStateManager::CleanFailedCommit() {
   // Disable the hw used by the last active composition. This allows us to
   // signal the release fences from that composition to avoid hanging.
   AtomicCommitArgs cl_args{};
-  cl_args.composition = std::make_shared<DrmKmsPlan>();
+  cl_args.composition = std::make_shared<LayerToPlaneJoiningPlan>();
   if (CommitFrame(cl_args)) {
     ALOGE("Failed to clean-up active composition for pipeline %s",
           pipe_->connector->Get()->GetName().c_str());

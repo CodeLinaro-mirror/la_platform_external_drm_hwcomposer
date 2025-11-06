@@ -631,7 +631,7 @@ void HwcDisplay::SetPipeline(std::shared_ptr<DrmDisplayPipeline> pipeline) {
 void HwcDisplay::Deinit() {
   if (pipeline_ != nullptr) {
     AtomicCommitArgs a_args{};
-    a_args.composition = std::make_shared<DrmKmsPlan>();
+    a_args.composition = std::make_shared<LayerToPlaneJoiningPlan>();
     GetPipe().atomic_state_manager->ExecuteAtomicCommit(a_args);
     a_args.composition = {};
     a_args.active = false;
@@ -846,9 +846,8 @@ AtomicCommitArgs HwcDisplay::CreateModesetCommit(
 
   args.display_mode = config->mode;
   args.active = true;
-  args.composition = DrmKmsPlan::CreateDrmKmsPlan(GetPipe(),
-                                                  std::move(
-                                                      composition_layers));
+  args.composition = LayerToPlaneJoiningPlan::
+      CreateLayerToPlaneJoiningPlan(GetPipe(), std::move(composition_layers));
   ALOGW_IF(!args.composition, "No composition for blocking modeset");
 
   return args;
@@ -1045,8 +1044,8 @@ std::optional<AtomicCommitArgs> HwcDisplay::CreateFrameUpdateCommit(
     if (composition.composition_plan->plan.size() !=
         composition_layers.size() + cursor_layer.has_value()) {
       ALOGE(
-          "Cached DrmKmsPlan size=%zu does not match composition size=%zu "
-          "(+cursor=%u)",
+          "Cached LayerToPlaneJoiningPlan size=%zu does not match composition "
+          "size=%zu (+cursor=%u)",
           composition.composition_plan->plan.size(), composition_layers.size(),
           cursor_layer.has_value());
       // New plan will be created instead.
@@ -1062,12 +1061,11 @@ std::optional<AtomicCommitArgs> HwcDisplay::CreateFrameUpdateCommit(
   }
 
   if (!a_args.composition) {
-    a_args.composition = DrmKmsPlan::CreateDrmKmsPlan(GetPipe(),
-                                                      std::move(
-                                                          composition_layers),
-                                                      cursor_layer);
+    a_args.composition = LayerToPlaneJoiningPlan::
+        CreateLayerToPlaneJoiningPlan(GetPipe(), std::move(composition_layers),
+                                      cursor_layer);
     if (!a_args.composition) {
-      ALOGE_IF(!a_args.test_only, "Failed to create DrmKmsPlan");
+      ALOGE_IF(!a_args.test_only, "Failed to create LayerToPlaneJoiningPlan");
       return std::nullopt;
     }
   }
