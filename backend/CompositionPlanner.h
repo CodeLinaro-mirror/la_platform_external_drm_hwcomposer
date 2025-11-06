@@ -40,7 +40,6 @@ class CompositionPlanner {
   // Enum of possible reasons that the backend may choose to flatten the
   // composition.
   enum class FlattenReason {
-    kUnspecified = 0,
     kNone,
     kStaticScene,
     kValidateFailed,

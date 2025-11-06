@@ -25,7 +25,6 @@
 namespace android::drm_hwcomposer {
 
 enum class ValidationResult {
-  kUnspecified = 0,
   kSuccess,
   kFailure,
   kSkip,

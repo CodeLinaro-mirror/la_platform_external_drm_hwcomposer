@@ -42,10 +42,44 @@ using FlattenReason = CompositionPlanner::FlattenReason;
 const std::string kStatsServiceName = std::string(IStats::descriptor)
                                           .append("/default");
 
+DesktopAtoms::HwcCompositionStats::ValidationResult ValidationResultToAtomType(
+    ValidationResult result) {
+  switch (result) {
+    case ValidationResult::kSuccess:
+      return DesktopAtoms::HwcCompositionStats::ValidationResult::
+          VALIDATION_RESULT_SUCCESS;
+    case ValidationResult::kFailure:
+      return DesktopAtoms::HwcCompositionStats::ValidationResult::
+          VALIDATION_RESULT_FAILURE;
+    case ValidationResult::kSkip:
+      return DesktopAtoms::HwcCompositionStats::ValidationResult::
+          VALIDATION_RESULT_SKIP;
+  }
+  LOG_ALWAYS_FATAL("Unknown ValidationResult value=%d",
+                   static_cast<int>(result));
+}
+
+DesktopAtoms::HwcCompositionStats::FlattenReason FlattenReasonToAtomType(
+    FlattenReason reason) {
+  switch (reason) {
+    case FlattenReason::kNone:
+      return DesktopAtoms::HwcCompositionStats::FlattenReason::
+          FLATTEN_REASON_NONE;
+    case FlattenReason::kStaticScene:
+      return DesktopAtoms::HwcCompositionStats::FlattenReason::
+          FLATTEN_REASON_STATIC_SCENE;
+    case FlattenReason::kValidateFailed:
+      return DesktopAtoms::HwcCompositionStats::FlattenReason::
+          FLATTEN_REASON_VALIDATE_FAILED;
+    case FlattenReason::kCtmWithOffset:
+      return DesktopAtoms::HwcCompositionStats::FlattenReason::
+          FLATTEN_REASON_CTM_WITH_OFFSET;
+  }
+  LOG_ALWAYS_FATAL("Unknown FlattenReason value=%d", static_cast<int>(reason));
+}
+
 std::string ValidationResultToString(ValidationResult result) {
   switch (result) {
-    case ValidationResult::kUnspecified:
-      return "Unspecified";
     case ValidationResult::kSuccess:
       return "Success";
     case ValidationResult::kFailure:
@@ -60,8 +94,6 @@ std::string ValidationResultToString(ValidationResult result) {
 
 std::string FlattenReasonToString(FlattenReason reason) {
   switch (reason) {
-    case FlattenReason::kUnspecified:
-      return "Unspecified";
     case FlattenReason::kNone:
       return "None";
     case FlattenReason::kStaticScene:
@@ -103,8 +135,8 @@ class CompositionStatsReporterDesktop : public CompositionStatsAtomReporter {
                          /*presented_frame_count=*/0,
                          /*present_failed_count=*/0,
                          /*validate_failed_count=*/0, present_failed,
-                         static_cast<int32_t>(validation_result),
-                         static_cast<int32_t>(flatten_reason), frame_count,
+                         ValidationResultToAtomType(validation_result),
+                         FlattenReasonToAtomType(flatten_reason), frame_count,
                          layer_count, used_plane_count,
                          static_cast<int64_t>(total_pixops),
                          static_cast<int64_t>(gpu_pixops));
@@ -119,6 +151,7 @@ class CompositionStatsReporterDesktop : public CompositionStatsAtomReporter {
     }
   }
 };
+
 }  // namespace
 
 std::unique_ptr<CompositionStatsAtomReporter>
