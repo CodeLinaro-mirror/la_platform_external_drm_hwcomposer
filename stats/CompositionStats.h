@@ -20,7 +20,7 @@
 #include <functional>
 #include <map>
 
-#include "backend/CompositionPlanner.h"
+#include "compositor/CompositionPlanner.h"
 
 namespace android::drm_hwcomposer {
 

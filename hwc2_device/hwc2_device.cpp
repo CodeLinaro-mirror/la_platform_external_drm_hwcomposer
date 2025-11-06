@@ -28,7 +28,7 @@
 #include <ui/GraphicTypes.h>
 
 #include "DrmHwcTwo.h"
-#include "backend/CompositionPlanner.h"
+#include "compositor/CompositionPlanner.h"
 #include "compositor/DisplayInfo.h"
 #include "hardware/hwcomposer2.h"
 #include "hwc/HwcLayer.h"

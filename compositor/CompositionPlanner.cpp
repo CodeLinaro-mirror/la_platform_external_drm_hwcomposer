@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "backend/CompositionPlanner.h"
+#include "CompositionPlanner.h"
 
 #include "hwc/HwcLayer.h"
 

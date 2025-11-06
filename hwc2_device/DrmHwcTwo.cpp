@@ -20,7 +20,7 @@
 
 #include <cinttypes>
 
-#include "backend/CompositionPlanner.h"
+#include "compositor/CompositionPlanner.h"
 #include "utils/log.h"
 
 namespace android::drm_hwcomposer {

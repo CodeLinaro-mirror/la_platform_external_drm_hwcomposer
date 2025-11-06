@@ -26,7 +26,7 @@
 #include <android/binder_manager.h>
 
 #include "CompositionStats.h"
-#include "backend/CompositionPlanner.h"
+#include "compositor/CompositionPlanner.h"
 #include "desktopatoms.h"
 #include "utils/log.h"
 

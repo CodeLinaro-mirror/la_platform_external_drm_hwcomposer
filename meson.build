@@ -10,14 +10,14 @@ project(
 inc_include = [include_directories('.')]
 
 src_common = files(
+    'backend/BackendManager.cpp',
+    'backend/ClientBackend.cpp',
+    'backend/GenericBackend.cpp',
+    'compositor/CompositionPlanner.cpp',
     'compositor/DrmKmsPlan.cpp',
     'compositor/FlatteningController.cpp',
     'compositor/FlatteningEventAtomReporter.cpp',
-    'backend/BackendManager.cpp',
-    'backend/GenericCompositionPlanner.cpp',
-    'backend/ClientBackend.cpp',
-    'backend/CompositionPlanner.cpp',
-    'backend/GenericBackend.cpp',
+    'compositor/GenericCompositionPlanner.cpp',
     'hwc/HwcDisplayConfigs.cpp',
     'hwc/HwcDisplay.cpp',
     'hwc/HwcLayer.cpp',

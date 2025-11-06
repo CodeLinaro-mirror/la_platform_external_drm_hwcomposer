@@ -20,7 +20,7 @@
 
 #include "HwcDisplayConfigs.h"
 #include "HwcLayer.h"
-#include "backend/CompositionPlanner.h"
+#include "compositor/CompositionPlanner.h"
 #include "compositor/DisplayInfo.h"
 #include "compositor/LayerData.h"
 #include "drm/DrmAtomicStateManager.h"

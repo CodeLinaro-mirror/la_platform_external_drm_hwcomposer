@@ -27,7 +27,7 @@
 #include <ui/GraphicTypes.h>
 #include <utils/Trace.h>
 
-#include "backend/CompositionPlanner.h"
+#include "compositor/CompositionPlanner.h"
 #include "compositor/DisplayInfo.h"
 #include "compositor/FlatteningController.h"
 #include "drm/DrmConnector.h"
