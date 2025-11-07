@@ -15,6 +15,9 @@
       "name": "VkmsTestHwcHotplugs"
     },
     {
+      "name": "VkmsTestHwcWriteback"
+    },
+    {
       "name": "TestHwcComposition"
     },
     // CF Tests
@@ -87,9 +90,6 @@
     // VKMS Wrapper Tests
     {
       "name": "Vkms2_SurfaceFlingerTest"
-    },
-    {
-      "name": "VkmsTestHwcWriteback"
     }
   ]
 }
