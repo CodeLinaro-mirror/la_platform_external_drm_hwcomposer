@@ -38,4 +38,12 @@ auto DrmEncoder::CreateInstance(DrmDevice &dev, uint32_t encoder_id,
   return std::unique_ptr<DrmEncoder>(new DrmEncoder(std::move(e), index));
 }
 
+bool DrmEncoder::CanClone(DrmEncoder &encoder) {
+  return (enc_->possible_clones & (1 << encoder.GetIndexInResArray())) != 0;
+}
+
+bool DrmEncoder::SupportsCrtc(DrmCrtc &crtc) {
+  return (enc_->possible_crtcs & (1 << crtc.GetIndexInResArray())) != 0;
+}
+
 }  // namespace android::drm_hwcomposer

@@ -125,6 +125,9 @@ DrmFbIdHandle::~DrmFbIdHandle() {
   }
 }
 
+DrmFbIdHandle::DrmFbIdHandle(DrmDevice &drm) : drm_fd_(drm.GetFd()) {
+}
+
 auto DrmFbImporter::GetOrCreateFbId(BufferInfo *bo)
     -> std::shared_ptr<DrmFbIdHandle> {
   /* TODO: Clean up DrmDevices and DrmFbImporter inter-dependency.

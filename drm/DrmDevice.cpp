@@ -36,6 +36,8 @@
 
 namespace android::drm_hwcomposer {
 
+DrmDevice::~DrmDevice() = default;
+
 auto DrmDevice::CreateInstance(std::string const &path,
                                ResourceManager *res_man, uint32_t index)
     -> std::unique_ptr<DrmDevice> {
@@ -192,6 +194,26 @@ auto DrmDevice::RegisterUserPropertyBlob(void *data, size_t length) const
         // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
         delete it;
       });
+}
+
+DrmCrtc *DrmDevice::FindCrtcById(uint32_t id) const {
+  for (const auto &crtc : crtcs_) {
+    if (crtc->GetId() == id) {
+      return crtc.get();
+    }
+  };
+
+  return nullptr;
+}
+
+DrmEncoder *DrmDevice::FindEncoderById(uint32_t id) const {
+  for (const auto &enc : encoders_) {
+    if (enc->GetId() == id) {
+      return enc.get();
+    }
+  };
+
+  return nullptr;
 }
 
 int DrmDevice::GetProperty(uint32_t obj_id, uint32_t obj_type,

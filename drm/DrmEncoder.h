@@ -47,13 +47,9 @@ class DrmEncoder : public PipelineBindable<DrmEncoder> {
     return index_in_res_array_;
   }
 
-  auto CanClone(DrmEncoder &encoder) {
-    return (enc_->possible_clones & (1 << encoder.GetIndexInResArray())) != 0;
-  }
+  bool CanClone(DrmEncoder &encoder);
 
-  auto SupportsCrtc(DrmCrtc &crtc) {
-    return (enc_->possible_crtcs & (1 << crtc.GetIndexInResArray())) != 0;
-  }
+  bool SupportsCrtc(DrmCrtc &crtc);
 
   virtual uint32_t GetCurrentCrtcId() const {
     return enc_->crtc_id;

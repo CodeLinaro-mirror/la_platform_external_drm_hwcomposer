@@ -50,7 +50,7 @@ class DrmFbIdHandle {
   }
 
  private:
-  explicit DrmFbIdHandle(DrmDevice &drm) : drm_fd_(drm.GetFd()) {};
+  explicit DrmFbIdHandle(DrmDevice &drm);
 
   SharedFd drm_fd_;
 

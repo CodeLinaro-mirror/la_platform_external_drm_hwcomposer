@@ -42,7 +42,7 @@ class DrmConnector : public PipelineBindable<DrmConnector> {
   DrmConnector(const DrmProperty &) = delete;
   DrmConnector &operator=(const DrmProperty &) = delete;
 
-  virtual ~DrmConnector() = default;
+  virtual ~DrmConnector();
 
   int UpdateEdidProperty();
   auto GetEdidBlob() -> DrmModePropertyBlobUnique;
@@ -63,16 +63,7 @@ class DrmConnector : public PipelineBindable<DrmConnector> {
     return connector_->encoder_id;
   }
 
-  auto SupportsEncoder(DrmEncoder &enc) const {
-    for (int i = 0; i < connector_->count_encoders; i++) {
-      // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
-      if (connector_->encoders[i] == enc.GetId()) {
-        return true;
-      }
-    }
-
-    return false;
-  }
+  bool SupportsEncoder(DrmEncoder &enc) const;
 
   bool IsInternal() const;
   bool IsExternal() const;
@@ -158,10 +149,8 @@ class DrmConnector : public PipelineBindable<DrmConnector> {
   auto GetPanelOrientation() -> std::optional<PanelOrientation>;
 
  private:
-  DrmConnector(DrmModeConnectorUnique connector, DrmDevice *drm, uint32_t index)
-      : connector_(std::move(connector)),
-        drm_(drm),
-        index_in_res_array_(index) {};
+  DrmConnector(DrmModeConnectorUnique connector, DrmDevice *drm,
+               uint32_t index);
 
   DrmModeConnectorUnique connector_;
   DrmDevice *const drm_;
