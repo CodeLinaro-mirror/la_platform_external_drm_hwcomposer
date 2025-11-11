@@ -22,15 +22,18 @@
 #include <string>
 #include <vector>
 
-#include "DrmEncoder.h"
-#include "DrmMode.h"
-#include "DrmProperty.h"
-#include "DrmUnique.h"
-#include "compositor/DisplayInfo.h"
+#include "drm/DrmDisplayPipeline.h"
+#include "drm/DrmProperty.h"
+#include "drm/DrmUnique.h"
 
 namespace android::drm_hwcomposer {
 
 class DrmDevice;
+class DrmProperty;
+class DrmMode;
+
+enum class Colorspace;
+enum class PanelOrientation;
 
 class DrmConnector : public PipelineBindable<DrmConnector> {
   friend class FakeDrmConnector;

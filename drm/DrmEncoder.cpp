@@ -22,7 +22,9 @@
 
 #include <cstdint>
 
-#include "DrmDevice.h"
+#include "drm/DrmCrtc.h"
+#include "drm/DrmDevice.h"
+#include "drm/DrmUnique.h"
 #include "utils/log.h"
 
 namespace android::drm_hwcomposer {

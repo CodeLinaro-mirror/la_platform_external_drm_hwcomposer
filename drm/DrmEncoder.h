@@ -22,10 +22,13 @@
 #include <set>
 #include <vector>
 
-#include "DrmCrtc.h"
-#include "DrmDisplayPipeline.h"
+#include "drm/DrmDisplayPipeline.h"
+#include "drm/DrmUnique.h"
 
 namespace android::drm_hwcomposer {
+
+class DrmCrtc;
+class DrmDevice;
 
 class DrmEncoder : public PipelineBindable<DrmEncoder> {
   friend class FakeDrmEncoder;

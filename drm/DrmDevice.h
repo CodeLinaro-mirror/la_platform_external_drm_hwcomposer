@@ -21,16 +21,18 @@
 #include <optional>
 #include <tuple>
 
-#include "DrmConnector.h"
-#include "DrmCrtc.h"
-#include "DrmEncoder.h"
-#include "bufferinfo/BufferInfo.h"
+#include "drm/DrmUnique.h"
 #include "utils/fd.h"
 
 namespace android::drm_hwcomposer {
 
+struct BufferInfo;
+class DrmConnector;
+class DrmCrtc;
+class DrmEncoder;
 class DrmFbImporter;
 class DrmPlane;
+class DrmProperty;
 class ResourceManager;
 
 class DrmDevice {

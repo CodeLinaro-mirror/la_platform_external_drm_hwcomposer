@@ -27,12 +27,17 @@
 #include <cstdint>
 #include <string>
 
-#include "drm/DrmAtomicStateManager.h"
+#include "bufferinfo/BufferInfo.h"
 #include "drm/DrmConnector.h"
+#include "drm/DrmCrtc.h"
+#include "drm/DrmEncoder.h"
+#include "drm/DrmFbImporter.h"
 #include "drm/DrmPlane.h"
+#include "drm/DrmProperty.h"
+#include "drm/DrmUnique.h"
 #include "drm/ResourceManager.h"
+#include "utils/fd.h"
 #include "utils/log.h"
-#include "utils/properties.h"
 
 namespace android::drm_hwcomposer {
 

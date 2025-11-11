@@ -27,8 +27,13 @@
 #include <cstdint>
 #include <sstream>
 
-#include "DrmDevice.h"
 #include "compositor/DisplayInfo.h"
+#include "drm/DrmDevice.h"
+#include "drm/DrmEncoder.h"
+#include "drm/DrmMode.h"
+#include "drm/DrmProperty.h"
+#include "drm/DrmUnique.h"
+#include "utils/log.h"
 
 #ifndef DRM_MODE_CONNECTOR_SPI
 // NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
