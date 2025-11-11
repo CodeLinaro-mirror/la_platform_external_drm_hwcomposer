@@ -20,7 +20,6 @@
 #include <memory>
 
 #include "bufferinfo/BufferInfo.h"
-#include "bufferinfo/BufferInfoGetter.h"
 #include "compositor/LayerData.h"
 #include "utils/fd.h"
 
