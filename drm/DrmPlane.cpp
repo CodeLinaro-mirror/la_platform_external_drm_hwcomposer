@@ -26,6 +26,7 @@
 #include "DrmDevice.h"
 #include "bufferinfo/BufferInfoGetter.h"
 #include "compositor/LayerData.h"
+#include "drm/DrmFbImporter.h"
 #include "utils/log.h"
 
 namespace android::drm_hwcomposer {

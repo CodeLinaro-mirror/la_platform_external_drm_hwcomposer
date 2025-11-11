@@ -1091,7 +1091,8 @@ ndk::ScopedAStatus ComposerClient::getDisplayPhysicalOrientation(
       *orientation = common::Transform::ROT_90;
       break;
     default:
-      ALOGE("Unknown panel orientation value: %d", drm_orientation);
+      ALOGE("Unknown panel orientation value: %d",
+            static_cast<int>(drm_orientation));
       return ToBinderStatus(hwc3::Error::kBadDisplay);
   }
 
