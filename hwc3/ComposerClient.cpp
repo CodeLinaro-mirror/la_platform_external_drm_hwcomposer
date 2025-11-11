@@ -41,15 +41,19 @@
 #include <utils/Trace.h>
 
 #include "bufferinfo/BufferInfo.h"
+#include "bufferinfo/BufferInfoGetter.h"
 #include "compositor/DisplayInfo.h"
 #include "hwc/HwcDisplay.h"
 #include "hwc/HwcDisplayConfigs.h"
 #include "hwc/HwcLayer.h"
+#include "hwc3/CommandResultWriter.h"
 #include "hwc3/DrmHwcThree.h"
 #include "hwc3/Utils.h"
 #include "stats/CompositionStatsAtomReporter.h"
 #include "stats/CompositionStatsPoller.h"
+#include "utils/fd.h"
 #include "utils/log.h"
+#include "utils/properties.h"
 
 using ::android::drm_hwcomposer::BufferBlendMode;
 using ::android::drm_hwcomposer::BufferColorSpace;
