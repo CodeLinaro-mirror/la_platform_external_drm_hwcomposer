@@ -34,7 +34,6 @@
 #include <aidl/android/hardware/graphics/composer3/PresentOrValidate.h>
 #include <aidl/android/hardware/graphics/composer3/RenderIntent.h>
 #include <aidlcommonsupport/NativeHandle.h>
-#include <android-base/logging.h>
 #include <android/binder_auto_utils.h>
 #include <android/binder_ibinder_platform.h>
 #include <cutils/native_handle.h>
@@ -50,6 +49,7 @@
 #include "hwc3/Utils.h"
 #include "stats/CompositionStatsAtomReporter.h"
 #include "stats/CompositionStatsPoller.h"
+#include "utils/log.h"
 
 using ::android::drm_hwcomposer::BufferBlendMode;
 using ::android::drm_hwcomposer::BufferColorSpace;
@@ -513,7 +513,7 @@ ComposerClient::~ComposerClient() {
     hwc_->DeinitDisplays();
     hwc_.reset();
   }
-  LOG(DEBUG) << "removed composer client";
+  ALOGD("removed composer client");
 }
 
 ndk::ScopedAStatus ComposerClient::createLayer(int64_t display_handle,
@@ -1566,7 +1566,7 @@ ndk::ScopedAStatus ComposerClient::startHdcpNegotiation(
   if (levels.connectedLevel != drm::HdcpLevel::HDCP_NONE &&
       levels.connectedLevel != drm::HdcpLevel::HDCP_UNKNOWN) {
     ALOGI("Requested to start HDCP for connected level : %d",
-          levels.connectedLevel);
+          static_cast<int>(levels.connectedLevel));
     if (!display->StartHdcp(true)) {
       return ToBinderStatus(hwc3::Error::kUnsupported);
     }
