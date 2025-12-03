@@ -41,6 +41,7 @@
 #include <android/binder_ibinder_platform.h>
 #include <cutils/native_handle.h>
 #include <ui/GraphicBufferMapper.h>
+#include <utils/Trace.h>
 
 #include "bufferinfo/BufferInfo.h"
 #include "compositor/DisplayInfo.h"
@@ -717,11 +718,49 @@ void ComposerClient::DispatchLayerCommand(int64_t display_handle,
 }
 
 void ComposerClient::ExecuteDisplayCommand(const DisplayCommand& command) {
+  ATRACE_CALL();
+
   const int64_t display_handle = command.display;
   HwcDisplay* display = hwc_->GetDisplay(display_handle);
   if (display == nullptr) {
     cmd_result_writer_->AddError(hwc3::Error::kBadDisplay);
     return;
+  }
+
+  if (command.activeConfig) {
+    ::android::drm_hwcomposer::QueuedConfigTiming unusedTiming;
+    HwcDisplay::ConfigError
+        error = display->QueueConfig(command.activeConfig->configId,
+                                     ::android::drm_hwcomposer::
+                                         ResourceManager::GetTimeMonotonicNs(),
+                                     &unusedTiming);
+    if (error == HwcDisplay::kSeamlessNotAllowed) {
+      ALOGE_IF(command.activeConfig->seamlessRequired,
+               "Seamless modeset not possible with requested config=%d. "
+               "Falling "
+               "back to a blocking full modeset.",
+               command.activeConfig->configId);
+
+      error = display->SetConfig(command.activeConfig->configId);
+    }
+    if (error != HwcDisplay::ConfigError::kNone) {
+      ALOGE("Invalid desired mode: %d", static_cast<int32_t>(error));
+      switch (error) {
+        case HwcDisplay::ConfigError::kBadConfig:
+          cmd_result_writer_->AddError(hwc3::Error::kBadConfig);
+          break;
+        case HwcDisplay::ConfigError::kSeamlessNotAllowed:
+          cmd_result_writer_->AddError(hwc3::Error::kSeamlessNotAllowed);
+          break;
+        case HwcDisplay::ConfigError::kSeamlessNotPossible:
+          cmd_result_writer_->AddError(hwc3::Error::kSeamlessNotPossible);
+          break;
+        default:
+          cmd_result_writer_->AddError(hwc3::Error::kBadConfig);
+          break;
+      }
+      return;
+    }
   }
 
   if (command.brightness) {
@@ -1559,8 +1598,22 @@ ndk::ScopedAStatus ComposerClient::notifyExpectedPresent(
 #if __ANDROID_API__ >= 36
 
 ndk::ScopedAStatus ComposerClient::startHdcpNegotiation(
-    int64_t /*display*/, const drm::HdcpLevels& /*levels*/) {
-  return ToBinderStatus(hwc3::Error::kUnsupported);
+    int64_t display_handle, const drm::HdcpLevels& levels) {
+  HwcDisplay* display = GetDisplay(display_handle);
+  if (display == nullptr) {
+    return ToBinderStatus(hwc3::Error::kBadDisplay);
+  }
+  // Client can only request lazy HDCP activation/start
+  // TODO: Add HDCP terminate/stop request once client handles it
+  if (levels.connectedLevel != drm::HdcpLevel::HDCP_NONE &&
+      levels.connectedLevel != drm::HdcpLevel::HDCP_UNKNOWN) {
+    ALOGI("Requested to start HDCP for connected level : %d",
+          levels.connectedLevel);
+    if (!display->StartHdcp(true)) {
+      return ToBinderStatus(hwc3::Error::kUnsupported);
+    }
+  }
+  return ndk::ScopedAStatus::ok();
 }
 
 ndk::ScopedAStatus ComposerClient::getMaxLayerPictureProfiles(int64_t /* display */,
@@ -1571,6 +1624,11 @@ ndk::ScopedAStatus ComposerClient::getMaxLayerPictureProfiles(int64_t /* display
 ndk::ScopedAStatus ComposerClient::getLuts(int64_t /* display */,
                                            const std::vector<Buffer>& /* buffers */,
                                            std::vector<Luts>* /* out_luts */) {
+  return ToBinderStatus(hwc3::Error::kUnsupported);
+}
+
+ndk::ScopedAStatus ComposerClient::getDisplayKnownVsyncSample(
+    int64_t /* display */, VsyncSample* /* sample */) {
   return ToBinderStatus(hwc3::Error::kUnsupported);
 }
 
