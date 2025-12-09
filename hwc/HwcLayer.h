@@ -21,6 +21,7 @@
 
 #include "bufferinfo/BufferInfo.h"
 #include "compositor/LayerData.h"
+#include "hwc/HwcBufferCache.h"
 #include "utils/fd.h"
 
 namespace android::drm_hwcomposer {
@@ -58,8 +59,7 @@ class HwcLayer {
     std::optional<DamageInfo> damage;
   };
 
-  explicit HwcLayer(HwcDisplay *parent_display) : parent_(parent_display){};
-
+  explicit HwcLayer(HwcDisplay *parent_display);
   CompositionType GetSfType() const {
     return sf_type_;
   }
@@ -137,13 +137,7 @@ class HwcLayer {
   std::shared_ptr<FrontendLayerBase> frontend_private_data_;
 
   std::optional<int32_t> active_slot_id_;
-  struct BufferSlot {
-    BufferInfo bi;
-    std::shared_ptr<DrmFbIdHandle> fb;
-  };
-  std::map<int32_t /*slot*/, BufferSlot> slots_;
-
-  bool ImportFb(BufferSlot &slot) const;
+  HwcBufferCache buffer_cache_;
 
  public:
   void PopulateLayerData();

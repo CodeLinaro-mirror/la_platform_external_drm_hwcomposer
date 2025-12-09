@@ -99,6 +99,7 @@ filegroup {
         "backend/ClientBackend.cpp",
         "backend/GenericBackend.cpp",
 
+        "hwc/HwcBufferCache.cpp",
         "hwc/HwcDisplay.cpp",
         "hwc/HwcDisplayConfigs.cpp",
         "hwc/HwcLayer.cpp",

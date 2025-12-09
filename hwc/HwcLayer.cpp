@@ -26,21 +26,14 @@
 
 namespace android::drm_hwcomposer {
 
+HwcLayer::HwcLayer(HwcDisplay* parent_display)
+    : parent_(parent_display), buffer_cache_(parent_display) {
+}
+
 void HwcLayer::SetLayerProperties(const LayerProperties& layer_properties) {
   if (layer_properties.slot_buffer) {
-    auto slot_id = layer_properties.slot_buffer->slot_id;
-    if (!layer_properties.slot_buffer->bi) {
-      slots_.erase(slot_id);
-    } else {
-      slots_[slot_id] = {
-          .bi = layer_properties.slot_buffer->bi.value(),
-          .fb = {},
-      };
-      bool success = ImportFb(slots_[slot_id]);
-      ALOGE_IF(!success,
-               "Unable to create framebuffer object for layer %p slot %d", this,
-               slot_id);
-    }
+    buffer_cache_.SetSlot(layer_properties.slot_buffer->slot_id,
+                          layer_properties.slot_buffer->bi);
   }
   if (layer_properties.active_slot) {
     active_slot_id_ = layer_properties.active_slot->slot_id;
@@ -78,31 +71,20 @@ void HwcLayer::SetLayerProperties(const LayerProperties& layer_properties) {
   }
 }
 
-bool HwcLayer::ImportFb(BufferSlot& slot) const {
-  if (parent_->IsInHeadlessMode()) {
-    return true;
-  }
-
-  if (slot.fb == nullptr) {
-    auto& fb_importer = parent_->GetPipe().device->GetDrmFbImporter();
-    slot.fb = fb_importer.GetOrCreateFbId(&slot.bi);
-  }
-  return slot.fb != nullptr;
-}
-
 void HwcLayer::PopulateLayerData() {
   if (!active_slot_id_.has_value()) {
     ALOGE("Internal error: populate layer data called without active slot");
     return;
   }
 
-  if (slots_.count(*active_slot_id_) == 0) {
+  auto bi = buffer_cache_.GetBufferInfo(*active_slot_id_);
+  if (bi == std::nullopt) {
     ALOGE("Internal error: active cache slot is not populated.");
     return;
   }
 
-  layer_data_.bi = slots_[*active_slot_id_].bi;
-  layer_data_.fb = slots_[*active_slot_id_].fb;
+  layer_data_.bi = bi.value();
+  layer_data_.fb = buffer_cache_.GetFb(*active_slot_id_);
 
   if (blend_mode_ != BufferBlendMode::kUndefined) {
     layer_data_.bi->blend_mode = blend_mode_;
@@ -116,7 +98,7 @@ void HwcLayer::PopulateLayerData() {
 }
 
 void HwcLayer::ClearSlots() {
-  slots_.clear();
+  buffer_cache_.Clear();
   active_slot_id_.reset();
 }
 
@@ -127,11 +109,7 @@ bool HwcLayer::IsLayerUsableAsDevice() const {
   if (!active_slot_id_.has_value()) {
     return false;
   }
-  auto it = slots_.find(*active_slot_id_);
-  if (it == slots_.end()) {
-    return false;
-  }
-  return it->second.fb != nullptr;
+  return buffer_cache_.GetFb(*active_slot_id_) != nullptr;
 }
 
 uint32_t HwcLayer::GetPixOps() const {
