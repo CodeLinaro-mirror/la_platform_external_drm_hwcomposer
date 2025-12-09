@@ -50,8 +50,8 @@
 #include "hwc3/DrmHwcThree.h"
 #include "hwc3/Utils.h"
 #include "stats/CompositionStatsAtomReporter.h"
-#include "stats/CompositionStatsPoller.h"
 #include "stats/CountActiveDisplaysReporter.h"
+#include "stats/StatsPoller.h"
 #include "utils/fd.h"
 #include "utils/log.h"
 #include "utils/properties.h"
@@ -59,7 +59,6 @@
 using ::android::drm_hwcomposer::BufferBlendMode;
 using ::android::drm_hwcomposer::BufferColorSpace;
 using ::android::drm_hwcomposer::BufferSampleRange;
-using ::android::drm_hwcomposer::CompositionStatsPoller;
 using ::android::drm_hwcomposer::CompositionType;
 using ::android::drm_hwcomposer::DamageInfo;
 using ::android::drm_hwcomposer::DisplayHandle;
@@ -71,6 +70,7 @@ using ::android::drm_hwcomposer::IRect;
 using ::android::drm_hwcomposer::LayerTransform;
 using ::android::drm_hwcomposer::PanelOrientation;
 using ::android::drm_hwcomposer::SrcRectInfo;
+using ::android::drm_hwcomposer::StatsPoller;
 
 using HwcOutputType = ::android::drm_hwcomposer::OutputType;
 #if __ANDROID_API__ >= 36
@@ -507,9 +507,8 @@ void ComposerClient::Init() {
       CountActiveDisplaysReporter::Create();
   if (composition_reporter && count_active_displays_reporter) {
     stats_poller_ = std::make_unique<
-        CompositionStatsPoller>(std::move(composition_reporter),
-                                std::move(count_active_displays_reporter),
-                                hwc_.get());
+        StatsPoller>(std::move(composition_reporter),
+                     std::move(count_active_displays_reporter), hwc_.get());
   }
 }
 

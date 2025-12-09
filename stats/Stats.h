@@ -71,39 +71,36 @@ struct ActiveDisplayCounts {
   int32_t num_virtual_displays = 0;
 };
 
-// Interface for a reporter which pulls CompositionStats bucketed by
-// CompositionAttributes.
-class CompositionStatsProvider {
+class StatsProvider {
  public:
   // Get cumulative stats per unique attributes.
   virtual auto PullCompositionStats()
       -> std::map<CompositionAttributes, CompositionStats> = 0;
 
   virtual auto PullActiveDisplayCounts() -> ActiveDisplayCounts = 0;
-  virtual ~CompositionStatsProvider() = default;
+  virtual ~StatsProvider() = default;
 };
 
-// CompositionStatsTracker pulls stats from a CompositionStatsProvider on-demand
-// and keeps track of the previous stats state in order to calculate the deltas.
-class CompositionStatsTracker {
+// StatsTracker pulls stats from a StatsProvider on-demand and keeps track of
+// the previous stats state in order to calculate the deltas if necessary.
+class StatsTracker {
  public:
   // Arguments are the attributes, the cumulative stats, and the stats delta.
   using Callback = std::function<void(const CompositionAttributes& attributes,
                                       const CompositionStats& cumulative,
                                       const CompositionStats& delta)>;
-  explicit CompositionStatsTracker(CompositionStatsProvider* provider)
-      : provider_(provider) {
+  explicit StatsTracker(StatsProvider* provider) : provider_(provider) {
   }
 
   // Callback will be called for each unique attribute (empty entries are
   // skipped), with the cumulative stats and the stats delta from the previous
   // invocation.
-  void ReportStats(const Callback& callback);
+  void ReportCompositionStats(const Callback& callback);
 
   ActiveDisplayCounts CountActiveDisplays();
 
  private:
-  CompositionStatsProvider* provider_;
+  StatsProvider* provider_;
   std::map<CompositionAttributes, CompositionStats> previous_stats_;
 };
 

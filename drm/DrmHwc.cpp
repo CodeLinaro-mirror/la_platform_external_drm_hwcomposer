@@ -27,7 +27,7 @@
 #include "drm/DrmConnector.h"
 #include "drm/DrmDisplayPipeline.h"
 #include "hwc/HwcDisplay.h"
-#include "stats/CompositionStats.h"
+#include "stats/Stats.h"
 #include "utils/log.h"
 #include "utils/properties.h"
 
@@ -263,7 +263,7 @@ std::string DrmHwc::DumpState() {
     total_cumulative += cumulative;
     total_delta += delta;
   };
-  dump_stats_tracker_.ReportStats(callback);
+  dump_stats_tracker_.ReportCompositionStats(callback);
 
   for (const auto &[display_handle, display_stats] : total_stats) {
     const auto *display = GetDisplay(display_handle);

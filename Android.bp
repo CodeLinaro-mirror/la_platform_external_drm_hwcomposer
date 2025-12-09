@@ -103,8 +103,8 @@ filegroup {
         "hwc/HwcDisplayConfigs.cpp",
         "hwc/HwcLayer.cpp",
 
-        "stats/CompositionStats.cpp",
-        "stats/CompositionStatsPoller.cpp",
+        "stats/Stats.cpp",
+        "stats/StatsPoller.cpp",
 
         "utils/LibdisplayEdidWrapper.cpp",
         "utils/fd.cpp",
@@ -293,8 +293,8 @@ cc_test_host {
         "drm/DrmMode.cpp",
         "drm/DrmPlane.cpp",
         "drm/DrmProperty.cpp",
-        "stats/CompositionStats.cpp",
-        "stats/CompositionStatsTest.cpp",
+        "stats/Stats.cpp",
+        "stats/StatsTest.cpp",
         "utils/fd.cpp",
         "utils/properties.cpp",
     ],
