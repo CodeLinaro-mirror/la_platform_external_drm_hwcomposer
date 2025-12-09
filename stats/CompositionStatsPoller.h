@@ -28,14 +28,18 @@
 namespace android::drm_hwcomposer {
 
 class CompositionStatsAtomReporter;
+class CountActiveDisplaysReporter;
 
 // CompositionStatsPoller periodically polls the CompositionStatsProvider for
 // the current CompositionStats. It then pushes the stats delta to the
 // CompositionStatsAtomReporter.
 class CompositionStatsPoller {
  public:
-  CompositionStatsPoller(std::unique_ptr<CompositionStatsAtomReporter> reporter,
-                         CompositionStatsProvider* provider);
+  CompositionStatsPoller(
+      std::unique_ptr<CompositionStatsAtomReporter> stats_reporter,
+      std::unique_ptr<CountActiveDisplaysReporter>
+          count_active_displays_reporter,
+      CompositionStatsProvider* provider);
   ~CompositionStatsPoller();
 
  private:
@@ -50,7 +54,8 @@ class CompositionStatsPoller {
 
   // Only accessed from the helper thread.
   CompositionStatsTracker tracker_;
-  std::unique_ptr<CompositionStatsAtomReporter> reporter_;
+  std::unique_ptr<CompositionStatsAtomReporter> stats_reporter_;
+  std::unique_ptr<CountActiveDisplaysReporter> count_active_displays_reporter_;
 };
 
 }  // namespace android::drm_hwcomposer

@@ -51,6 +51,7 @@
 #include "hwc3/Utils.h"
 #include "stats/CompositionStatsAtomReporter.h"
 #include "stats/CompositionStatsPoller.h"
+#include "stats/CountActiveDisplaysReporter.h"
 #include "utils/fd.h"
 #include "utils/log.h"
 #include "utils/properties.h"
@@ -500,12 +501,15 @@ void ComposerClient::Init() {
   DEBUG_FUNC();
   hwc_ = std::make_unique<DrmHwcThree>();
 
-  auto reporter = ::android::drm_hwcomposer::CompositionStatsAtomReporter::
-      Create();
-  if (reporter) {
-    stats_poller_ = std::make_unique<CompositionStatsPoller>(std::move(
-                                                                 reporter),
-                                                             hwc_.get());
+  auto composition_reporter = ::android::drm_hwcomposer::
+      CompositionStatsAtomReporter::Create();
+  auto count_active_displays_reporter = ::android::drm_hwcomposer::
+      CountActiveDisplaysReporter::Create();
+  if (composition_reporter && count_active_displays_reporter) {
+    stats_poller_ = std::make_unique<
+        CompositionStatsPoller>(std::move(composition_reporter),
+                                std::move(count_active_displays_reporter),
+                                hwc_.get());
   }
 }
 

@@ -20,13 +20,18 @@
 
 #include "stats/CompositionStats.h"
 #include "stats/CompositionStatsAtomReporter.h"
+#include "stats/CountActiveDisplaysReporter.h"
 
 namespace android::drm_hwcomposer {
 
 CompositionStatsPoller::CompositionStatsPoller(
-    std::unique_ptr<CompositionStatsAtomReporter> reporter,
+    std::unique_ptr<CompositionStatsAtomReporter> stats_reporter,
+    std::unique_ptr<CountActiveDisplaysReporter> count_active_displays_reporter,
     CompositionStatsProvider* provider)
-    : tracker_(provider), reporter_(std::move(reporter)) {
+    : tracker_(provider),
+      stats_reporter_(std::move(stats_reporter)),
+      count_active_displays_reporter_(
+          std::move(count_active_displays_reporter)) {
   thread_ = std::thread(&CompositionStatsPoller::PollFunc, this);
 }
 
@@ -48,12 +53,20 @@ void CompositionStatsPoller::PollFunc() {
       if (delta.total_frames == 0) {
         return;
       }
-      reporter_->PushAtom(attributes.display_handle, attributes.present_failed,
-                          attributes.validation_result,
-                          attributes.flatten_reason, delta.total_frames,
-                          delta.layer_count, delta.used_plane_count,
-                          delta.total_pixops, delta.gpu_pixops);
+      stats_reporter_->PushAtom(attributes.display_handle,
+                                attributes.present_failed,
+                                attributes.validation_result,
+                                attributes.flatten_reason, delta.total_frames,
+                                delta.layer_count, delta.used_plane_count,
+                                delta.total_pixops, delta.gpu_pixops);
     });
+
+    const ActiveDisplayCounts
+        active_display_counts = tracker_.CountActiveDisplays();
+    count_active_displays_reporter_
+        ->PushAtom(active_display_counts.num_active_physical_displays,
+                   active_display_counts.num_active_external_displays,
+                   active_display_counts.num_virtual_displays);
 
     constexpr std::chrono::seconds kPollFrequency = std::chrono::minutes(1);
     std::unique_lock lock(mutex_);

@@ -670,6 +670,14 @@ bool HwcDisplay::SetDisplayEnabled(bool enabled) {
   return commit_success;
 }
 
+bool HwcDisplay::GetDisplayEnabled() const {
+  if (IsInHeadlessMode()) {
+    return true;
+  }
+
+  return GetPipe().atomic_state_manager->IsCrtcActive();
+}
+
 void HwcDisplay::SetPipeline(std::shared_ptr<DrmDisplayPipeline> pipeline) {
   Deinit();
 

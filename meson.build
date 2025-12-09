@@ -23,6 +23,7 @@ src_common = files(
     'hwc/HwcLayer.cpp',
     'stats/CompositionStats.cpp',
     'stats/CompositionStatsAtomReporter.cpp',
+    'stats/CountActiveDisplaysReporter.cpp',
     'stats/CompositionStatsPoller.cpp',
     'stats/DisplayHotplugConnectModeDetectedAtomReporter.cpp',
     'stats/DisplayRefreshRatesChangedAtomReporter.cpp',

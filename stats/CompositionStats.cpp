@@ -65,4 +65,8 @@ void CompositionStatsTracker::ReportStats(const Callback& callback) {
   previous_stats_ = new_stats;
 }
 
+ActiveDisplayCounts CompositionStatsTracker::CountActiveDisplays() {
+  return provider_->PullActiveDisplayCounts();
+}
+
 }  // namespace android::drm_hwcomposer
