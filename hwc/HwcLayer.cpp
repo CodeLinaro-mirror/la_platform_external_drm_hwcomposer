@@ -38,6 +38,12 @@ void HwcLayer::SetLayerProperties(const LayerProperties& layer_properties) {
   if (layer_properties.active_slot) {
     active_slot_id_ = layer_properties.active_slot->slot_id;
     layer_data_.acquire_fence = layer_properties.active_slot->fence;
+    auto bi = buffer_cache_.GetBufferInfo(*active_slot_id_);
+    ALOGE_IF(!bi, "Internal error: active cache slot is not populated.");
+    if (bi) {
+      layer_data_.bi = bi.value();
+      layer_data_.fb = buffer_cache_.GetFb(*active_slot_id_);
+    }
   }
   if (layer_properties.blend_mode) {
     blend_mode_ = layer_properties.blend_mode.value();
@@ -76,19 +82,10 @@ void HwcLayer::SetLayerProperties(const LayerProperties& layer_properties) {
 }
 
 void HwcLayer::PopulateLayerData() {
-  if (!active_slot_id_.has_value()) {
-    ALOGE("Internal error: populate layer data called without active slot");
+  if (!layer_data_.bi) {
+    ALOGE("Internal error: PopulateLayerData called without valid bi.");
     return;
   }
-
-  auto bi = buffer_cache_.GetBufferInfo(*active_slot_id_);
-  if (bi == std::nullopt) {
-    ALOGE("Internal error: active cache slot is not populated.");
-    return;
-  }
-
-  layer_data_.bi = bi.value();
-  layer_data_.fb = buffer_cache_.GetFb(*active_slot_id_);
 
   if (blend_mode_ != BufferBlendMode::kUndefined) {
     layer_data_.bi->blend_mode = blend_mode_;
