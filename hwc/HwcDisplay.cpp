@@ -1404,13 +1404,12 @@ std::optional<LayerData> HwcDisplay::GetModesetLayerData(
     return std::nullopt;
 
   auto modeset_layer = std::make_unique<HwcLayer>(this);
+  HwcBufferCache &cache = modeset_layer->GetBufferCache();
+  cache.SetSlot(0, modeset_buffer);
   modeset_layer->SetLayerProperties({
-      .slot_buffer = std::optional<HwcLayer::Buffer>({
-          .slot_id = 0,
-          .bi = modeset_buffer,
-      }),
-      .active_slot = std::optional<HwcLayer::Slot>({
-          .slot_id = 0,
+      .buffer = std::optional<HwcLayer::Buffer>({
+          .bi = cache.GetBufferInfo(0).value(),
+          .fb = cache.GetFb(0),
           .fence = {},
       }),
       .blend_mode = BufferBlendMode::kNone,

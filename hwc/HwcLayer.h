@@ -36,17 +36,13 @@ class FrontendLayerBase {
 class HwcLayer {
  public:
   struct Buffer {
-    int32_t slot_id;
-    std::optional<BufferInfo> bi;
-  };
-  struct Slot {
-    int32_t slot_id;
+    BufferInfo bi;
+    std::shared_ptr<DrmFbIdHandle> fb;
     SharedFd fence;
   };
   // A set of properties to be validated.
   struct LayerProperties {
-    std::optional<Buffer> slot_buffer;
-    std::optional<Slot> active_slot;
+    std::optional<Buffer> buffer;
     std::optional<BufferBlendMode> blend_mode;
     std::optional<BufferColorSpace> color_space;
     std::optional<BufferSampleRange> sample_range;
@@ -105,6 +101,10 @@ class HwcLayer {
   // Returns the number of pixel operations this layer would require if it were
   // client-composited.
   uint32_t GetPixOps() const;
+
+  HwcBufferCache &GetBufferCache() {
+    return buffer_cache_;
+  }
 
  private:
   void PopulateLayerData();

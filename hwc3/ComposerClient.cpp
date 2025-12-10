@@ -413,67 +413,54 @@ class Hwc3BufferHandle : public ::android::drm_hwcomposer::PrimeFdsSharedBase {
 
 class Hwc3Layer : public ::android::drm_hwcomposer::FrontendLayerBase {
  public:
+  explicit Hwc3Layer(::android::drm_hwcomposer::HwcBufferCache* buffer_cache)
+      : buffer_cache_(buffer_cache) {
+  }
   auto HandleNextBuffer(std::optional<buffer_handle_t> raw_handle,
                         ::android::drm_hwcomposer::SharedFd fence_fd,
                         int32_t slot_id)
       -> std::optional<HwcLayer::LayerProperties> {
+    // raw_handle is specified, so add/update the buffer cache.
+    if (raw_handle) {
+      // raw_handle is specified, so add/update the slot in the cache.
+      auto hwc3 = Hwc3BufferHandle::Create(*raw_handle);
+      if (!hwc3) {
+        return std::nullopt;
+      }
+      auto bi = ::android::drm_hwcomposer::BufferInfoGetter::GetInstance()
+                    ->GetBoInfo(hwc3->GetHandle());
+      // If we fail to get the BufferInfo, just leave the cache alone and log
+      // the error.
+      ALOGE_IF(!bi, "Failed to get buffer info for handle %p",
+               raw_handle.value());
+      if (bi) {
+        bi->fds_shared = hwc3;
+        buffer_cache_->SetSlot(slot_id, bi);
+      }
+      slots_[slot_id] = hwc3;
+    }
+
+    auto bi = buffer_cache_->GetBufferInfo(slot_id);
+    if (bi == std::nullopt) {
+      ALOGE("Failed to get buffer info for slot %d", slot_id);
+      return std::nullopt;
+    }
+
+    // Cache has possibly been updated above, so populate the LayerProperties
+    // using the contents of the cache.
     HwcLayer::LayerProperties lp;
-    if (!raw_handle && slots_.count(slot_id) != 0) {
-      lp.active_slot = {
-          .slot_id = slot_id,
-          .fence = std::move(fence_fd),
-      };
-
-      return lp;
-    }
-
-    if (!raw_handle) {
-      ALOGE("Buffer handle is nullopt but slot was not cached.");
-      return std::nullopt;
-    }
-
-    auto hwc3 = Hwc3BufferHandle::Create(*raw_handle);
-    if (!hwc3) {
-      return std::nullopt;
-    }
-
-    auto bi = ::android::drm_hwcomposer::BufferInfoGetter::GetInstance()
-                  ->GetBoInfo(hwc3->GetHandle());
-    if (bi) {
-      bi->fds_shared = hwc3;
-
-      lp.slot_buffer = {
-          .slot_id = slot_id,
-          .bi = bi,
-      };
-    }
-
-    lp.active_slot = {
-        .slot_id = slot_id,
+    lp.buffer = {
+        .bi = bi.value(),
+        .fb = buffer_cache_->GetFb(slot_id),
         .fence = std::move(fence_fd),
     };
-
-    slots_[slot_id] = hwc3;
 
     return lp;
   }
 
-  [[maybe_unused]]
-  auto HandleClearSlot(int32_t slot_id)
-      -> std::optional<HwcLayer::LayerProperties> {
-    if (slots_.count(slot_id) == 0) {
-      return std::nullopt;
-    }
-
+  void ClearSlot(int32_t slot_id) {
+    buffer_cache_->SetSlot(slot_id, std::nullopt);
     slots_.erase(slot_id);
-
-    auto lp = HwcLayer::LayerProperties{};
-    lp.slot_buffer = {
-        .slot_id = slot_id,
-        .bi = std::nullopt,
-    };
-
-    return lp;
   }
 
   void ClearSlots() {
@@ -481,13 +468,15 @@ class Hwc3Layer : public ::android::drm_hwcomposer::FrontendLayerBase {
   }
 
  private:
+  ::android::drm_hwcomposer::HwcBufferCache* buffer_cache_;
   std::map<int32_t /*slot*/, std::shared_ptr<Hwc3BufferHandle>> slots_;
 };
 
 static auto GetHwc3Layer(HwcLayer& layer) -> std::shared_ptr<Hwc3Layer> {
   auto frontend_private_data = layer.GetFrontendPrivateData();
   if (!frontend_private_data) {
-    frontend_private_data = std::make_shared<Hwc3Layer>();
+    frontend_private_data = std::make_shared<Hwc3Layer>(
+        &layer.GetBufferCache());
     layer.SetFrontendPrivateData(frontend_private_data);
   }
   return std::static_pointer_cast<Hwc3Layer>(frontend_private_data);
@@ -654,13 +643,7 @@ void ComposerClient::DispatchLayerCommand(int64_t display_handle,
   if (command.bufferSlotsToClear) {
     auto hwc3_layer = GetHwc3Layer(*layer);
     for (const auto& slot : *command.bufferSlotsToClear) {
-      auto lp = hwc3_layer->HandleClearSlot(slot);
-      if (!lp) {
-        cmd_result_writer_->AddError(hwc3::Error::kBadLayer);
-        return;
-      }
-
-      layer->SetLayerProperties(lp.value());
+      hwc3_layer->ClearSlot(slot);
     }
   }
 
@@ -1472,25 +1455,24 @@ ndk::ScopedAStatus ComposerClient::setReadbackBuffer(
           result);
     return ToBinderStatus(hwc3::Error::kBadParameter);
   }
-  HwcLayer::LayerProperties properties;
-  properties.slot_buffer = {
-      .slot_id = 0,
-      .bi = ::android::drm_hwcomposer::BufferInfoGetter::GetInstance()
-                ->GetBoInfo(imported_handle),
-  };
-  ndk::ScopedFileDescriptor release_fence = ndk::ScopedFileDescriptor(
-      release_fence_in.get());
-  properties.active_slot = {
-      .slot_id = 0,
-      .fence = ::android::drm_hwcomposer::MakeSharedFd(release_fence.release()),
-  };
-  properties.blend_mode = BufferBlendMode::kNone;
 
   std::unique_ptr<HwcLayer>& writeback_layer = display->GetWritebackLayer();
   if (!writeback_layer) {
     ALOGE("HwcDisplay: Writeback layer not available");
     return ToBinderStatus(hwc3::Error::kBadParameter);
   }
+  HwcLayer::LayerProperties properties;
+  ndk::ScopedFileDescriptor release_fence = ndk::ScopedFileDescriptor(
+      release_fence_in.get());
+  properties.blend_mode = BufferBlendMode::kNone;
+  writeback_layer->GetBufferCache()
+      .SetSlot(0, ::android::drm_hwcomposer::BufferInfoGetter::GetInstance()
+                      ->GetBoInfo(imported_handle));
+  properties.buffer = {
+      .bi = writeback_layer->GetBufferCache().GetBufferInfo(0).value(),
+      .fb = writeback_layer->GetBufferCache().GetFb(0),
+      .fence = ::android::drm_hwcomposer::MakeSharedFd(release_fence.release()),
+  };
   writeback_layer->SetLayerProperties(properties);
 
   return ndk::ScopedAStatus::ok();

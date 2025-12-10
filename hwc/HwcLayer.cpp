@@ -31,20 +31,11 @@ HwcLayer::HwcLayer(HwcDisplay* parent_display)
 }
 
 void HwcLayer::SetLayerProperties(const LayerProperties& layer_properties) {
-  if (layer_properties.slot_buffer) {
-    buffer_cache_.SetSlot(layer_properties.slot_buffer->slot_id,
-                          layer_properties.slot_buffer->bi);
-  }
-  if (layer_properties.active_slot) {
+  if (layer_properties.buffer) {
     has_buffer_set_ = true;
-    auto slot_id = layer_properties.active_slot->slot_id;
-    layer_data_.acquire_fence = layer_properties.active_slot->fence;
-    auto bi = buffer_cache_.GetBufferInfo(slot_id);
-    ALOGE_IF(!bi, "Internal error: active cache slot is not populated.");
-    if (bi) {
-      layer_data_.bi = bi.value();
-      layer_data_.fb = buffer_cache_.GetFb(slot_id);
-    }
+    layer_data_.bi = layer_properties.buffer->bi;
+    layer_data_.fb = layer_properties.buffer->fb;
+    layer_data_.acquire_fence = layer_properties.buffer->fence;
   }
   if (layer_properties.blend_mode) {
     blend_mode_ = layer_properties.blend_mode.value();
