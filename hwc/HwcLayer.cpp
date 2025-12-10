@@ -36,13 +36,14 @@ void HwcLayer::SetLayerProperties(const LayerProperties& layer_properties) {
                           layer_properties.slot_buffer->bi);
   }
   if (layer_properties.active_slot) {
-    active_slot_id_ = layer_properties.active_slot->slot_id;
+    has_buffer_set_ = true;
+    auto slot_id = layer_properties.active_slot->slot_id;
     layer_data_.acquire_fence = layer_properties.active_slot->fence;
-    auto bi = buffer_cache_.GetBufferInfo(*active_slot_id_);
+    auto bi = buffer_cache_.GetBufferInfo(slot_id);
     ALOGE_IF(!bi, "Internal error: active cache slot is not populated.");
     if (bi) {
       layer_data_.bi = bi.value();
-      layer_data_.fb = buffer_cache_.GetFb(*active_slot_id_);
+      layer_data_.fb = buffer_cache_.GetFb(slot_id);
     }
   }
   if (layer_properties.blend_mode) {
@@ -76,7 +77,7 @@ void HwcLayer::SetLayerProperties(const LayerProperties& layer_properties) {
     layer_data_.pi.damage = layer_properties.damage.value();
   }
 
-  if (active_slot_id_.has_value()) {
+  if (has_buffer_set_) {
     PopulateLayerData();
   }
 }
@@ -100,17 +101,17 @@ void HwcLayer::PopulateLayerData() {
 
 void HwcLayer::ClearSlots() {
   buffer_cache_.Clear();
-  active_slot_id_.reset();
+  has_buffer_set_ = false;
 }
 
 /* Check that the layer has an active slot set, and there is a valid
    * framebuffer in the active slot.
  */
 bool HwcLayer::IsLayerUsableAsDevice() const {
-  if (!active_slot_id_.has_value()) {
+  if (!has_buffer_set_) {
     return false;
   }
-  return buffer_cache_.GetFb(*active_slot_id_) != nullptr;
+  return layer_data_.fb != nullptr;
 }
 
 uint32_t HwcLayer::GetPixOps() const {

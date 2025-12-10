@@ -134,7 +134,7 @@ class HwcLayer {
 
   std::shared_ptr<FrontendLayerBase> frontend_private_data_;
 
-  std::optional<int32_t> active_slot_id_;
+  bool has_buffer_set_ = false;
   HwcBufferCache buffer_cache_;
 
  public:
