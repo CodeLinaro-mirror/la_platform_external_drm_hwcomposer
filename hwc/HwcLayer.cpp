@@ -69,6 +69,10 @@ void HwcLayer::SetLayerProperties(const LayerProperties& layer_properties) {
   if (layer_properties.damage) {
     layer_data_.pi.damage = layer_properties.damage.value();
   }
+
+  if (active_slot_id_.has_value()) {
+    PopulateLayerData();
+  }
 }
 
 void HwcLayer::PopulateLayerData() {

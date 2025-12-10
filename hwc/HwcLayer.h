@@ -107,6 +107,8 @@ class HwcLayer {
   uint32_t GetPixOps() const;
 
  private:
+  void PopulateLayerData();
+
   // sf_type_ stores the initial type given to us by surfaceflinger,
   // validated_type_ stores the type after running ValidateDisplay
   CompositionType sf_type_ = CompositionType::kInvalid;
@@ -136,7 +138,6 @@ class HwcLayer {
   HwcBufferCache buffer_cache_;
 
  public:
-  void PopulateLayerData();
   void ClearSlots();
   bool IsLayerUsableAsDevice() const;
 };

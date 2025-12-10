@@ -371,12 +371,6 @@ auto HwcDisplay::ValidateStagedComposition() -> std::vector<ChangedLayer> {
   for (auto &l : layers_) {
     l.second.SetPriorBufferScanOutFlag(l.second.GetValidatedType() !=
                                        CompositionType::kClient);
-
-    /* Populate layer data for layers that might be mapped to a drm plane. */
-    if (l.second.GetSfType() == CompositionType::kDevice ||
-        l.second.GetSfType() == CompositionType::kCursor) {
-      l.second.PopulateLayerData();
-    }
   }
 
   // Notify the flattening controller of a new frame.
@@ -1161,7 +1155,6 @@ std::optional<AtomicCommitArgs> HwcDisplay::CreateFrameUpdateCommit(
   }
 
   if (pipeline_->writeback_connector) {
-    writeback_layer_->PopulateLayerData();
     if (!writeback_layer_->IsLayerUsableAsDevice()) {
       ALOGE("Writeback layer not usable by DRM/KMS - no valid buffer set");
       return std::nullopt;
@@ -1184,16 +1177,6 @@ bool HwcDisplay::CommitStagedComposition(SharedFd &out_present_fence) {
   if (!validated_composition_.has_value()) {
     ALOGE("%s: No composition is staged. Cannot commit.", __func__);
     return false;
-  }
-
-  // Client layer needs to be populated after validation since the client may
-  // not provide a new buffer until after validation.
-  if (std::any_of(validated_composition_->composition_types.begin(),
-                  validated_composition_->composition_types.end(),
-                  [](const auto &pair) -> bool {
-                    return pair.second == CompositionType::kClient;
-                  })) {
-    client_layer_.PopulateLayerData();
   }
 
   auto a_args = CreateFrameUpdateCommit(validated_composition_.value());
@@ -1432,7 +1415,6 @@ std::optional<LayerData> HwcDisplay::GetModesetLayerData(
       }),
       .blend_mode = BufferBlendMode::kNone,
   });
-  modeset_layer->PopulateLayerData();
 
   return modeset_layer->GetLayerData();
 }
