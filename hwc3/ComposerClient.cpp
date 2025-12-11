@@ -390,8 +390,7 @@ class Hwc3Layer : public ::android::drm_hwcomposer::FrontendLayerBase {
   }
   auto HandleNextBuffer(std::optional<buffer_handle_t> raw_handle,
                         ::android::drm_hwcomposer::SharedFd fence_fd,
-                        int32_t slot_id)
-      -> std::optional<HwcLayer::LayerProperties> {
+                        int32_t slot_id) -> std::optional<HwcLayer::Buffer> {
     // raw_handle is specified, so add/update the buffer cache.
     if (raw_handle) {
       // raw_handle is specified, so add/update the slot in the cache.
@@ -419,16 +418,13 @@ class Hwc3Layer : public ::android::drm_hwcomposer::FrontendLayerBase {
       return std::nullopt;
     }
 
-    // Cache has possibly been updated above, so populate the LayerProperties
+    // Cache has possibly been updated above, so populate the Buffer
     // using the contents of the cache.
-    HwcLayer::LayerProperties lp;
-    lp.buffer = {
+    return HwcLayer::Buffer{
         .bi = bi.value(),
         .fb = buffer_cache_.GetFb(slot_id),
         .fence = std::move(fence_fd),
     };
-
-    return lp;
   }
 
   void ClearSlot(int32_t slot_id) {
@@ -643,7 +639,7 @@ void ComposerClient::DispatchLayerCommand(int64_t display_handle,
       return;
     }
 
-    properties = lp.value();
+    properties.buffer = lp;
   }
 
   properties.blend_mode = AidlToBlendMode(command.blendMode);
@@ -1583,12 +1579,13 @@ void ComposerClient::ExecuteSetDisplayClientTarget(
   auto fence = const_cast<::ndk::ScopedFileDescriptor&>(command.buffer.fence)
                    .release();
 
-  auto properties = hwc3layer->HandleNextBuffer(raw_buffer,
-                                                ::android::drm_hwcomposer::
-                                                    MakeSharedFd(fence),
-                                                command.buffer.slot);
+  auto buffer = hwc3layer
+                    ->HandleNextBuffer(raw_buffer,
+                                       ::android::drm_hwcomposer::MakeSharedFd(
+                                           fence),
+                                       command.buffer.slot);
 
-  if (!properties) {
+  if (!buffer) {
     ALOGE("Failed to import client target buffer.");
     /* Here, sending an error would be the natural way to do the thing.
      * But VTS checks for no error. Is it the VTS issue?
@@ -1596,11 +1593,12 @@ void ComposerClient::ExecuteSetDisplayClientTarget(
      */
     return;
   }
-
-  properties->color_space = AidlToColorSpace(command.dataspace);
-  properties->sample_range = AidlToSampleRange(command.dataspace);
-
-  client_layer.SetLayerProperties(properties.value());
+  HwcLayer::LayerProperties properties = {
+      .buffer = buffer,
+      .color_space = AidlToColorSpace(command.dataspace),
+      .sample_range = AidlToSampleRange(command.dataspace),
+  };
+  client_layer.SetLayerProperties(properties);
 }
 
 void ComposerClient::ExecuteSetDisplayOutputBuffer(int64_t display_handle,
@@ -1627,17 +1625,20 @@ void ComposerClient::ExecuteSetDisplayOutputBuffer(int64_t display_handle,
   // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
   auto fence = const_cast<::ndk::ScopedFileDescriptor&>(buffer.fence).release();
 
-  auto properties = hwc3layer->HandleNextBuffer(raw_buffer,
-                                                ::android::drm_hwcomposer::
-                                                    MakeSharedFd(fence),
-                                                buffer.slot);
+  HwcLayer::LayerProperties properties = {
+      .buffer = hwc3layer
+                    ->HandleNextBuffer(raw_buffer,
+                                       ::android::drm_hwcomposer::MakeSharedFd(
+                                           fence),
+                                       buffer.slot),
+  };
 
-  if (!properties) {
+  if (!properties.buffer) {
     cmd_result_writer_->AddError(hwc3::Error::kBadLayer);
     return;
   }
 
-  writeback_layer->SetLayerProperties(properties.value());
+  writeback_layer->SetLayerProperties(properties);
 }
 
 }  // namespace aidl::android::hardware::graphics::composer3::impl
