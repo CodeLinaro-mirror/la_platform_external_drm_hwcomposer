@@ -381,11 +381,16 @@ std::optional<DamageInfo> AidlToDamage(
 
 }  // namespace
 
-class Hwc3BufferHandle : public ::android::drm_hwcomposer::PrimeFdsSharedBase {
+// GrallocBufferHandle manages the lifetime of a buffer_handle_t that has been
+// imported into this process. Its lifetime is expected to be tracked by a
+// shared_ptr<PrimeFdsSharedBase> such that the imported buffer_handle_t can be
+// freed after there are no more BufferInfos using it.
+class GrallocBufferHandle
+    : public ::android::drm_hwcomposer::PrimeFdsSharedBase {
  public:
   static auto Create(buffer_handle_t handle)
-      -> std::shared_ptr<Hwc3BufferHandle> {
-    auto hwc3 = std::shared_ptr<Hwc3BufferHandle>(new Hwc3BufferHandle());
+      -> std::shared_ptr<GrallocBufferHandle> {
+    auto hwc3 = std::shared_ptr<GrallocBufferHandle>(new GrallocBufferHandle());
 
     auto result = ::android::GraphicBufferMapper::get()
         .importBufferNoValidate(handle, &hwc3->imported_handle_);
@@ -402,12 +407,12 @@ class Hwc3BufferHandle : public ::android::drm_hwcomposer::PrimeFdsSharedBase {
     return imported_handle_;
   }
 
-  ~Hwc3BufferHandle() override {
+  ~GrallocBufferHandle() override {
     ::android::GraphicBufferMapper::get().freeBuffer(imported_handle_);
   }
 
  private:
-  Hwc3BufferHandle() = default;
+  GrallocBufferHandle() = default;
   buffer_handle_t imported_handle_{};
 };
 
@@ -423,7 +428,7 @@ class Hwc3Layer : public ::android::drm_hwcomposer::FrontendLayerBase {
     // raw_handle is specified, so add/update the buffer cache.
     if (raw_handle) {
       // raw_handle is specified, so add/update the slot in the cache.
-      auto hwc3 = Hwc3BufferHandle::Create(*raw_handle);
+      auto hwc3 = GrallocBufferHandle::Create(*raw_handle);
       if (!hwc3) {
         return std::nullopt;
       }
@@ -471,7 +476,7 @@ class Hwc3Layer : public ::android::drm_hwcomposer::FrontendLayerBase {
 
  private:
   ::android::drm_hwcomposer::HwcBufferCache buffer_cache_;
-  std::map<int32_t /*slot*/, std::shared_ptr<Hwc3BufferHandle>> slots_;
+  std::map<int32_t /*slot*/, std::shared_ptr<GrallocBufferHandle>> slots_;
 };
 
 static auto GetHwc3Layer(HwcLayer& layer) -> std::shared_ptr<Hwc3Layer> {
