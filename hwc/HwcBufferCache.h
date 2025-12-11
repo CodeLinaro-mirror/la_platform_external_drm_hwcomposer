@@ -37,6 +37,9 @@ class HwcBufferCache {
   std::shared_ptr<DrmFbIdHandle> GetFb(int32_t slot_id) const;
   void Clear();
 
+  static std::shared_ptr<DrmFbIdHandle> ImportFb(const HwcDisplay* display,
+                                                 BufferInfo& bi);
+
  private:
   struct BufferSlot {
     BufferInfo bi;

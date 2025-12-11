@@ -102,8 +102,8 @@ class HwcLayer {
   // client-composited.
   uint32_t GetPixOps() const;
 
-  HwcBufferCache &GetBufferCache() {
-    return buffer_cache_;
+  HwcDisplay *GetParent() const {
+    return parent_;
   }
 
  private:
@@ -135,10 +135,9 @@ class HwcLayer {
   std::shared_ptr<FrontendLayerBase> frontend_private_data_;
 
   bool has_buffer_set_ = false;
-  HwcBufferCache buffer_cache_;
 
  public:
-  void ClearSlots();
+  void InvalidateBuffer();
   bool IsLayerUsableAsDevice() const;
 };
 

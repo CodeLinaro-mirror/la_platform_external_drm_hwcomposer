@@ -26,8 +26,7 @@
 
 namespace android::drm_hwcomposer {
 
-HwcLayer::HwcLayer(HwcDisplay* parent_display)
-    : parent_(parent_display), buffer_cache_(parent_display) {
+HwcLayer::HwcLayer(HwcDisplay* parent_display) : parent_(parent_display) {
 }
 
 void HwcLayer::SetLayerProperties(const LayerProperties& layer_properties) {
@@ -90,8 +89,7 @@ void HwcLayer::PopulateLayerData() {
   }
 }
 
-void HwcLayer::ClearSlots() {
-  buffer_cache_.Clear();
+void HwcLayer::InvalidateBuffer() {
   has_buffer_set_ = false;
 }
 

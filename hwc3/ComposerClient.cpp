@@ -413,8 +413,8 @@ class Hwc3BufferHandle : public ::android::drm_hwcomposer::PrimeFdsSharedBase {
 
 class Hwc3Layer : public ::android::drm_hwcomposer::FrontendLayerBase {
  public:
-  explicit Hwc3Layer(::android::drm_hwcomposer::HwcBufferCache* buffer_cache)
-      : buffer_cache_(buffer_cache) {
+  explicit Hwc3Layer(::android::drm_hwcomposer::HwcDisplay* parent_display)
+      : buffer_cache_(parent_display) {
   }
   auto HandleNextBuffer(std::optional<buffer_handle_t> raw_handle,
                         ::android::drm_hwcomposer::SharedFd fence_fd,
@@ -437,11 +437,11 @@ class Hwc3Layer : public ::android::drm_hwcomposer::FrontendLayerBase {
       }
 
       bi->fds_shared = hwc3;
-      buffer_cache_->SetSlot(slot_id, bi);
+      buffer_cache_.SetSlot(slot_id, bi);
       slots_[slot_id] = hwc3;
     }
 
-    auto bi = buffer_cache_->GetBufferInfo(slot_id);
+    auto bi = buffer_cache_.GetBufferInfo(slot_id);
     if (bi == std::nullopt) {
       ALOGE("Failed to get buffer info for slot %d", slot_id);
       return std::nullopt;
@@ -452,7 +452,7 @@ class Hwc3Layer : public ::android::drm_hwcomposer::FrontendLayerBase {
     HwcLayer::LayerProperties lp;
     lp.buffer = {
         .bi = bi.value(),
-        .fb = buffer_cache_->GetFb(slot_id),
+        .fb = buffer_cache_.GetFb(slot_id),
         .fence = std::move(fence_fd),
     };
 
@@ -460,24 +460,24 @@ class Hwc3Layer : public ::android::drm_hwcomposer::FrontendLayerBase {
   }
 
   void ClearSlot(int32_t slot_id) {
-    buffer_cache_->SetSlot(slot_id, std::nullopt);
+    buffer_cache_.SetSlot(slot_id, std::nullopt);
     slots_.erase(slot_id);
   }
 
   void ClearSlots() {
+    buffer_cache_.Clear();
     slots_.clear();
   }
 
  private:
-  ::android::drm_hwcomposer::HwcBufferCache* buffer_cache_;
+  ::android::drm_hwcomposer::HwcBufferCache buffer_cache_;
   std::map<int32_t /*slot*/, std::shared_ptr<Hwc3BufferHandle>> slots_;
 };
 
 static auto GetHwc3Layer(HwcLayer& layer) -> std::shared_ptr<Hwc3Layer> {
   auto frontend_private_data = layer.GetFrontendPrivateData();
   if (!frontend_private_data) {
-    frontend_private_data = std::make_shared<Hwc3Layer>(
-        &layer.GetBufferCache());
+    frontend_private_data = std::make_shared<Hwc3Layer>(layer.GetParent());
     layer.SetFrontendPrivateData(frontend_private_data);
   }
   return std::static_pointer_cast<Hwc3Layer>(frontend_private_data);
@@ -1158,7 +1158,6 @@ ndk::ScopedAStatus ComposerClient::getReadbackBufferFence(
   ::android::drm_hwcomposer::SharedFd fence = display
                                                   ->GetWritebackBufferFence();
   display->SetWritebackEnabled(false);
-  display->GetWritebackLayer()->ClearSlots();
 
   if (!fence) {
     ALOGE("ComposerClient: Failed to get readback buffer fence");
@@ -1266,7 +1265,6 @@ ndk::ScopedAStatus ComposerClient::setActiveConfigWithConstraints(
     auto& client_layer = display->GetClientLayer();
     auto hwc3_layer = GetHwc3Layer(client_layer);
     hwc3_layer->ClearSlots();
-    client_layer.ClearSlots();
   }
 
   // Always try to queue a seamless commit to reduce jank and flicker artifacts.
@@ -1466,12 +1464,16 @@ ndk::ScopedAStatus ComposerClient::setReadbackBuffer(
   ndk::ScopedFileDescriptor release_fence = ndk::ScopedFileDescriptor(
       release_fence_in.get());
   properties.blend_mode = BufferBlendMode::kNone;
-  writeback_layer->GetBufferCache()
-      .SetSlot(0, ::android::drm_hwcomposer::BufferInfoGetter::GetInstance()
-                      ->GetBoInfo(imported_handle));
+  auto bi = ::android::drm_hwcomposer::BufferInfoGetter::GetInstance()
+                ->GetBoInfo(imported_handle);
+  if (bi == std::nullopt) {
+    ALOGE("Failed to get BufferInfo for readback buffer.");
+    return ToBinderStatus(hwc3::Error::kBadParameter);
+  }
   properties.buffer = {
-      .bi = writeback_layer->GetBufferCache().GetBufferInfo(0).value(),
-      .fb = writeback_layer->GetBufferCache().GetFb(0),
+      .bi = bi.value(),
+      .fb = ::android::drm_hwcomposer::HwcBufferCache::
+          ImportFb(writeback_layer->GetParent(), *bi),
       .fence = ::android::drm_hwcomposer::MakeSharedFd(release_fence.release()),
   };
   writeback_layer->SetLayerProperties(properties);

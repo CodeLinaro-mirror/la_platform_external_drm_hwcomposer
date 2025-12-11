@@ -63,13 +63,21 @@ void HwcBufferCache::Clear() {
   slots_.clear();
 }
 
+std::shared_ptr<DrmFbIdHandle> HwcBufferCache::ImportFb(
+    const HwcDisplay* display, BufferInfo& bi) {
+  if (display->IsInHeadlessMode()) {
+    return nullptr;
+  }
+  auto& fb_importer = display->GetPipe().device->GetDrmFbImporter();
+  return fb_importer.GetOrCreateFbId(&bi);
+}
+
 bool HwcBufferCache::ImportFb(BufferSlot& slot) const {
   if (parent_display_->IsInHeadlessMode()) {
     return true;
   }
   if (slot.fb == nullptr) {
-    auto& fb_importer = parent_display_->GetPipe().device->GetDrmFbImporter();
-    slot.fb = fb_importer.GetOrCreateFbId(&slot.bi);
+    slot.fb = ImportFb(parent_display_, slot.bi);
   }
   return slot.fb != nullptr;
 }

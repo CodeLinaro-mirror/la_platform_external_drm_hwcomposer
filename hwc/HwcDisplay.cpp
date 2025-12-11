@@ -707,8 +707,6 @@ void HwcDisplay::Deinit() {
     vsync_worker_->StopThread();
     vsync_worker_ = {};
   }
-
-  client_layer_.ClearSlots();
 }
 
 bool HwcDisplay::Init() {
@@ -1398,18 +1396,17 @@ std::optional<LayerData> HwcDisplay::GetModesetLayerData(
   }
 
   ALOGV("Allocate modeset buffer.");
-  auto modeset_buffer = GetPipe().device->CreateBufferForModeset(new_width,
-                                                                 new_height);
+  std::optional<BufferInfo>
+      modeset_buffer = GetPipe().device->CreateBufferForModeset(new_width,
+                                                                new_height);
   if (!modeset_buffer)
     return std::nullopt;
 
   auto modeset_layer = std::make_unique<HwcLayer>(this);
-  HwcBufferCache &cache = modeset_layer->GetBufferCache();
-  cache.SetSlot(0, modeset_buffer);
   modeset_layer->SetLayerProperties({
       .buffer = std::optional<HwcLayer::Buffer>({
-          .bi = cache.GetBufferInfo(0).value(),
-          .fb = cache.GetFb(0),
+          .bi = modeset_buffer.value(),
+          .fb = HwcBufferCache::ImportFb(this, *modeset_buffer),
           .fence = {},
       }),
       .blend_mode = BufferBlendMode::kNone,
