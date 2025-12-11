@@ -42,7 +42,7 @@
 
 #include "bufferinfo/BufferInfo.h"
 #include "bufferinfo/BufferInfoGetter.h"
-#include "bufferinfo/GrallocBufferHandle.h"
+#include "bufferinfo/GrallocBufferCache.h"
 #include "compositor/DisplayInfo.h"
 #include "hwc/HwcDisplay.h"
 #include "hwc/HwcDisplayConfigs.h"
@@ -64,7 +64,7 @@ using ::android::drm_hwcomposer::CompositionType;
 using ::android::drm_hwcomposer::DamageInfo;
 using ::android::drm_hwcomposer::DisplayHandle;
 using ::android::drm_hwcomposer::DstRectInfo;
-using ::android::drm_hwcomposer::GrallocBufferHandle;
+using ::android::drm_hwcomposer::GrallocBufferCache;
 using ::android::drm_hwcomposer::HwcDisplay;
 using ::android::drm_hwcomposer::HwcDisplayConfig;
 using ::android::drm_hwcomposer::HwcLayer;
@@ -382,62 +382,6 @@ std::optional<DamageInfo> AidlToDamage(
 }
 
 }  // namespace
-
-class GrallocBufferCache : public ::android::drm_hwcomposer::FrontendLayerBase {
- public:
-  explicit GrallocBufferCache(
-      ::android::drm_hwcomposer::HwcDisplay* parent_display)
-      : buffer_cache_(parent_display) {
-  }
-  auto HandleNextBuffer(std::optional<buffer_handle_t> raw_handle,
-                        ::android::drm_hwcomposer::SharedFd fence_fd,
-                        int32_t slot_id) -> std::optional<HwcLayer::Buffer> {
-    // raw_handle is specified, so add/update the buffer cache.
-    if (raw_handle) {
-      // raw_handle is specified, so add/update the slot in the cache.
-      auto hwc3 = GrallocBufferHandle::Create(*raw_handle);
-      if (!hwc3) {
-        return std::nullopt;
-      }
-      auto bi = ::android::drm_hwcomposer::BufferInfoGetter::GetInstance()
-                    ->GetBoInfo(hwc3->GetHandle());
-      // If we fail to get the BufferInfo, just leave the cache alone and log
-      // the error.
-      if (bi == std::nullopt) {
-        ALOGE("Failed to get buffer info for handle %p", raw_handle.value());
-        return std::nullopt;
-      }
-
-      bi->fds_shared = hwc3;
-      buffer_cache_.SetSlot(slot_id, bi);
-    }
-
-    auto bi = buffer_cache_.GetBufferInfo(slot_id);
-    if (bi == std::nullopt) {
-      ALOGE("Failed to get buffer info for slot %d", slot_id);
-      return std::nullopt;
-    }
-
-    // Cache has possibly been updated above, so populate the Buffer
-    // using the contents of the cache.
-    return HwcLayer::Buffer{
-        .bi = bi.value(),
-        .fb = buffer_cache_.GetFb(slot_id),
-        .fence = std::move(fence_fd),
-    };
-  }
-
-  void ClearSlot(int32_t slot_id) {
-    buffer_cache_.SetSlot(slot_id, std::nullopt);
-  }
-
-  void ClearSlots() {
-    buffer_cache_.Clear();
-  }
-
- private:
-  ::android::drm_hwcomposer::HwcBufferCache buffer_cache_;
-};
 
 static auto GetBufferCache(HwcLayer& layer)
     -> std::shared_ptr<GrallocBufferCache> {
