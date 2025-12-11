@@ -409,7 +409,6 @@ class Hwc3Layer : public ::android::drm_hwcomposer::FrontendLayerBase {
 
       bi->fds_shared = hwc3;
       buffer_cache_.SetSlot(slot_id, bi);
-      slots_[slot_id] = hwc3;
     }
 
     auto bi = buffer_cache_.GetBufferInfo(slot_id);
@@ -429,17 +428,14 @@ class Hwc3Layer : public ::android::drm_hwcomposer::FrontendLayerBase {
 
   void ClearSlot(int32_t slot_id) {
     buffer_cache_.SetSlot(slot_id, std::nullopt);
-    slots_.erase(slot_id);
   }
 
   void ClearSlots() {
     buffer_cache_.Clear();
-    slots_.clear();
   }
 
  private:
   ::android::drm_hwcomposer::HwcBufferCache buffer_cache_;
-  std::map<int32_t /*slot*/, std::shared_ptr<GrallocBufferHandle>> slots_;
 };
 
 static auto GetHwc3Layer(HwcLayer& layer) -> std::shared_ptr<Hwc3Layer> {
