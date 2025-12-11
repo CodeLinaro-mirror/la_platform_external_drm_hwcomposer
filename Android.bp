@@ -73,6 +73,7 @@ filegroup {
     srcs: [
         "bufferinfo/BufferInfoGetter.cpp",
         "bufferinfo/BufferInfoMapperMetadata.cpp",
+        "bufferinfo/GrallocBufferHandle.cpp",
 
         "compositor/CompositionPlanner.cpp",
         "compositor/FlatteningController.cpp",

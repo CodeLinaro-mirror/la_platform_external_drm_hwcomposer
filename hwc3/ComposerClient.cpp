@@ -42,6 +42,7 @@
 
 #include "bufferinfo/BufferInfo.h"
 #include "bufferinfo/BufferInfoGetter.h"
+#include "bufferinfo/GrallocBufferHandle.h"
 #include "compositor/DisplayInfo.h"
 #include "hwc/HwcDisplay.h"
 #include "hwc/HwcDisplayConfigs.h"
@@ -63,6 +64,7 @@ using ::android::drm_hwcomposer::CompositionType;
 using ::android::drm_hwcomposer::DamageInfo;
 using ::android::drm_hwcomposer::DisplayHandle;
 using ::android::drm_hwcomposer::DstRectInfo;
+using ::android::drm_hwcomposer::GrallocBufferHandle;
 using ::android::drm_hwcomposer::HwcDisplay;
 using ::android::drm_hwcomposer::HwcDisplayConfig;
 using ::android::drm_hwcomposer::HwcLayer;
@@ -380,41 +382,6 @@ std::optional<DamageInfo> AidlToDamage(
 }
 
 }  // namespace
-
-// GrallocBufferHandle manages the lifetime of a buffer_handle_t that has been
-// imported into this process. Its lifetime is expected to be tracked by a
-// shared_ptr<PrimeFdsSharedBase> such that the imported buffer_handle_t can be
-// freed after there are no more BufferInfos using it.
-class GrallocBufferHandle
-    : public ::android::drm_hwcomposer::PrimeFdsSharedBase {
- public:
-  static auto Create(buffer_handle_t handle)
-      -> std::shared_ptr<GrallocBufferHandle> {
-    auto hwc3 = std::shared_ptr<GrallocBufferHandle>(new GrallocBufferHandle());
-
-    auto result = ::android::GraphicBufferMapper::get()
-        .importBufferNoValidate(handle, &hwc3->imported_handle_);
-
-    if (result != ::android::NO_ERROR) {
-      ALOGE("Failed to import buffer handle: %d", result);
-      return nullptr;
-    }
-
-    return hwc3;
-  }
-
-  auto GetHandle() const -> buffer_handle_t {
-    return imported_handle_;
-  }
-
-  ~GrallocBufferHandle() override {
-    ::android::GraphicBufferMapper::get().freeBuffer(imported_handle_);
-  }
-
- private:
-  GrallocBufferHandle() = default;
-  buffer_handle_t imported_handle_{};
-};
 
 class Hwc3Layer : public ::android::drm_hwcomposer::FrontendLayerBase {
  public:
