@@ -431,12 +431,13 @@ class Hwc3Layer : public ::android::drm_hwcomposer::FrontendLayerBase {
                     ->GetBoInfo(hwc3->GetHandle());
       // If we fail to get the BufferInfo, just leave the cache alone and log
       // the error.
-      ALOGE_IF(!bi, "Failed to get buffer info for handle %p",
-               raw_handle.value());
-      if (bi) {
-        bi->fds_shared = hwc3;
-        buffer_cache_->SetSlot(slot_id, bi);
+      if (bi == std::nullopt) {
+        ALOGE("Failed to get buffer info for handle %p", raw_handle.value());
+        return std::nullopt;
       }
+
+      bi->fds_shared = hwc3;
+      buffer_cache_->SetSlot(slot_id, bi);
       slots_[slot_id] = hwc3;
     }
 
