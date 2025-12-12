@@ -90,6 +90,12 @@
     // VKMS Wrapper Tests
     {
       "name": "Vkms2_SurfaceFlingerTest"
+    },
+    {
+      "name": "TestHwcToggleDisplayPower"
+    },
+    {
+      "name": "CfWritebackTest"
     }
   ]
 }
