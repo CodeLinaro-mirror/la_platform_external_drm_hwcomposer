@@ -31,7 +31,9 @@ auto GrallocBufferCache::HandleNextBuffer(
   // raw_handle is specified, so add/update the buffer cache.
   if (raw_handle) {
     // raw_handle is specified, so add/update the slot in the cache.
-    auto imported_handle = GrallocBufferHandle::Create(*raw_handle);
+    auto imported_handle = ::android::drm_hwcomposer::BufferInfoGetter::
+                               GetInstance()
+                                   ->Import(*raw_handle);
     if (!imported_handle) {
       ALOGE("Failed to create GrallocBufferHandle.");
       return std::nullopt;
