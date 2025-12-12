@@ -274,6 +274,8 @@ cc_test_host {
     name: "drm_hwcomposer_unittests",
     srcs: [
         "bufferinfo/BufferInfoGetter.cpp",
+        "bufferinfo/GrallocBufferCache.cpp",
+        "bufferinfo/GrallocBufferCacheTest.cpp",
         "compositor/FlatteningController.cpp",
         "compositor/FlatteningControllerTests.cpp",
         "compositor/FlatteningEventAtomReporter.cpp",
