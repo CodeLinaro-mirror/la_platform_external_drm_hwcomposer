@@ -27,6 +27,7 @@
 #include <mutex>
 
 #include "bufferinfo/BufferInfoMapperMetadata.h"
+#include "bufferinfo/GrallocBufferHandle.h"
 #include "utils/log.h"
 
 namespace android::drm_hwcomposer {
@@ -47,6 +48,11 @@ BufferInfoGetter *BufferInfoGetter::GetInstance() {
   }
 
   return inst.get();
+}
+
+std::shared_ptr<GrallocBufferHandle> BufferInfoGetter::Import(
+    buffer_handle_t handle) {
+  return GrallocBufferHandle::Create(handle);
 }
 
 std::optional<BufferUniqueId> BufferInfoGetter::GetUniqueId(

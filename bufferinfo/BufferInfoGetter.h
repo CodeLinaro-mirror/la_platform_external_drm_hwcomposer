@@ -32,10 +32,15 @@ namespace android::drm_hwcomposer {
 using BufferUniqueId = uint64_t;
 
 struct BufferInfo;
+class GrallocBufferHandle;
 
 class BufferInfoGetter {
  public:
   virtual ~BufferInfoGetter() = default;
+
+  // Import the buffer_handle_t into this process. The imported buffer_handle_t
+  // will be released when the GrallocBufferHandle is destructed.
+  virtual std::shared_ptr<GrallocBufferHandle> Import(buffer_handle_t handle);
 
   virtual auto GetBoInfo(buffer_handle_t handle)
       -> std::optional<BufferInfo> = 0;

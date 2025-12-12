@@ -31,12 +31,13 @@ auto GrallocBufferCache::HandleNextBuffer(
   // raw_handle is specified, so add/update the buffer cache.
   if (raw_handle) {
     // raw_handle is specified, so add/update the slot in the cache.
-    auto hwc3 = GrallocBufferHandle::Create(*raw_handle);
-    if (!hwc3) {
+    auto imported_handle = GrallocBufferHandle::Create(*raw_handle);
+    if (!imported_handle) {
       ALOGE("Failed to create GrallocBufferHandle.");
       return std::nullopt;
     }
-    auto bi = BufferInfoGetter::GetInstance()->GetBoInfo(hwc3->GetHandle());
+    auto bi = BufferInfoGetter::GetInstance()->GetBoInfo(
+        imported_handle->GetHandle());
     // If we fail to get the BufferInfo, just leave the cache alone and log
     // the error.
     if (bi == std::nullopt) {
@@ -44,7 +45,7 @@ auto GrallocBufferCache::HandleNextBuffer(
       return std::nullopt;
     }
 
-    bi->fds_shared = hwc3;
+    bi->fds_shared = imported_handle;
     buffer_cache_.SetSlot(slot_id, bi);
   }
 
