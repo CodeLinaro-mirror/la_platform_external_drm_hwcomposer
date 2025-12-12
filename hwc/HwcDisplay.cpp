@@ -39,6 +39,7 @@
 #include "drm/DrmHwc.h"
 #include "drm/VSyncWorker.h"
 #include "hwc/HwcLayer.h"
+#include "stats/DisplayConfigurationResultReporter.h"
 #include "stats/DisplayHotplugConnectModeDetectedAtomReporter.h"
 #include "stats/Stats.h"
 #include "utils/EdidWrapper.h"
@@ -174,6 +175,7 @@ HwcDisplay::HwcDisplay(DisplayHandle handle, bool is_virtual, DrmHwc *hwc)
 
   display_mode_reporter_ = DisplayHotplugConnectModeDetectedAtomReporter::
       Create();
+  config_result_reporter_ = DisplayConfigurationResultReporter::Create();
 }
 
 void HwcDisplay::SetColorTransformMatrix(
@@ -297,6 +299,7 @@ HwcDisplay::ConfigError HwcDisplay::SetConfig(ConfigId config) {
   commit_args.blocking = true;
   if (!GetPipe().atomic_state_manager->ExecuteAtomicCommit(commit_args)) {
     ALOGE("Blocking config failed.");
+    LogConfigResult(/*blocking=*/true, /*success=*/false);
     return HwcDisplay::ConfigError::kConfigFailed;
   }
 
@@ -304,6 +307,7 @@ HwcDisplay::ConfigError HwcDisplay::SetConfig(ConfigId config) {
   configs_.active_config_id = config;
   staged_mode_config_id_.reset();
   vsync_worker_->SetVsyncPeriodNs(new_config->mode.GetVSyncPeriodNs());
+  LogConfigResult(/*blocking=*/true, /*success=*/true);
   // set new vsync period
   return ConfigError::kNone;
 }
@@ -667,6 +671,7 @@ bool HwcDisplay::SetDisplayEnabled(bool enabled) {
                                   .atomic_state_manager->ExecuteAtomicCommit(
                                       a_args);
   ALOGE_IF(!commit_success, "Failed to apply the dpms composition.");
+  LogConfigResult(/*blocking=*/true, /*success=*/commit_success);
   return commit_success;
 }
 
@@ -703,7 +708,10 @@ void HwcDisplay::Deinit() {
     a_args.composition = {};
     a_args.active = false;
     a_args.teardown = true;
-    GetPipe().atomic_state_manager->ExecuteAtomicCommit(a_args);
+    const bool commit_result = GetPipe()
+                                   .atomic_state_manager->ExecuteAtomicCommit(
+                                       a_args);
+    LogConfigResult(/*blocking=*/true, /*success=*/commit_result);
 
     validated_composition_.reset();
     flatcon_.reset();
@@ -1195,6 +1203,10 @@ bool HwcDisplay::CommitStagedComposition(SharedFd &out_present_fence) {
 
   if (!GetPipe().atomic_state_manager->ExecuteAtomicCommit(*a_args)) {
     ALOGE("Failed to commit the frame composition.");
+
+    if (a_args->display_mode) {
+      LogConfigResult(/*blocking=*/a_args->blocking, /*success=*/false);
+    }
     return false;
   }
   out_present_fence = a_args->out_fence;
@@ -1225,6 +1237,7 @@ void HwcDisplay::ApplyCommitChanges(const AtomicCommitArgs &a_args) {
         configs_.active_config_id);
     staged_mode_config_id_.reset();
     vsync_worker_->SetVsyncPeriodNs(a_args.display_mode->GetVSyncPeriodNs());
+    LogConfigResult(/*blocking=*/a_args.blocking, /*success=*/true);
   }
 
   if (a_args.hdcp_content_type.has_value() ||
@@ -1510,4 +1523,35 @@ void HwcDisplay::LogModesOnHotplug() {
     submitted_atoms.push_back(atom);
   }
 }
+
+void HwcDisplay::LogConfigResult(bool blocking, bool success) {
+  if (!config_result_reporter_) {
+    return;
+  }
+
+  DisplayConfigurationResultReporter::DisplayType
+      display_type = DisplayConfigurationResultReporter::DisplayType::
+          kUnspecified;
+  switch (GetDisplayType()) {
+    case HwcDisplay::DisplayType::kInternal:
+      display_type = DisplayConfigurationResultReporter::DisplayType::kInternal;
+      break;
+    case HwcDisplay::DisplayType::kExternal:
+      display_type = DisplayConfigurationResultReporter::DisplayType::kExternal;
+      break;
+    default:
+      display_type = DisplayConfigurationResultReporter::DisplayType::
+          kUnspecified;
+      break;
+  }
+
+  const DisplayConfigurationResultReporter::Atom atom{
+      .display_handle = handle_,
+      .success = success,
+      .is_seamless = !blocking,
+      .display_type = display_type,
+  };
+  config_result_reporter_->PushAtom(atom);
+}
+
 }  // namespace android::drm_hwcomposer

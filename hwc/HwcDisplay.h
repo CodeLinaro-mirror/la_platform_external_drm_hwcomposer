@@ -36,6 +36,7 @@ using aidl::android::hardware::graphics::common::Hdr;
 namespace android::drm_hwcomposer {
 
 class ChangedLayer;
+class DisplayConfigurationResultReporter;
 class DisplayHotplugConnectModeDetectedAtomReporter;
 class DrmHwc;
 class EdidWrapper;
@@ -304,6 +305,7 @@ class HwcDisplay {
   }
 
   void LogModesOnHotplug();
+  void LogConfigResult(bool blocking, bool success);
 
   HwcDisplayConfigs configs_;
 
@@ -355,6 +357,7 @@ class HwcDisplay {
 
   std::unique_ptr<DisplayHotplugConnectModeDetectedAtomReporter>
       display_mode_reporter_;
+  std::unique_ptr<DisplayConfigurationResultReporter> config_result_reporter_;
 };
 
 }  // namespace android::drm_hwcomposer

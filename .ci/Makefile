@@ -101,6 +101,7 @@ SKIP_FILES := \
     drm/DrmDisplayPipelineTest.cpp \
     stats/CompositionStatsAtomReporterDesktop.cpp \
     stats/CountActiveDisplaysReporterDesktop.cpp \
+    stats/DisplayConfigurationResultReporterDesktop.cpp \
     stats/DisplayHotplugConnectModeDetectedAtomReporterDesktop.cpp \
     stats/DisplayRefreshRatesChangedAtomReporterDesktop.cpp \
     stats/StatsTest.cpp \
