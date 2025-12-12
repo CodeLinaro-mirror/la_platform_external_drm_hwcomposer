@@ -19,6 +19,7 @@
 #include <drm/drm_fourcc.h>
 #include <hardware/gralloc.h>
 
+#include <memory>
 #include <optional>
 
 #include "utils/log.h"
@@ -47,6 +48,7 @@ class BufferInfoGetter {
 
   virtual std::optional<BufferUniqueId> GetUniqueId(buffer_handle_t handle);
 
+  static void Init(std::unique_ptr<BufferInfoGetter> getter);
   static BufferInfoGetter *GetInstance();
 
   static bool IsDrmFormatRgb(uint32_t drm_format);

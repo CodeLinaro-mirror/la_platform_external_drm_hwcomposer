@@ -27,15 +27,13 @@
 
 namespace android::drm_hwcomposer {
 
-class HwcDisplay;
-
 // Imports and caches gralloc buffers based on the behavior specified in HWC3
 // documentation. The gralloc buffers will be imported as a GrallocBufferHandle,
 // with its associated BufferInfo holding a handle to the GrallocBufferHandle.
 class GrallocBufferCache : public FrontendLayerBase {
  public:
-  // |parent_display| is the display for which drm framebuffers will be created.
-  explicit GrallocBufferCache(HwcDisplay* parent_display);
+  // |importer| is the callback used to import drm framebuffers.
+  explicit GrallocBufferCache(HwcBufferCache::ImporterCallback importer);
 
   // If |raw_handle| is std::nullopt, use the cached buffer. If |raw_handle| is
   // set, update the cache. In both cases, return a HwcLayer::Buffer that can be

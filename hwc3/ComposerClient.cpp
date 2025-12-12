@@ -44,6 +44,9 @@
 #include "bufferinfo/BufferInfoGetter.h"
 #include "bufferinfo/GrallocBufferCache.h"
 #include "compositor/DisplayInfo.h"
+#include "drm/DrmDevice.h"
+#include "drm/DrmDisplayPipeline.h"
+#include "drm/DrmFbImporter.h"
 #include "hwc/HwcDisplay.h"
 #include "hwc/HwcDisplayConfigs.h"
 #include "hwc/HwcLayer.h"
@@ -383,12 +386,26 @@ std::optional<DamageInfo> AidlToDamage(
 
 }  // namespace
 
-static auto GetBufferCache(HwcLayer& layer)
+static auto ImportFb(HwcDisplay* display,
+                     ::android::drm_hwcomposer::BufferInfo& bi)
+    -> std::shared_ptr<::android::drm_hwcomposer::DrmFbIdHandle> {
+  if (display->IsInHeadlessMode()) {
+    return nullptr;
+  }
+  auto fb = display->GetPipe().device->GetDrmFbImporter().GetOrCreateFbId(&bi);
+  ALOGE_IF(fb == nullptr, "Failed to import framebuffer");
+  return fb;
+}
+
+static auto GetBufferCache(HwcDisplay* parent, HwcLayer& layer)
     -> std::shared_ptr<GrallocBufferCache> {
   auto frontend_private_data = layer.GetFrontendPrivateData();
   if (!frontend_private_data) {
     frontend_private_data = std::make_shared<GrallocBufferCache>(
-        layer.GetParent());
+        [parent](auto& bi)
+            -> std::shared_ptr<::android::drm_hwcomposer::DrmFbIdHandle> {
+          return ImportFb(parent, bi);
+        });
     layer.SetFrontendPrivateData(frontend_private_data);
   }
   return std::static_pointer_cast<GrallocBufferCache>(frontend_private_data);
@@ -553,7 +570,7 @@ void ComposerClient::DispatchLayerCommand(int64_t display_handle,
 
   /* https://source.android.com/docs/core/graphics/reduce-consumption */
   if (command.bufferSlotsToClear) {
-    auto buffer_cache = GetBufferCache(*layer);
+    auto buffer_cache = GetBufferCache(display, *layer);
     for (const auto& slot : *command.bufferSlotsToClear) {
       buffer_cache->ClearSlot(slot);
     }
@@ -561,7 +578,7 @@ void ComposerClient::DispatchLayerCommand(int64_t display_handle,
 
   HwcLayer::LayerProperties properties;
   if (command.buffer) {
-    auto buffer_cache = GetBufferCache(*layer);
+    auto buffer_cache = GetBufferCache(display, *layer);
     std::optional<buffer_handle_t> buffer_handle = std::nullopt;
     if (command.buffer->handle) {
       buffer_handle = ::android::makeFromAidl(*command.buffer->handle);
@@ -1174,7 +1191,7 @@ ndk::ScopedAStatus ComposerClient::setActiveConfigWithConstraints(
    */
   if (!same_resolution) {
     auto& client_layer = display->GetClientLayer();
-    auto buffer_cache = GetBufferCache(client_layer);
+    auto buffer_cache = GetBufferCache(display, client_layer);
     buffer_cache->ClearSlots();
   }
 
@@ -1383,8 +1400,7 @@ ndk::ScopedAStatus ComposerClient::setReadbackBuffer(
   }
   properties.buffer = {
       .bi = bi.value(),
-      .fb = ::android::drm_hwcomposer::HwcBufferCache::
-          ImportFb(writeback_layer->GetParent(), *bi),
+      .fb = ImportFb(display, *bi),
       .fence = ::android::drm_hwcomposer::MakeSharedFd(release_fence.release()),
   };
   writeback_layer->SetLayerProperties(properties);
@@ -1511,7 +1527,7 @@ void ComposerClient::ExecuteSetDisplayClientTarget(
   }
 
   auto& client_layer = display->GetClientLayer();
-  auto buffer_cache = GetBufferCache(client_layer);
+  auto buffer_cache = GetBufferCache(display, client_layer);
 
   std::optional<buffer_handle_t> raw_buffer = std::nullopt;
   if (command.buffer.handle) {
@@ -1558,7 +1574,7 @@ void ComposerClient::ExecuteSetDisplayOutputBuffer(int64_t display_handle,
     return;
   }
 
-  auto buffer_cache = GetBufferCache(*writeback_layer);
+  auto buffer_cache = GetBufferCache(display, *writeback_layer);
 
   std::optional<buffer_handle_t> raw_buffer = std::nullopt;
   if (buffer.handle) {

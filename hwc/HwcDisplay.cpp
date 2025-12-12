@@ -36,6 +36,7 @@
 #include "drm/DrmCrtc.h"
 #include "drm/DrmDevice.h"
 #include "drm/DrmDisplayPipeline.h"
+#include "drm/DrmFbImporter.h"
 #include "drm/DrmHwc.h"
 #include "drm/VSyncWorker.h"
 #include "hwc/HwcLayer.h"
@@ -1406,7 +1407,8 @@ std::optional<LayerData> HwcDisplay::GetModesetLayerData(
   modeset_layer->SetLayerProperties({
       .buffer = std::optional<HwcLayer::Buffer>({
           .bi = modeset_buffer.value(),
-          .fb = HwcBufferCache::ImportFb(this, *modeset_buffer),
+          .fb = GetPipe().device->GetDrmFbImporter().GetOrCreateFbId(
+              &modeset_buffer.value()),
           .fence = {},
       }),
       .blend_mode = BufferBlendMode::kNone,

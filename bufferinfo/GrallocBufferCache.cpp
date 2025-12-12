@@ -16,14 +16,17 @@
 
 #include "bufferinfo/GrallocBufferCache.h"
 
+#include <utility>
+
 #include "bufferinfo/BufferInfoGetter.h"
 #include "bufferinfo/GrallocBufferHandle.h"
 #include "utils/log.h"
 
 namespace android::drm_hwcomposer {
 
-GrallocBufferCache::GrallocBufferCache(HwcDisplay* parent_display)
-    : buffer_cache_(parent_display) {
+GrallocBufferCache::GrallocBufferCache(
+    HwcBufferCache::ImporterCallback importer)
+    : buffer_cache_(std::move(importer)) {
 }
 auto GrallocBufferCache::HandleNextBuffer(
     std::optional<buffer_handle_t> raw_handle, SharedFd fence_fd,

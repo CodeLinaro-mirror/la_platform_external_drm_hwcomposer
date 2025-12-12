@@ -26,19 +26,21 @@
 
 #include <mutex>
 
-#include "backend/BackendManager.h"
 #include "bufferinfo/BufferInfoMapperMetadata.h"
 #include "bufferinfo/GrallocBufferHandle.h"
 #include "utils/log.h"
 
 namespace android::drm_hwcomposer {
 
+// NOLINTNEXTLINE
+static std::unique_ptr<BufferInfoGetter> g_buffer_info_getter;
+
+void BufferInfoGetter::Init(std::unique_ptr<BufferInfoGetter> getter) {
+  g_buffer_info_getter = std::move(getter);
+}
+
 BufferInfoGetter *BufferInfoGetter::GetInstance() {
-  static std::unique_ptr<BufferInfoGetter> instance;
-  if (!instance) {
-    instance = BackendManager::GetInstance().CreateBufferInfoGetter();
-  }
-  return instance.get();
+  return g_buffer_info_getter.get();
 }
 
 std::shared_ptr<GrallocBufferHandle> BufferInfoGetter::Import(

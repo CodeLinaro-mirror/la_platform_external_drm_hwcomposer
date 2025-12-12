@@ -17,6 +17,7 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 #include <map>
 #include <memory>
 #include <optional>
@@ -25,20 +26,19 @@
 
 namespace android::drm_hwcomposer {
 
-class HwcDisplay;
 class DrmFbIdHandle;
 class DrmFbImporter;
 
 class HwcBufferCache {
  public:
-  explicit HwcBufferCache(HwcDisplay* parent_display);
+  using ImporterCallback = std::function<std::shared_ptr<DrmFbIdHandle>(
+      BufferInfo&)>;
+
+  explicit HwcBufferCache(ImporterCallback importer);
   void SetSlot(int32_t slot_id, const std::optional<BufferInfo>& bi);
   std::optional<BufferInfo> GetBufferInfo(int32_t slot_id) const;
   std::shared_ptr<DrmFbIdHandle> GetFb(int32_t slot_id) const;
   void Clear();
-
-  static std::shared_ptr<DrmFbIdHandle> ImportFb(const HwcDisplay* display,
-                                                 BufferInfo& bi);
 
  private:
   struct BufferSlot {
@@ -50,7 +50,7 @@ class HwcBufferCache {
   std::optional<BufferSlot> GetSlot(int32_t slot_id) const;
 
   std::map<int32_t /*slot_id*/, BufferSlot> slots_;
-  HwcDisplay* parent_display_{};
+  ImporterCallback importer_;
 };
 
 }  // namespace android::drm_hwcomposer

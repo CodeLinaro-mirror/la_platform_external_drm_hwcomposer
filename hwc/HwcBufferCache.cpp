@@ -16,16 +16,15 @@
 
 #include "HwcBufferCache.h"
 
-#include "drm/DrmDevice.h"
-#include "drm/DrmDisplayPipeline.h"
+#include <utility>
+
 #include "drm/DrmFbImporter.h"
-#include "hwc/HwcDisplay.h"
 #include "utils/log.h"
 
 namespace android::drm_hwcomposer {
 
-HwcBufferCache::HwcBufferCache(HwcDisplay* parent_display)
-    : parent_display_(parent_display) {
+HwcBufferCache::HwcBufferCache(ImporterCallback importer)
+    : importer_(std::move(importer)) {
 }
 
 void HwcBufferCache::SetSlot(int32_t slot_id,
@@ -63,23 +62,11 @@ void HwcBufferCache::Clear() {
   slots_.clear();
 }
 
-std::shared_ptr<DrmFbIdHandle> HwcBufferCache::ImportFb(
-    const HwcDisplay* display, BufferInfo& bi) {
-  if (display->IsInHeadlessMode()) {
-    return nullptr;
-  }
-  auto& fb_importer = display->GetPipe().device->GetDrmFbImporter();
-  return fb_importer.GetOrCreateFbId(&bi);
-}
-
 bool HwcBufferCache::ImportFb(BufferSlot& slot) const {
-  if (parent_display_->IsInHeadlessMode()) {
-    return true;
-  }
   if (slot.fb == nullptr) {
-    slot.fb = ImportFb(parent_display_, slot.bi);
+    slot.fb = importer_(slot.bi);
   }
-  return slot.fb != nullptr;
+  return true;
 }
 
 std::optional<HwcBufferCache::BufferSlot> HwcBufferCache::GetSlot(

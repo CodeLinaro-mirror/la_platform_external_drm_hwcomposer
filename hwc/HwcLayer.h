@@ -102,10 +102,6 @@ class HwcLayer {
   // client-composited.
   uint32_t GetPixOps() const;
 
-  HwcDisplay *GetParent() const {
-    return parent_;
-  }
-
  private:
   void PopulateLayerData();
 
