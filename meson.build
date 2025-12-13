@@ -70,6 +70,7 @@ hwc2_cpp_flags = [
 
 subdir('drm')
 subdir('bufferinfo')
+subdir('hwc')
 
 drmhwc_common = static_library(
     'drm_hwcomposer_common',
