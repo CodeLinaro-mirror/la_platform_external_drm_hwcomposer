@@ -297,9 +297,8 @@ HwcDisplay::ConfigError HwcDisplay::SetConfig(ConfigId config) {
   AtomicCommitArgs commit_args = CreateModesetCommit(new_config,
                                                      modeset_layer_data);
   commit_args.blocking = true;
-  if (!GetPipe().atomic_state_manager->ExecuteAtomicCommit(commit_args)) {
+  if (!ExecuteAtomicCommit(commit_args)) {
     ALOGE("Blocking config failed.");
-    LogConfigResult(/*blocking=*/true, /*success=*/false);
     return HwcDisplay::ConfigError::kConfigFailed;
   }
 
@@ -307,7 +306,6 @@ HwcDisplay::ConfigError HwcDisplay::SetConfig(ConfigId config) {
   configs_.active_config_id = config;
   staged_mode_config_id_.reset();
   vsync_worker_->SetVsyncPeriodNs(new_config->mode.GetVSyncPeriodNs());
-  LogConfigResult(/*blocking=*/true, /*success=*/true);
   // set new vsync period
   return ConfigError::kNone;
 }
@@ -582,7 +580,7 @@ auto HwcDisplay::GetPort() const -> uint8_t {
           (kConnectorIdx & kConnectorBitMask));
 }
 
-auto HwcDisplay::GetDisplayType() -> DisplayType {
+auto HwcDisplay::GetDisplayType() const -> DisplayType {
   if (is_virtual_) {
     return kVirtual;
   }
@@ -667,11 +665,8 @@ bool HwcDisplay::SetDisplayEnabled(bool enabled) {
   a_args.active = false;
   a_args.teardown = true;
 
-  const bool commit_success = GetPipe()
-                                  .atomic_state_manager->ExecuteAtomicCommit(
-                                      a_args);
+  const bool commit_success = ExecuteAtomicCommit(a_args);
   ALOGE_IF(!commit_success, "Failed to apply the dpms composition.");
-  LogConfigResult(/*blocking=*/true, /*success=*/commit_success);
   return commit_success;
 }
 
@@ -704,14 +699,11 @@ void HwcDisplay::Deinit() {
   if (pipeline_ != nullptr) {
     AtomicCommitArgs a_args{};
     a_args.composition = std::make_shared<LayerToPlaneJoiningPlan>();
-    GetPipe().atomic_state_manager->ExecuteAtomicCommit(a_args);
+    ExecuteAtomicCommit(a_args);
     a_args.composition = {};
     a_args.active = false;
     a_args.teardown = true;
-    const bool commit_result = GetPipe()
-                                   .atomic_state_manager->ExecuteAtomicCommit(
-                                       a_args);
-    LogConfigResult(/*blocking=*/true, /*success=*/commit_result);
+    ExecuteAtomicCommit(a_args);
 
     validated_composition_.reset();
     flatcon_.reset();
@@ -932,6 +924,20 @@ AtomicCommitArgs HwcDisplay::CreateModesetCommit(
   return args;
 }
 
+bool HwcDisplay::ExecuteAtomicCommit(AtomicCommitArgs &a_args) const {
+  const bool commit_result = GetPipe()
+                                 .atomic_state_manager->ExecuteAtomicCommit(
+                                     a_args);
+
+  // Log successful modesets (seamless and full), including teardowns.
+  if (!a_args.test_only && (a_args.display_mode || a_args.teardown)) {
+    const bool blocking = a_args.blocking || a_args.active || a_args.teardown;
+    LogConfigResult(blocking, commit_result);
+  }
+
+  return commit_result;
+}
+
 void HwcDisplay::WaitForPresentTime(int64_t present_time,
                                     uint32_t vsync_period_ns) {
   const int64_t current_time = ResourceManager::GetTimeMonotonicNs();
@@ -1001,7 +1007,7 @@ bool HwcDisplay::TestComposition(
     return false;
   }
   a_args->test_only = true;
-  if (GetPipe().atomic_state_manager->ExecuteAtomicCommit(*a_args)) {
+  if (ExecuteAtomicCommit(*a_args)) {
     // Put the composition plan into the newly-validated composition. Its owner
     // is responsible for keeping it alive until commit.
     composition.composition_plan = a_args->composition;
@@ -1201,12 +1207,8 @@ bool HwcDisplay::CommitStagedComposition(SharedFd &out_present_fence) {
     return false;
   }
 
-  if (!GetPipe().atomic_state_manager->ExecuteAtomicCommit(*a_args)) {
+  if (!ExecuteAtomicCommit(*a_args)) {
     ALOGE("Failed to commit the frame composition.");
-
-    if (a_args->display_mode) {
-      LogConfigResult(/*blocking=*/a_args->blocking, /*success=*/false);
-    }
     return false;
   }
   out_present_fence = a_args->out_fence;
@@ -1237,7 +1239,6 @@ void HwcDisplay::ApplyCommitChanges(const AtomicCommitArgs &a_args) {
         configs_.active_config_id);
     staged_mode_config_id_.reset();
     vsync_worker_->SetVsyncPeriodNs(a_args.display_mode->GetVSyncPeriodNs());
-    LogConfigResult(/*blocking=*/a_args.blocking, /*success=*/true);
   }
 
   if (a_args.hdcp_content_type.has_value() ||
@@ -1450,7 +1451,7 @@ void HwcDisplay::SetConfigGroupsForActiveConfig() {
                                                        modeset_layer_data);
     commit_args.test_only = true;
     commit_args.seamless = true;
-    if (pipeline_->atomic_state_manager->ExecuteAtomicCommit(commit_args)) {
+    if (ExecuteAtomicCommit(commit_args)) {
       config.group_id = active_config->group_id;
     }
   }
@@ -1524,7 +1525,7 @@ void HwcDisplay::LogModesOnHotplug() {
   }
 }
 
-void HwcDisplay::LogConfigResult(bool blocking, bool success) {
+void HwcDisplay::LogConfigResult(bool blocking, bool success) const {
   if (!config_result_reporter_) {
     return;
   }
