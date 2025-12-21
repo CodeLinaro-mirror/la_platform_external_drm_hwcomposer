@@ -316,7 +316,7 @@ bool DrmAtomicStateManager::SetCtmIfNeeded(const AtomicCommitArgs &args,
   if (drm->GetResMan().UseColorPipeline()) {
     return crtc->GetCtmProperty().AtomicSet(*request.property_set, 0);
   }
-  auto drm_color_matrix = ColorUtil::ToColorTransform3x3(*args.color_matrix);
+  auto drm_color_matrix = ColorUtil::ToColorTransform3x3(args.color_matrix);
   auto ctm_blob = drm->RegisterUserPropertyBlob(drm_color_matrix.get(),
                                                 sizeof(drm_color_ctm));
   if (!ctm_blob) {
@@ -466,13 +466,16 @@ bool DrmAtomicStateManager::SetCompositionIfNeeded(const AtomicCommitArgs &args,
     }
     request.used_kms_objects.blobs.emplace_back(std::move(damage_blob));
 
-    if (args.color_matrix && pipe_->device->GetResMan().UseColorPipeline()) {
-      auto drm_color_matrix = ColorUtil::ToColorTransform3x4(
-          *args.color_matrix);
-      DrmModeUserPropertyBlobUnique ctm_3x4_blob;
-      ctm_3x4_blob = pipe_->device
-                         ->RegisterUserPropertyBlob(drm_color_matrix.get(),
-                                                    sizeof(drm_color_ctm_3x4));
+    if (pipe_->device->GetResMan().UseColorPipeline()) {
+      std::shared_ptr<drm_color_ctm_3x4> drm_color_matrix = ColorUtil::
+          GamutAdjustIfNeeded(layer.colorspace,
+                              args.colorspace.value_or(Colorspace::kDefault),
+                              args.color_matrix, color_transform_map_);
+      DrmModeUserPropertyBlobUnique
+          ctm_3x4_blob = pipe_->device
+                             ->RegisterUserPropertyBlob(drm_color_matrix.get(),
+                                                        sizeof(
+                                                            drm_color_ctm_3x4));
       if (plane->AtomicSetColorPipeline(*request.property_set, ctm_3x4_blob) !=
           0) {
         return false;

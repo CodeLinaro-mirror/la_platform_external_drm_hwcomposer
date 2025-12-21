@@ -16,12 +16,15 @@
 
 #pragma once
 
-#include <drm_mode.h>
+#include <map>
+
 #include <utils/log.h>
 
 #include "bufferinfo/BufferInfo.h"
 #include "compositor/DisplayInfo.h"
 #include "drm/drm_mode.h"
+#include "math/mat3.h"
+#include "math/mat4.h"
 
 namespace android::drm_hwcomposer {
 
@@ -48,7 +51,7 @@ class ColorUtil {
    * B_out = R*6 + G*7 + B*8
    */
   static std::shared_ptr<drm_color_ctm> ToColorTransform3x3(
-      const HalColorTransforMatrix &color_transform_matrix);
+      const std::shared_ptr<HalColorTransforMatrix> &color_transform_matrix);
 
   /* HAL provides a transposed 4x4 float type matrix:
    * | 0  1  2  3|
@@ -72,7 +75,7 @@ class ColorUtil {
    * B_out = R*8 + G*9 + B*10 + 11
    */
   static std::shared_ptr<drm_color_ctm_3x4> ToColorTransform3x4(
-      const HalColorTransforMatrix &color_transform_matrix);
+      const std::shared_ptr<HalColorTransforMatrix> &color_transform_matrix);
 
   /* Maps to the Colorspace DRM connector property:
    * https://elixir.bootlin.com/linux/v6.11/source/include/drm/drm_connector.h#L538
@@ -130,6 +133,25 @@ class ColorUtil {
         return BufferColorEncoding::kUndefined;
     }
   }
+
+  // If required, adjust color transform matrix to handle gamut mapping
+  static std::shared_ptr<drm_color_ctm_3x4> GamutAdjustIfNeeded(
+      Colorspace src_colorspace, Colorspace dest_colorspace,
+      const std::shared_ptr<HalColorTransforMatrix> &color_transform_matrix,
+      std::map<std::tuple<Colorspace, Colorspace>, const mat3>
+          &color_transform_cache);
+
+ private:
+  /* Converts a column-major 4x4 float type flat array matrix into
+   * row-major a 3x4 s31.32 fixed point flat array matrix.
+   * in:           -> out:
+   * | 0  1  2  3|    |0  4  8  12|
+   * | 4  5  6  7|    |1  5  9  13|
+   * | 8  9 10 11| -> |2  6  10 14|
+   * |12 13 14 15|
+   */
+  static std::shared_ptr<drm_color_ctm_3x4> ToColorTransform3x4(
+      const android::mat4 &color_transform_matrix);
 };
 
 }  // namespace android::drm_hwcomposer

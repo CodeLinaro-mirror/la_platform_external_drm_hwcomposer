@@ -472,7 +472,7 @@ auto DrmPlane::AtomicDisablePlane(drmModeAtomicReq &pset) -> int {
 }
 
 auto DrmPlane::AtomicSetColorPipeline(
-    drmModeAtomicReq &pset, DrmModeUserPropertyBlobUnique &ctm_3x4) const
+    drmModeAtomicReq &pset, DrmModeUserPropertyBlobUnique &ctm_blob) const
     -> int {
   if (!drm_->GetResMan().UseColorPipeline()) {
     return 0;
@@ -511,8 +511,8 @@ auto DrmPlane::AtomicSetColorPipeline(
                 color_op->DumpState().c_str());
           return -EINVAL;
         }
-        if (!ctm_3x4 ||
-            !color_op->GetDataProperty().AtomicSet(pset, *ctm_3x4)) {
+        if (!ctm_blob ||
+            !color_op->GetDataProperty().AtomicSet(pset, *ctm_blob)) {
           ALOGE("Failed to set DATA property on %s",
                 color_op->DumpState().c_str());
           return -EINVAL;

@@ -737,8 +737,30 @@ auto HwcDisplay::DestroyLayer(ILayerId layer_id) -> bool {
 }
 
 auto HwcDisplay::GetColorModes() -> std::vector<ColorMode> {
-  // disable non-native color modes until tone-mapping is supported
-  return {ColorMode::kNative};
+  if (IsInHeadlessMode() || !hwc_->GetResMan().UseColorPipeline()) {
+    return {ColorMode::kNative};
+  }
+
+  std::vector<ColorMode> modes;
+  GetEdid()->GetColorModes(modes);
+
+  // disable non-P3 color modes until HDR tone-mapping is supported
+  modes.erase(std::remove_if(modes.begin(), modes.end(),
+                             [](ColorMode m) {
+                               switch (m) {
+                                 case ColorMode::kDciP3:
+                                 case ColorMode::kDisplayP3:
+                                   return false;
+                                 default:
+                                   return true;
+                               }
+                             }),
+              modes.end());
+
+  if (modes.empty()) {
+    modes.emplace_back(ColorMode::kNative);
+  }
+  return modes;
 }
 
 void HwcDisplay::SetColorMode(ColorMode mode) {
@@ -1008,7 +1030,7 @@ std::optional<AtomicCommitArgs> HwcDisplay::CreateFrameUpdateCommit(
   }
 
   // CTM with offset cannot be processed by CTM prop
-  if (ctm_has_offset_ && !Properties::UseColorPipeline()) {
+  if (ctm_has_offset_ && !hwc_->GetResMan().UseColorPipeline()) {
     a_args.color_matrix = identity_color_matrix_;
   }
 

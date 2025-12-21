@@ -72,7 +72,7 @@ class DrmPlane : public PipelineBindable<DrmPlane> {
                       uint32_t crtc_id, DstRectInfo &whole_display_rect,
                       DrmModeUserPropertyBlobUnique &damage_out) const -> int;
   auto AtomicSetColorPipeline(drmModeAtomicReq &pset,
-                              DrmModeUserPropertyBlobUnique &ctm_3x4) const
+                              DrmModeUserPropertyBlobUnique &ctm_blob) const
       -> int;
   auto AtomicDisablePlane(drmModeAtomicReq &pset) -> int;
   auto &GetZPosProperty() const {
