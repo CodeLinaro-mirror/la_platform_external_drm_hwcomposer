@@ -457,19 +457,23 @@ bool DrmAtomicStateManager::SetCompositionIfNeeded(const AtomicCommitArgs &args,
       display_rect_info.i_rect = {0, 0, raw_mode.hdisplay, raw_mode.vdisplay};
     }
 
-    DrmModeUserPropertyBlobUnique ctm_3x4_blob;
-    if (args.color_matrix_3x4) {
-      ctm_3x4_blob = pipe_->device
-                         ->RegisterUserPropertyBlob(args.color_matrix_3x4.get(),
-                                                    sizeof(drm_color_ctm_3x4));
-    }
     if (plane->AtomicSetState(*request.property_set, layer, joining.z_pos,
-                              crtc->GetId(), display_rect_info, damage_blob,
-                              ctm_3x4_blob) != 0) {
+                              crtc->GetId(), display_rect_info,
+                              damage_blob) != 0) {
       return false;
     }
     request.used_kms_objects.blobs.emplace_back(std::move(damage_blob));
-    if (args.color_matrix_3x4) {
+
+    if (args.color_matrix_3x4 &&
+        pipe_->device->GetResMan().UseColorPipeline()) {
+      DrmModeUserPropertyBlobUnique ctm_3x4_blob;
+      ctm_3x4_blob = pipe_->device
+                         ->RegisterUserPropertyBlob(args.color_matrix_3x4.get(),
+                                                    sizeof(drm_color_ctm_3x4));
+      if (plane->AtomicSetColorPipeline(*request.property_set, ctm_3x4_blob) !=
+          0) {
+        return false;
+      }
       request.used_kms_objects.blobs.emplace_back(std::move(ctm_3x4_blob));
     }
   }

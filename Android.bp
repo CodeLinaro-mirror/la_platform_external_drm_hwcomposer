@@ -109,6 +109,7 @@ filegroup {
         "stats/Stats.cpp",
         "stats/StatsPoller.cpp",
 
+        "utils/ColorUtil.cpp",
         "utils/LibdisplayEdidWrapper.cpp",
         "utils/fd.cpp",
         "utils/properties.cpp",

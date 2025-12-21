@@ -320,8 +320,7 @@ static int To1616FixPt(float in) {
 auto DrmPlane::AtomicSetState(drmModeAtomicReq &pset, LayerData &layer,
                               uint32_t zpos, uint32_t crtc_id,
                               DstRectInfo &whole_display_rect,
-                              DrmModeUserPropertyBlobUnique &damage_out,
-                              DrmModeUserPropertyBlobUnique &ctm_3x4) const
+                              DrmModeUserPropertyBlobUnique &damage_out) const
     -> int {
   if (!layer.fb || !layer.bi) {
     ALOGE("%s: Invalid arguments", __func__);
@@ -418,21 +417,7 @@ auto DrmPlane::AtomicSetState(drmModeAtomicReq &pset, LayerData &layer,
     return -EINVAL;
   }
 
-  if (drm_->GetResMan().UseColorPipeline()) {
-    if (color_encoding_property_ &&
-        !color_encoding_property_.AtomicSet(pset, 0)) {
-      return -EINVAL;
-    }
-
-    if (color_range_property_ && !color_range_property_.AtomicSet(pset, 0)) {
-      return -EINVAL;
-    }
-
-    if (color_pipeline_property_ &&
-        AtomicSetColorPipeline(pset, ctm_3x4) != 0) {
-      return -EINVAL;
-    }
-  } else {
+  if (!drm_->GetResMan().UseColorPipeline()) {
     if (color_encoding_enum_map_.count(layer.bi->color_space) != 0 &&
         !color_encoding_property_.AtomicSet(pset, color_encoding_enum_map_.at(
                                                       layer.bi->color_space))) {
@@ -488,6 +473,23 @@ auto DrmPlane::AtomicDisablePlane(drmModeAtomicReq &pset) -> int {
 auto DrmPlane::AtomicSetColorPipeline(
     drmModeAtomicReq &pset, DrmModeUserPropertyBlobUnique &ctm_3x4) const
     -> int {
+  if (!drm_->GetResMan().UseColorPipeline()) {
+    return 0;
+  }
+
+  // Clear incompatible properties
+  if (color_encoding_property_ &&
+      !color_encoding_property_.AtomicSet(pset, 0)) {
+    return -EINVAL;
+  }
+  if (color_range_property_ && !color_range_property_.AtomicSet(pset, 0)) {
+    return -EINVAL;
+  }
+
+  if (!color_pipeline_property_) {
+    return 0;
+  }
+
   if (color_pipeline_.empty()) {
     ALOGW("color_pipeline_ is empty");
     return 0;
