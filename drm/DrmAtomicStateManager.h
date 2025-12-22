@@ -105,7 +105,8 @@ class DrmAtomicStateManager : public DrmAtomicCommitSink {
   void ThreadFn();
 
   DrmAtomicStateManager() = default;
-  std::optional<AtomicCommitResult> CommitFrame(AtomicCommitArgs &args);
+  std::optional<AtomicCommitResult> CommitFrame(AtomicCommitArgs &args,
+                                                bool test_only);
 
   // Only accessed from main thread.
   DrmDisplayPipeline *pipe_{};

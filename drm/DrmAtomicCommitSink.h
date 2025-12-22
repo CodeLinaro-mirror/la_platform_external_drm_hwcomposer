@@ -38,7 +38,6 @@ enum class PanelOrientation;
 
 struct AtomicCommitArgs {
   /* inputs. All fields are optional, but at least one has to be specified */
-  bool test_only = false;
   bool blocking = false;
   bool teardown = false;
   bool seamless = false;

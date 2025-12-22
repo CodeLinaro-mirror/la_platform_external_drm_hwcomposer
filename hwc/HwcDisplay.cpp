@@ -919,7 +919,7 @@ std::optional<AtomicCommitResult> HwcDisplay::ExecuteAtomicCommit(
       a_args);
 
   // Log successful modesets (seamless and full), including teardowns.
-  if (!a_args.test_only && (a_args.display_mode || a_args.teardown)) {
+  if (a_args.display_mode || a_args.teardown) {
     const bool blocking = a_args.blocking || a_args.active || a_args.teardown;
     LogConfigResult(blocking, commit_result.has_value());
   }
@@ -995,7 +995,6 @@ bool HwcDisplay::TestComposition(
   if (!a_args) {
     return false;
   }
-  a_args->test_only = true;
   if (GetPipe().atomic_commit_sink->TestAtomicCommit(*a_args)) {
     // Put the composition plan into the newly-validated composition. Its owner
     // is responsible for keeping it alive until commit.
@@ -1092,8 +1091,6 @@ std::optional<AtomicCommitArgs> HwcDisplay::CreateFrameUpdateCommit(
   if (use_client_layer) {
     z_map.emplace(client_z_order, &client_layer_);
     if (!client_layer_.IsLayerUsableAsDevice()) {
-      ALOGE_IF(!a_args.test_only,
-               "Client layer must be always usable by DRM/KMS");
       /* This may be normally triggered on validation of the first frame
        * containing CLIENT layer. At this moment client buffer is not yet
        * provided by the CLIENT.
@@ -1144,7 +1141,6 @@ std::optional<AtomicCommitArgs> HwcDisplay::CreateFrameUpdateCommit(
         CreateLayerToPlaneJoiningPlan(GetPipe(), std::move(composition_layers),
                                       cursor_layer);
     if (!a_args.composition) {
-      ALOGE_IF(!a_args.test_only, "Failed to create LayerToPlaneJoiningPlan");
       return std::nullopt;
     }
   }
@@ -1197,7 +1193,6 @@ bool HwcDisplay::CommitStagedComposition(SharedFd &out_present_fence) {
 
 void HwcDisplay::ApplyCommitChanges(const AtomicCommitArgs &a_args,
                                     const AtomicCommitResult &result) {
-  ALOGE_IF(a_args.test_only, "Applying commit changes for test_only args.");
   writeback_complete_fence_ = result.writeback_complete_fence;
   if (a_args.display_mode) {
     // Get the vsync period before updating active_config_id.
@@ -1427,7 +1422,6 @@ void HwcDisplay::SetConfigGroupsForActiveConfig() {
   for (auto &[_, config] : configs_.hwc_configs) {
     AtomicCommitArgs commit_args = CreateModesetCommit(&config,
                                                        modeset_layer_data);
-    commit_args.test_only = true;
     commit_args.seamless = true;
     if (pipeline_->atomic_commit_sink->TestAtomicCommit(commit_args)) {
       config.group_id = active_config->group_id;

@@ -93,7 +93,7 @@ void DrmAtomicStateManager::CleanFailedCommit() {
   // signal the release fences from that composition to avoid hanging.
   AtomicCommitArgs cl_args{};
   cl_args.composition = std::make_shared<LayerToPlaneJoiningPlan>();
-  if (CommitFrame(cl_args)) {
+  if (CommitFrame(cl_args, /* test_only */ false)) {
     ALOGE("Failed to clean-up active composition for pipeline %s",
           pipe_->connector->Get()->GetName().c_str());
   }
@@ -101,7 +101,7 @@ void DrmAtomicStateManager::CleanFailedCommit() {
 
 // NOLINTNEXTLINE (readability-function-cognitive-complexity): Fixme
 std::optional<AtomicCommitResult> DrmAtomicStateManager::CommitFrame(
-    AtomicCommitArgs &args) {
+    AtomicCommitArgs &args, bool test_only) {
   // NOLINTNEXTLINE(misc-const-correctness)
   ATRACE_CALL();
 
@@ -130,7 +130,7 @@ std::optional<AtomicCommitResult> DrmAtomicStateManager::CommitFrame(
   char err_buf[error_buf_max_size];
   auto *drm = pipe_->device;
 
-  if (args.test_only) {
+  if (test_only) {
     ATRACE_NAME("TestOnlyCommit");
     auto err = drmModeAtomicCommit(*drm->GetFd(),
                                    atomic_request->property_set.get(),
@@ -637,20 +637,15 @@ void DrmAtomicStateManager::CleanupPriorFrameResources() {
 }
 
 bool DrmAtomicStateManager::TestAtomicCommit(AtomicCommitArgs &args) {
-  ALOGE_IF(!args.test_only, "TestAtomicCommit called with test_only=false");
-  auto result = CommitFrame(args);
+  auto result = CommitFrame(args, /* test_only */ true);
   return result.has_value();
 }
 
 std::optional<AtomicCommitResult> DrmAtomicStateManager::ExecuteAtomicCommit(
     AtomicCommitArgs &args) {
-  auto result = CommitFrame(args);
+  auto result = CommitFrame(args, /* test_only */ false);
   if (result) {
     return result;
-  }
-
-  if (args.test_only) {
-    return std::nullopt;
   }
 
   ALOGE("Composite failed for pipeline %s",
