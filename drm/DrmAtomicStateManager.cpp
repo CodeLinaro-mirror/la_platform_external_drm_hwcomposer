@@ -313,7 +313,7 @@ bool DrmAtomicStateManager::SetCtmIfNeeded(const AtomicCommitArgs &args,
 
   auto *drm = pipe_->device;
   if (drm->GetResMan().UseColorPipeline()) {
-    return true;
+    return crtc->GetCtmProperty().AtomicSet(*request.property_set, 0);
   }
   auto ctm_blob = drm->RegisterUserPropertyBlob(args.color_matrix.get(),
                                                 sizeof(drm_color_ctm));

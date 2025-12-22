@@ -419,6 +419,15 @@ auto DrmPlane::AtomicSetState(drmModeAtomicReq &pset, LayerData &layer,
   }
 
   if (drm_->GetResMan().UseColorPipeline()) {
+    if (color_encoding_property_ &&
+        !color_encoding_property_.AtomicSet(pset, 0)) {
+      return -EINVAL;
+    }
+
+    if (color_range_property_ && !color_range_property_.AtomicSet(pset, 0)) {
+      return -EINVAL;
+    }
+
     if (color_pipeline_property_ &&
         AtomicSetColorPipeline(pset, ctm_3x4) != 0) {
       return -EINVAL;
