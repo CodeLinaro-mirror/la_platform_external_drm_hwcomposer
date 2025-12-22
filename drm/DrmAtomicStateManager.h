@@ -42,16 +42,16 @@ class DrmPlane;
 
 struct DrmDisplayPipeline;
 
-class DrmAtomicStateManager {
+class DrmAtomicStateManager : public DrmAtomicCommitSink {
  public:
   static auto CreateInstance(DrmDisplayPipeline *pipe)
       -> std::unique_ptr<DrmAtomicStateManager>;
 
-  ~DrmAtomicStateManager();
+  ~DrmAtomicStateManager() override;
 
-  bool ExecuteAtomicCommit(AtomicCommitArgs &args);
-  bool IsCrtcActive() const;
-  void WaitLastFrame();
+  bool ExecuteAtomicCommit(AtomicCommitArgs &args) override;
+  bool IsCrtcActive() const override;
+  void WaitLastFrame() override;
 
  private:
   // Collection of kms objects that were committed to the kernel. There must be
