@@ -649,4 +649,8 @@ bool DrmAtomicStateManager::ExecuteAtomicCommit(AtomicCommitArgs &args) {
   return false;
 }
 
+bool DrmAtomicStateManager::IsCrtcActive() const {
+  return committed_frame_state_.crtc_active_state;
+}
+
 }  // namespace android::drm_hwcomposer

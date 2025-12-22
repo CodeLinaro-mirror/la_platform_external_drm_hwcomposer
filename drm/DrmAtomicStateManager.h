@@ -86,10 +86,7 @@ class DrmAtomicStateManager {
   ~DrmAtomicStateManager();
 
   bool ExecuteAtomicCommit(AtomicCommitArgs &args);
-  bool IsCrtcActive() const {
-    return committed_frame_state_.crtc_active_state;
-  }
-
+  bool IsCrtcActive() const;
   void WaitLastFrame();
 
  private:
