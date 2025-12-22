@@ -27,6 +27,7 @@
 #include <android-base/thread_annotations.h>
 
 #include "compositor/LayerData.h"
+#include "drm/DrmAtomicCommitSink.h"
 #include "drm/DrmMode.h"
 #include "drm/drm_mode.h"
 #include "utils/fd.h"
@@ -40,43 +41,6 @@ class DrmFbIdHandle;
 class DrmPlane;
 
 struct DrmDisplayPipeline;
-struct LayerToPlaneJoiningPlan;
-
-enum class Colorspace;
-enum class ContentProtection;
-enum class ContentType;
-enum class HdcpContentType;
-
-struct AtomicCommitArgs {
-  /* inputs. All fields are optional, but at least one has to be specified */
-  bool test_only = false;
-  bool blocking = false;
-  bool teardown = false;
-  bool seamless = false;
-  std::optional<DrmMode> display_mode;
-  std::optional<bool> active;
-  std::shared_ptr<LayerToPlaneJoiningPlan> composition;
-  std::shared_ptr<drm_color_ctm> color_matrix;
-  std::shared_ptr<drm_color_ctm_3x4> color_matrix_3x4;
-  std::optional<Colorspace> colorspace;
-  std::optional<ContentType> content_type;
-  std::shared_ptr<hdr_output_metadata> hdr_metadata;
-  std::optional<HdcpContentType> hdcp_content_type;
-  std::optional<ContentProtection> content_protection;
-  std::optional<int32_t> min_bpc;
-
-  std::shared_ptr<DrmFbIdHandle> writeback_fb;
-  SharedFd writeback_release_fence;
-
-  /* out */
-  SharedFd out_writeback_complete_fence;
-  SharedFd out_fence;
-
-  /* helpers */
-  auto HasInputs() const -> bool {
-    return display_mode || active || composition;
-  }
-};
 
 class DrmAtomicStateManager {
  public:
