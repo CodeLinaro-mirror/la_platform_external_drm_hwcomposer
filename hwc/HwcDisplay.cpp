@@ -996,7 +996,7 @@ bool HwcDisplay::TestComposition(
     return false;
   }
   a_args->test_only = true;
-  if (ExecuteAtomicCommit(*a_args)) {
+  if (GetPipe().atomic_commit_sink->TestAtomicCommit(*a_args)) {
     // Put the composition plan into the newly-validated composition. Its owner
     // is responsible for keeping it alive until commit.
     composition.composition_plan = a_args->composition;
@@ -1429,7 +1429,7 @@ void HwcDisplay::SetConfigGroupsForActiveConfig() {
                                                        modeset_layer_data);
     commit_args.test_only = true;
     commit_args.seamless = true;
-    if (ExecuteAtomicCommit(commit_args)) {
+    if (pipeline_->atomic_commit_sink->TestAtomicCommit(commit_args)) {
       config.group_id = active_config->group_id;
     }
   }
