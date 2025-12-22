@@ -185,9 +185,6 @@ DrmConnector *DrmDisplayPipeline::FindWritebackConnectorForPipeline() const {
   return nullptr;
 }
 
-DrmDisplayPipeline::~DrmDisplayPipeline() {
-  if (atomic_state_manager)
-    atomic_state_manager->StopThread();
-}
+DrmDisplayPipeline::~DrmDisplayPipeline() = default;
 
 }  // namespace android::drm_hwcomposer

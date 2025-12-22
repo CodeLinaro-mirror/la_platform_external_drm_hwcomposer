@@ -90,14 +90,6 @@ class DrmAtomicStateManager {
     return committed_frame_state_.crtc_active_state;
   }
 
-  void StopThread() {
-    {
-      const std::lock_guard lock(mutex_);
-      exit_thread_ = true;
-    }
-    cv_.notify_all();
-  }
-
   void WaitLastFrame();
 
  private:
@@ -144,6 +136,8 @@ class DrmAtomicStateManager {
     AtomicRequest(AtomicRequest &&) = delete;
     AtomicRequest &operator=(AtomicRequest &&) = delete;
   };
+
+  void StopThread();
 
   void ThreadFn();
 

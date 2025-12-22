@@ -563,6 +563,14 @@ DrmAtomicStateManager::GetAtomicModeReqForArgs(AtomicCommitArgs &args) {
   return atomic_request;
 }
 
+void DrmAtomicStateManager::StopThread() {
+  {
+    const std::lock_guard lock(mutex_);
+    exit_thread_ = true;
+  }
+  cv_.notify_all();
+}
+
 void DrmAtomicStateManager::ThreadFn() {
 #if HAS_LIBSYNC
   int tracking_at_the_moment = -1;
