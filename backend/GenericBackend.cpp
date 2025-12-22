@@ -38,7 +38,7 @@ std::unique_ptr<DrmDisplayPipeline> GenericBackend::CreatePipeline(
     DrmConnector& connector) {
   auto pipeline = DrmDisplayPipeline::CreatePipeline(connector);
   if (pipeline) {
-    pipeline->backend = CreateCompositionPlanner();
+    pipeline->planner = CreateCompositionPlanner();
   }
   return pipeline;
 }

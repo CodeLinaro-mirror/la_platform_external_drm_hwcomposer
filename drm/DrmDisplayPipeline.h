@@ -106,7 +106,7 @@ struct DrmDisplayPipeline {
   std::shared_ptr<BindingOwner<DrmPlane>> primary_plane;
 
   std::unique_ptr<DrmAtomicStateManager> atomic_state_manager;
-  std::unique_ptr<CompositionPlanner> backend;
+  std::unique_ptr<CompositionPlanner> planner;
 };
 
 }  // namespace android::drm_hwcomposer

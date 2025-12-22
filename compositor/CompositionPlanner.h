@@ -36,7 +36,7 @@ class CompositionPlanner {
   // Mapping of the CompositionType that the Backend assigned to each
   // HwcLayer.
   using CompositionTypeMap = std::map<const HwcLayer*, CompositionType>;
-  // Enum of possible reasons that the backend may choose to flatten the
+  // Enum of possible reasons that the planner may choose to flatten the
   // composition.
   enum class FlattenReason {
     kNone,
