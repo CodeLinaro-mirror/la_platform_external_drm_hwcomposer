@@ -49,7 +49,9 @@ class DrmAtomicStateManager : public DrmAtomicCommitSink {
 
   ~DrmAtomicStateManager() override;
 
-  bool ExecuteAtomicCommit(AtomicCommitArgs &args) override;
+  bool TestAtomicCommit(AtomicCommitArgs &args) override;
+  std::optional<AtomicCommitResult> ExecuteAtomicCommit(
+      AtomicCommitArgs &args) override;
   bool IsCrtcActive() const override;
   void WaitLastFrame() override;
 
@@ -103,7 +105,7 @@ class DrmAtomicStateManager : public DrmAtomicCommitSink {
   void ThreadFn();
 
   DrmAtomicStateManager() = default;
-  bool CommitFrame(AtomicCommitArgs &args);
+  std::optional<AtomicCommitResult> CommitFrame(AtomicCommitArgs &args);
 
   // Only accessed from main thread.
   DrmDisplayPipeline *pipe_{};

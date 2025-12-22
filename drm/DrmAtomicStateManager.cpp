@@ -100,7 +100,8 @@ void DrmAtomicStateManager::CleanFailedCommit() {
 }
 
 // NOLINTNEXTLINE (readability-function-cognitive-complexity): Fixme
-bool DrmAtomicStateManager::CommitFrame(AtomicCommitArgs &args) {
+std::optional<AtomicCommitResult> DrmAtomicStateManager::CommitFrame(
+    AtomicCommitArgs &args) {
   // NOLINTNEXTLINE(misc-const-correctness)
   ATRACE_CALL();
 
@@ -109,7 +110,7 @@ bool DrmAtomicStateManager::CommitFrame(AtomicCommitArgs &args) {
 
   if (!args.HasInputs()) {
     /* nothing to do */
-    return true;
+    return AtomicCommitResult{};
   }
 
   if (!committed_frame_state_.crtc_active_state) {
@@ -121,7 +122,7 @@ bool DrmAtomicStateManager::CommitFrame(AtomicCommitArgs &args) {
   auto atomic_request = GetAtomicModeReqForArgs(args);
   if (!atomic_request) {
     ALOGE("Failed to get property set");
-    return false;
+    return std::nullopt;
   }
 
   uint32_t flags = args.seamless ? 0U : DRM_MODE_ATOMIC_ALLOW_MODESET;
@@ -138,7 +139,7 @@ bool DrmAtomicStateManager::CommitFrame(AtomicCommitArgs &args) {
     ALOGW_IF(err != 0, "Test-only seamless=%d ret=%d errno=%d strerror=%s\n",
              args.seamless, err, errno,
              strerror_r(errno, err_buf, error_buf_max_size));
-    return err == 0;
+    return err == 0 ? std::make_optional<AtomicCommitResult>() : std::nullopt;
   }
 
   WaitLastFrame();
@@ -168,14 +169,15 @@ bool DrmAtomicStateManager::CommitFrame(AtomicCommitArgs &args) {
   if (err != 0) {
     ALOGE("Failed to commit pset ret=%d errno=%d strerror=%s\n", err, errno,
           strerror_r(errno, err_buf, error_buf_max_size));
-    return false;
+    return std::nullopt;
   }
 
-  args.out_fence = MakeSharedFd(atomic_request->out_fence_address);
+  AtomicCommitResult result;
+  result.present_fence = MakeSharedFd(atomic_request->out_fence_address);
 
   // Store the writeback fence if this operation used a writeback connector
   if (pipe_->writeback_connector && args.writeback_fb) {
-    args.out_writeback_complete_fence = MakeSharedFd(
+    result.writeback_complete_fence = MakeSharedFd(
         atomic_request->wb_fence_address);
   }
 
@@ -189,7 +191,7 @@ bool DrmAtomicStateManager::CommitFrame(AtomicCommitArgs &args) {
   if (nonblock) {
     {
       const std::lock_guard lock(mutex_);
-      last_present_fence_ = args.out_fence;
+      last_present_fence_ = result.present_fence;
       frame_objects_.emplace(std::move(atomic_request->used_kms_objects));
       frames_staged_++;
     }
@@ -201,7 +203,7 @@ bool DrmAtomicStateManager::CommitFrame(AtomicCommitArgs &args) {
     frame_objects_.emplace(std::move(atomic_request->used_kms_objects));
   }
 
-  return true;
+  return result;
 }
 
 void DrmAtomicStateManager::CheckDoubleSettingState(
@@ -634,19 +636,27 @@ void DrmAtomicStateManager::CleanupPriorFrameResources() {
   last_present_fence_ = {};
 }
 
-bool DrmAtomicStateManager::ExecuteAtomicCommit(AtomicCommitArgs &args) {
-  if (CommitFrame(args)) {
-    return true;
+bool DrmAtomicStateManager::TestAtomicCommit(AtomicCommitArgs &args) {
+  ALOGE_IF(!args.test_only, "TestAtomicCommit called with test_only=false");
+  auto result = CommitFrame(args);
+  return result.has_value();
+}
+
+std::optional<AtomicCommitResult> DrmAtomicStateManager::ExecuteAtomicCommit(
+    AtomicCommitArgs &args) {
+  auto result = CommitFrame(args);
+  if (result) {
+    return result;
   }
 
   if (args.test_only) {
-    return false;
+    return std::nullopt;
   }
 
   ALOGE("Composite failed for pipeline %s",
         pipe_->connector->Get()->GetName().c_str());
   CleanFailedCommit();
-  return false;
+  return std::nullopt;
 }
 
 bool DrmAtomicStateManager::IsCrtcActive() const {

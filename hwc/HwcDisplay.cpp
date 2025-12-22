@@ -653,7 +653,7 @@ bool HwcDisplay::SetDisplayEnabled(bool enabled) {
     a_args.teardown = true;
   }
 
-  const bool commit_success = ExecuteAtomicCommit(a_args);
+  const bool commit_success = ExecuteAtomicCommit(a_args).has_value();
   ALOGE_IF(!commit_success, "Failed to set display active: %s.",
            enabled ? "enabled" : "disabled");
   // If setting to |enabled|, log the error and return true. The next frame
@@ -913,14 +913,15 @@ AtomicCommitArgs HwcDisplay::CreateModesetCommit(
   return args;
 }
 
-bool HwcDisplay::ExecuteAtomicCommit(AtomicCommitArgs &a_args) const {
-  const bool commit_result = GetPipe().atomic_commit_sink->ExecuteAtomicCommit(
+std::optional<AtomicCommitResult> HwcDisplay::ExecuteAtomicCommit(
+    AtomicCommitArgs &a_args) const {
+  auto commit_result = GetPipe().atomic_commit_sink->ExecuteAtomicCommit(
       a_args);
 
   // Log successful modesets (seamless and full), including teardowns.
   if (!a_args.test_only && (a_args.display_mode || a_args.teardown)) {
     const bool blocking = a_args.blocking || a_args.active || a_args.teardown;
-    LogConfigResult(blocking, commit_result);
+    LogConfigResult(blocking, commit_result.has_value());
   }
 
   return commit_result;
@@ -1184,18 +1185,20 @@ bool HwcDisplay::CommitStagedComposition(SharedFd &out_present_fence) {
     return false;
   }
 
-  if (!ExecuteAtomicCommit(*a_args)) {
+  auto result = ExecuteAtomicCommit(*a_args);
+  if (!result) {
     ALOGE("Failed to commit the frame composition.");
     return false;
   }
-  out_present_fence = a_args->out_fence;
-  ApplyCommitChanges(*a_args);
+  out_present_fence = result->present_fence;
+  ApplyCommitChanges(*a_args, *result);
   return true;
 }
 
-void HwcDisplay::ApplyCommitChanges(const AtomicCommitArgs &a_args) {
+void HwcDisplay::ApplyCommitChanges(const AtomicCommitArgs &a_args,
+                                    const AtomicCommitResult &result) {
   ALOGE_IF(a_args.test_only, "Applying commit changes for test_only args.");
-  writeback_complete_fence_ = a_args.out_writeback_complete_fence;
+  writeback_complete_fence_ = result.writeback_complete_fence;
   if (a_args.display_mode) {
     // Get the vsync period before updating active_config_id.
     uint32_t prev_vperiod_ns = GetCurrentVsyncPeriodNs();

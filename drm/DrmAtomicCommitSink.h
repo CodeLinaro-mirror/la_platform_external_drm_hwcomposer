@@ -57,21 +57,24 @@ struct AtomicCommitArgs {
   std::shared_ptr<DrmFbIdHandle> writeback_fb;
   SharedFd writeback_release_fence;
 
-  /* out */
-  SharedFd out_writeback_complete_fence;
-  SharedFd out_fence;
-
   /* helpers */
   auto HasInputs() const -> bool {
     return display_mode || active || composition;
   }
 };
 
+struct AtomicCommitResult {
+  SharedFd writeback_complete_fence;
+  SharedFd present_fence;
+};
+
 class DrmAtomicCommitSink {
  public:
   virtual ~DrmAtomicCommitSink() = default;
 
-  virtual bool ExecuteAtomicCommit(AtomicCommitArgs &args) = 0;
+  virtual bool TestAtomicCommit(AtomicCommitArgs &args) = 0;
+  virtual std::optional<AtomicCommitResult> ExecuteAtomicCommit(
+      AtomicCommitArgs &args) = 0;
   virtual bool IsCrtcActive() const = 0;
   virtual void WaitLastFrame() = 0;
 };
