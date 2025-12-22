@@ -83,8 +83,7 @@ static auto TryCreatePipeline(DrmDevice &dev, DrmConnector &connector,
     return {};
   }
 
-  pipe->atomic_state_manager = DrmAtomicStateManager::CreateInstance(
-      pipe.get());
+  pipe->atomic_commit_sink = DrmAtomicStateManager::CreateInstance(pipe.get());
 
   return pipe;
 }

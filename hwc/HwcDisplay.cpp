@@ -448,7 +448,7 @@ auto HwcDisplay::PresentStagedComposition(
   // slower display. WaitLastFrame() should be called before
   // WaitForPresenttime(), otherwise  can lead to a situation where hwc sleeps
   // for up to 1.25 vsync period and blocks viable presents in SurfaceFlinger.
-  GetPipe().atomic_state_manager->WaitLastFrame();
+  GetPipe().atomic_commit_sink->WaitLastFrame();
 
   uint32_t vperiod_ns = GetCurrentVsyncPeriodNs();
   if (desired_present_time && vperiod_ns != 0) {
@@ -633,7 +633,7 @@ bool HwcDisplay::SetDisplayEnabled(bool enabled) {
   // If the request is to enable the display, the CRTC is not active, and an
   // active config is set, try to reconfigure the pipeline with SetConfig.
   if (enabled) {
-    if (GetPipe().atomic_state_manager->IsCrtcActive()) {
+    if (GetPipe().atomic_commit_sink->IsCrtcActive()) {
       return true;
     }
 
@@ -666,7 +666,7 @@ bool HwcDisplay::GetDisplayEnabled() const {
     return true;
   }
 
-  return GetPipe().atomic_state_manager->IsCrtcActive();
+  return GetPipe().atomic_commit_sink->IsCrtcActive();
 }
 
 void HwcDisplay::SetPipeline(std::shared_ptr<DrmDisplayPipeline> pipeline) {
@@ -914,9 +914,8 @@ AtomicCommitArgs HwcDisplay::CreateModesetCommit(
 }
 
 bool HwcDisplay::ExecuteAtomicCommit(AtomicCommitArgs &a_args) const {
-  const bool commit_result = GetPipe()
-                                 .atomic_state_manager->ExecuteAtomicCommit(
-                                     a_args);
+  const bool commit_result = GetPipe().atomic_commit_sink->ExecuteAtomicCommit(
+      a_args);
 
   // Log successful modesets (seamless and full), including teardowns.
   if (!a_args.test_only && (a_args.display_mode || a_args.teardown)) {
@@ -1383,9 +1382,9 @@ std::optional<LayerData> HwcDisplay::GetModesetLayerData(
   const HwcDisplayConfig *active_config = GetCurrentConfig();
   if (client_layer_.IsLayerUsableAsDevice() && active_config &&
       // Reuse the client layer only when the CRTC is already active. After a
-      // teardown (power-off), the cached buffer may contain stale content that we
-      // do not want to rescan on modeset.
-      GetPipe().atomic_state_manager->IsCrtcActive() &&
+      // teardown (power-off), the cached buffer may contain stale content that
+      // we do not want to rescan on modeset.
+      GetPipe().atomic_commit_sink->IsCrtcActive() &&
       active_config->mode.GetRawMode().hdisplay == new_width &&
       active_config->mode.GetRawMode().vdisplay == new_height) {
     ALOGV("Use existing client_layer for config.");
