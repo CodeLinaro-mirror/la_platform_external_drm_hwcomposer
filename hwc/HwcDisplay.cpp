@@ -105,8 +105,8 @@ HwcDisplay::HwcDisplay(DisplayHandle handle, bool is_virtual, DrmHwc *hwc)
   // operations
   writeback_layer_ = std::make_unique<HwcLayer>(this);
 
-  identity_color_matrix_ = ColorUtil::ToColorTransform3x3(kIdentityMatrix);
-  identity_color_matrix_3x4_ = ColorUtil::ToColorTransform3x4(kIdentityMatrix);
+  identity_color_matrix_ = std::make_shared<HalColorTransforMatrix>(
+      kIdentityMatrix);
 
   display_mode_reporter_ = DisplayHotplugConnectModeDetectedAtomReporter::
       Create();
@@ -130,16 +130,13 @@ void HwcDisplay::SetColorTransformMatrix(
   }
 
   ctm_has_offset_ = TransformHasOffsetValue(color_transform_matrix.data());
-  if (!ctm_has_offset_) {
-    color_matrix_ = ColorUtil::ToColorTransform3x3(color_transform_matrix);
-  }
-  color_matrix_3x4_ = ColorUtil::ToColorTransform3x4(color_transform_matrix);
+  color_matrix_ = std::make_shared<HalColorTransforMatrix>(
+      color_transform_matrix);
 }
 
 void HwcDisplay::SetColorMatrixToIdentity() {
   ctm_has_offset_ = false;
   color_matrix_ = identity_color_matrix_;
-  color_matrix_3x4_ = identity_color_matrix_3x4_;
   color_transform_is_identity_ = true;
 }
 
@@ -858,11 +855,7 @@ AtomicCommitArgs HwcDisplay::CreateModesetCommit(
     const std::optional<LayerData> &modeset_layer) {
   AtomicCommitArgs args{};
 
-  if (hwc_->GetResMan().UseColorPipeline()) {
-    args.color_matrix_3x4 = color_matrix_3x4_;
-  } else {
-    args.color_matrix = color_matrix_;
-  }
+  args.color_matrix = color_matrix_;
   args.content_type = content_type_;
   args.colorspace = colorspace_;
   args.hdr_metadata = hdr_metadata_;
@@ -985,11 +978,7 @@ std::optional<AtomicCommitArgs> HwcDisplay::CreateFrameUpdateCommit(
   }
 
   AtomicCommitArgs a_args;
-  if (hwc_->GetResMan().UseColorPipeline()) {
-    a_args.color_matrix_3x4 = color_matrix_3x4_;
-  } else {
-    a_args.color_matrix = color_matrix_;
-  }
+  a_args.color_matrix = color_matrix_;
   a_args.content_type = content_type_;
   a_args.colorspace = colorspace_;
   a_args.hdr_metadata = hdr_metadata_;
@@ -1046,7 +1035,11 @@ std::optional<AtomicCommitArgs> HwcDisplay::CreateFrameUpdateCommit(
   if (all_client_layers &&
       hwc_->GetResMan().GetCtmHandling() == CtmHandling::kDrmOrGpu) {
     a_args.color_matrix = identity_color_matrix_;
-    a_args.color_matrix_3x4 = identity_color_matrix_3x4_;
+  }
+
+  // CTM with offset cannot be processed by CTM prop
+  if (ctm_has_offset_ && !Properties::UseColorPipeline()) {
+    a_args.color_matrix = identity_color_matrix_;
   }
 
   if (pipeline_->writeback_connector) {
