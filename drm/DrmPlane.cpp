@@ -22,6 +22,7 @@
 #include <cstdint>
 
 #include "bufferinfo/BufferInfoGetter.h"
+#include "drm/DrmColorOp.h"
 #include "drm/DrmCrtc.h"
 #include "drm/DrmDevice.h"
 #include "drm/DrmFbImporter.h"
