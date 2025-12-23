@@ -513,8 +513,9 @@ auto DrmPlane::AtomicDisablePlane(drmModeAtomicReq &pset) -> int {
 
 // NOLINTNEXTLINE (readability-function-cognitive-complexity)
 auto DrmPlane::AtomicSetColorPipeline(
-    drmModeAtomicReq &pset, DrmModeUserPropertyBlobUnique &ctm_blob) const
-    -> int {
+    drmModeAtomicReq &pset, DrmModeUserPropertyBlobUnique &ctm_blob,
+    DrmModeUserPropertyBlobUnique &degamma_lut_blob,
+    DrmModeUserPropertyBlobUnique &gamma_lut_blob) const -> int {
   if (!drm_->GetResMan().UseColorPipeline()) {
     return 0;
   }
@@ -543,6 +544,8 @@ auto DrmPlane::AtomicSetColorPipeline(
     return -EINVAL;
   }
 
+  // The first 1D LUT we encounter should be degamma, second is gamma
+  bool is_degamma_color_op = true;
   for (const auto &color_op : color_pipeline_.color_ops) {
     switch (color_op_type_enum_map_.at(
         (color_op->GetTypeProperty().GetValue().value_or(0)))) {
@@ -567,7 +570,37 @@ auto DrmPlane::AtomicSetColorPipeline(
         }
         break;
       case ColorOpType::k1DLut:
-        [[fallthrough]];
+        if (is_degamma_color_op && degamma_lut_blob) {  // Set Degamma
+          if (!color_op->SetBypassValue(pset, /*bypass=*/false)) {
+            ALOGE("Failed to set BYPASS property on %s",
+                  color_op->DumpState().c_str());
+            return -EINVAL;
+          }
+          if (!color_op->GetDataProperty().AtomicSet(pset, *degamma_lut_blob)) {
+            ALOGE("Failed to set DATA property on %s",
+                  color_op->DumpState().c_str());
+            return -EINVAL;
+          }
+        } else if (!is_degamma_color_op && gamma_lut_blob) {  // Set Gamma
+          if (!color_op->SetBypassValue(pset, /*bypass=*/false)) {
+            ALOGE("Failed to set BYPASS property on %s",
+                  color_op->DumpState().c_str());
+            return -EINVAL;
+          }
+          if (!color_op->GetDataProperty().AtomicSet(pset, *gamma_lut_blob)) {
+            ALOGE("Failed to set DATA property on %s",
+                  color_op->DumpState().c_str());
+            return -EINVAL;
+          }
+        } else {  // Bypass
+          if (!color_op->SetBypassValue(pset, /*bypass=*/true)) {
+            ALOGE("Failed to set BYPASS property on %s",
+                  color_op->DumpState().c_str());
+            return -EINVAL;
+          }
+        }
+        is_degamma_color_op = !is_degamma_color_op;
+        break;
       case ColorOpType::k1DLutMultiSegmented:
         [[fallthrough]];
       default:
