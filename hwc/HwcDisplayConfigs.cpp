@@ -22,6 +22,7 @@
 #include "drm/DrmConnector.h"
 #include "drm/DrmMode.h"
 #include "utils/log.h"
+#include "utils/properties.h"
 
 constexpr uint32_t kHeadlessModeDisplayWidthMm = 163;
 constexpr uint32_t kHeadlessModeDisplayHeightMm = 122;
@@ -106,6 +107,8 @@ bool HwcDisplayConfigs::Init(DrmConnector &connector) {
 
   ConfigId first_config_id = next_config_id;
   uint32_t next_group_id = 1;
+  const auto output_type = Properties::UseColorPipeline() ? OutputType::kSystem
+                                                          : OutputType::kSdr;
   for (const auto &mode : connector.GetModes()) {
     bool disabled = false;
     if ((mode.GetRawMode().flags & DRM_MODE_FLAG_3D_MASK) != 0) {
@@ -121,8 +124,7 @@ bool HwcDisplayConfigs::Init(DrmConnector &connector) {
         .group_id = new_group_id,
         .mode = mode,
         .disabled = disabled,
-        // disable HDR color modes until tone-mapping is supported
-        .output_type = OutputType::kSdr,
+        .output_type = output_type,
     };
 
     if ((mode.GetRawMode().type & DRM_MODE_TYPE_PREFERRED) != 0 &&
