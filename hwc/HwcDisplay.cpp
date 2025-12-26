@@ -26,8 +26,7 @@
 #include <ui/ColorSpace.h>
 #include <utils/Trace.h>
 
-#include "backend/Backend.h"
-#include "backend/BackendManager.h"
+#include "backend/CompositionPlanner.h"
 #include "compositor/DisplayInfo.h"
 #include "drm/DrmConnector.h"
 #include "drm/DrmDisplayPipeline.h"
@@ -39,7 +38,7 @@ using ColorGamut = ::android::ColorSpace;
 
 namespace android::drm_hwcomposer {
 
-using FlattenReason = Backend::FlattenReason;
+using FlattenReason = CompositionPlanner::FlattenReason;
 
 namespace {
 
@@ -343,7 +342,7 @@ auto HwcDisplay::ValidateStagedComposition() -> std::vector<ChangedLayer> {
     flatcon_->NewFrame();
   }
 
-  validated_composition_.emplace(backend_->ValidateDisplay(this));
+  validated_composition_.emplace(pipeline_->backend->ValidateDisplay(this));
 
   // Iterate through the layers to find which layers actually changed.
   std::vector<ChangedLayer> changed_layers;
@@ -445,7 +444,7 @@ auto HwcDisplay::PresentStagedComposition(
     }
   } else {
     attributes.validation_result = ValidationResult::kSkip;
-    validated_composition_ = Backend::ValidatedComposition{};
+    validated_composition_ = CompositionPlanner::ValidatedComposition{};
     for (const auto &[id, layer] : layers_) {
       validated_composition_->composition_types
           .emplace(&layer, layer.GetValidatedType());
@@ -638,7 +637,6 @@ void HwcDisplay::Deinit() {
     GetPipe().atomic_state_manager->ExecuteAtomicCommit(a_args);
 
     validated_composition_.reset();
-    backend_.reset();
     flatcon_.reset();
   }
 
@@ -660,11 +658,6 @@ bool HwcDisplay::Init() {
   }
 
   if (!IsInHeadlessMode()) {
-    auto ret = BackendManager::GetInstance().SetBackendForDisplay(this);
-    if (ret) {
-      ALOGE("Failed to set backend for d=%d %d\n", int(handle_), ret);
-      return false;
-    }
     auto flatcbk = (struct FlatConCallbacks){
         .trigger = [this]() { hwc_->SendRefreshEventToClient(handle_); }};
     flatcon_ = std::make_unique<FlatteningController>(flatcbk,
@@ -917,7 +910,7 @@ uint32_t HwcDisplay::GetCurrentVsyncPeriodNs() const {
 }
 
 bool HwcDisplay::TestComposition(
-    Backend::ValidatedComposition &composition) const {
+    CompositionPlanner::ValidatedComposition &composition) const {
   ATRACE_CALL();
 
   if (IsInHeadlessMode()) {
@@ -939,7 +932,7 @@ bool HwcDisplay::TestComposition(
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
 std::optional<AtomicCommitArgs> HwcDisplay::CreateFrameUpdateCommit(
-    const Backend::ValidatedComposition &composition) const {
+    const CompositionPlanner::ValidatedComposition &composition) const {
   if (IsInHeadlessMode()) {
     ALOGE("%s: Display is in headless mode, should never reach here", __func__);
     return AtomicCommitArgs{};
@@ -1011,10 +1004,10 @@ std::optional<AtomicCommitArgs> HwcDisplay::CreateFrameUpdateCommit(
   }
 
   // CTM will be applied by the client, don't apply DRM CTM
-  if (client_layer_count == layers_.size())
+  if (client_layer_count == layers_.size() &&
+      hwc_->GetResMan().GetCtmHandling() == CtmHandling::kDrmOrGpu) {
     a_args.color_matrix = identity_color_matrix_;
-  else
-    a_args.color_matrix = color_matrix_;
+  }
 
   if (use_client_layer) {
     z_map.emplace(client_z_order, &client_layer_);
@@ -1044,16 +1037,37 @@ std::optional<AtomicCommitArgs> HwcDisplay::CreateFrameUpdateCommit(
     composition_layers.emplace_back(layer->GetLayerData());
   }
 
-  // TODO: Attempting to reuse the |composition.composition_plan| here causes
-  // visual artifacts, so we must create a new plan. We expect the new plan to
-  // be equivalent, so why can the existing plan not be used?
-  a_args.composition = DrmKmsPlan::CreateDrmKmsPlan(GetPipe(),
-                                                    std::move(
-                                                        composition_layers),
-                                                    cursor_layer);
+  // Use the provided validated composition plan if it exists, otherwise create
+  // it now.
+  if (composition.composition_plan != nullptr) {
+    if (composition.composition_plan->plan.size() !=
+        composition_layers.size() + cursor_layer.has_value()) {
+      ALOGE(
+          "Cached DrmKmsPlan size=%zu does not match composition size=%zu "
+          "(+cursor=%u)",
+          composition.composition_plan->plan.size(), composition_layers.size(),
+          cursor_layer.has_value());
+      // New plan will be created instead.
+    } else {
+      // Update client layer because it may become stale between validate and
+      // present.
+      if (use_client_layer) {
+        composition.composition_plan->plan[client_z_order]
+            .layer = client_layer_.GetLayerData();
+      }
+      a_args.composition = composition.composition_plan;
+    }
+  }
+
   if (!a_args.composition) {
-    ALOGE_IF(!a_args.test_only, "Failed to create DrmKmsPlan");
-    return std::nullopt;
+    a_args.composition = DrmKmsPlan::CreateDrmKmsPlan(GetPipe(),
+                                                      std::move(
+                                                          composition_layers),
+                                                      cursor_layer);
+    if (!a_args.composition) {
+      ALOGE_IF(!a_args.test_only, "Failed to create DrmKmsPlan");
+      return std::nullopt;
+    }
   }
 
   if (pipeline_->writeback_connector) {
@@ -1282,14 +1296,6 @@ void HwcDisplay::SetHdrOutputMetadata(ui::Hdr type) {
   auto whitePoint = gamut.getWhitePoint();
   m->white_point.x = ToU16ColorValue(whitePoint.x);
   m->white_point.y = ToU16ColorValue(whitePoint.y);
-}
-
-const Backend *HwcDisplay::backend() const {
-  return backend_.get();
-}
-
-void HwcDisplay::set_backend(std::unique_ptr<Backend> backend) {
-  backend_ = std::move(backend);
 }
 
 bool HwcDisplay::NeedsClientLayerUpdate() const {
