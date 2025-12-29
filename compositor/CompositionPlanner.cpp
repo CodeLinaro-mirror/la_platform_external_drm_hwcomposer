@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-#include "backend/CompositionPlanner.h"
+#include "CompositionPlanner.h"
 
+#include "compositor/LayerData.h"
 #include "hwc/HwcLayer.h"
 
 namespace android::drm_hwcomposer {

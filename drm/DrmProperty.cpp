@@ -26,7 +26,7 @@
 #include <cstdint>
 #include <string>
 
-#include "DrmDevice.h"
+#include "utils/fd.h"
 #include "utils/log.h"
 
 namespace android::drm_hwcomposer {
@@ -83,6 +83,22 @@ std::optional<uint64_t> DrmProperty::GetValue() const {
     return value_;
 
   return {};
+}
+
+std::vector<uint64_t> DrmProperty::GetEnumValues() const {
+  if ((flags_ & DRM_MODE_PROP_ENUM) == 0) {
+    return {};
+  }
+
+  if (enums_.empty()) {
+    return {};
+  }
+
+  std::vector<uint64_t> enums(enums_.size());
+  for (const auto &it : enums_) {
+    enums.emplace_back(it.value);
+  }
+  return enums;
 }
 
 std::tuple<int, uint64_t> DrmProperty::RangeMin() const {

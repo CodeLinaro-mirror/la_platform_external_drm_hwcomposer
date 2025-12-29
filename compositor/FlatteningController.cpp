@@ -33,13 +33,25 @@
 
 #include "FlatteningController.h"
 
+#include <chrono>
+#include <mutex>
+#include <thread>
+
+#include <android-base/thread_annotations.h>
+
+#include "compositor/FlatteningEventAtomReporter.h"
+#include "hwc/HwcDisplay.h"
 #include "utils/log.h"
 
 namespace android::drm_hwcomposer {
 
-FlatteningController::FlatteningController(FlatConCallbacks callbacks,
+FlatteningController::FlatteningController(DisplayHandle handle,
+                                           FlatConCallbacks callbacks,
                                            std::chrono::milliseconds timeout)
-    : cbks_(std::move(callbacks)), timeout_(timeout) {
+    : handle_(handle),
+      reporter_(FlatteningEventAtomReporter::Create()),
+      cbks_(std::move(callbacks)),
+      timeout_(timeout) {
   thread_ = std::thread(&FlatteningController::ThreadFn, this);
 }
 
@@ -50,20 +62,20 @@ FlatteningController::~FlatteningController() {
 
 void FlatteningController::DisableFlattening() {
   auto lock = std::lock_guard<std::mutex>(mutex_);
-  state_ = State::kDisabled;
+  SetState(State::kDisabled);
 }
 
 void FlatteningController::NewFrame() {
   auto lock = std::lock_guard<std::mutex>(mutex_);
 
   if (state_ == State::kTriggeredCallback) {
-    state_ = State::kFlattened;
+    SetState(State::kFlattened);
     return;
   }
 
   sleep_until_ = std::chrono::system_clock::now() + timeout_;
   bool was_active = (state_ == State::kActive);
-  state_ = State::kActive;
+  SetState(State::kActive);
 
   if (!was_active) {
     cv_.notify_all();
@@ -77,7 +89,7 @@ bool FlatteningController::ShouldFlatten() const {
 
 void FlatteningController::StopThread() {
   auto lock = std::lock_guard<std::mutex>(mutex_);
-  state_ = State::kExitThread;
+  SetState(State::kExitThread);
   cv_.notify_all();
 }
 
@@ -91,7 +103,7 @@ void FlatteningController::ThreadFn() {
 
     if (sleep_until_ <= std::chrono::system_clock::now() &&
         (state_ == State::kActive)) {
-      state_ = State::kTriggeredCallback;
+      SetState(State::kTriggeredCallback);
       ALOGV("Timeout. Sending an event to compositor");
       cbks_.trigger();
     }
@@ -102,6 +114,26 @@ void FlatteningController::ThreadFn() {
     } else {
       ALOGV("Wait_until");
       cv_.wait_until(lock, sleep_until_);
+    }
+  }
+}
+
+void FlatteningController::SetState(State state) {
+  if (state_ != state) {
+    state_ = state;
+
+    if (reporter_) {
+      switch (state_) {
+        case State::kDisabled:
+        case State::kActive:
+        case State::kFlattened:
+          reporter_->PushAtom(handle_, state_);
+          break;
+        case State::kTriggeredCallback:
+        case State::kExitThread:
+          // Internal states, no need to report.
+          break;
+      }
     }
   }
 }

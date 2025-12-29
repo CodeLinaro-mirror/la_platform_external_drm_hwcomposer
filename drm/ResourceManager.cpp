@@ -26,10 +26,10 @@
 
 #include "backend/BackendManager.h"
 #include "bufferinfo/BufferInfoGetter.h"
-#include "drm/DrmAtomicStateManager.h"
+#include "drm/DrmConnector.h"
 #include "drm/DrmDevice.h"
 #include "drm/DrmDisplayPipeline.h"
-#include "drm/DrmPlane.h"
+#include "drm/UEventListener.h"
 #include "utils/log.h"
 #include "utils/properties.h"
 
@@ -84,13 +84,16 @@ void ResourceManager::Init() {
   displays_.insert(display_names.begin(), display_names.end());
 
   scale_with_gpu_ = Properties::ScaleWithGpu();
-
   ctm_handling_ = Properties::GetCtmHandling();
+  color_pipeline_enabled_ = Properties::UseColorPipeline();
 
-  if (BufferInfoGetter::GetInstance() == nullptr) {
-    ALOGE("Failed to initialize BufferInfoGetter");
+  auto buffer_info_getter = BackendManager::GetInstance()
+                                .CreateBufferInfoGetter();
+  if (!buffer_info_getter) {
+    ALOGE("Failed to create BufferInfoGetter");
     return;
   }
+  BufferInfoGetter::Init(std::move(buffer_info_getter));
 
   for (auto &drm : drms_) {
     drm->ResetConnectorsAndCrtcs();

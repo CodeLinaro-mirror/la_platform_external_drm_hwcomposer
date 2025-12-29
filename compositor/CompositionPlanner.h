@@ -21,13 +21,12 @@
 #include <optional>
 #include <vector>
 
-#include "compositor/LayerData.h"
-
 namespace android::drm_hwcomposer {
 
-struct DrmKmsPlan;
+enum class CompositionType;
 class HwcDisplay;
 class HwcLayer;
+struct LayerToPlaneJoiningPlan;
 
 // CompositionPlanner is responsible for determining the mapping between
 // HwcLayer and drm planes. This includes deciding which HwcLayers should be
@@ -40,7 +39,6 @@ class CompositionPlanner {
   // Enum of possible reasons that the backend may choose to flatten the
   // composition.
   enum class FlattenReason {
-    kUnspecified = 0,
     kNone,
     kStaticScene,
     kValidateFailed,
@@ -50,10 +48,11 @@ class CompositionPlanner {
     // The resulting composition type for each layer.
     CompositionTypeMap composition_types{};
     // The DrmKms resources required for the composition. The lifetime of
-    // the DrmKmsPlan ensures that corresponding drm resources are reserved
-    // for use by this display. As such, the caller must ensure that the
-    // DrmKmsPlan is not destructed before the composition is committed.
-    std::shared_ptr<DrmKmsPlan> composition_plan = nullptr;
+    // the LayerToPlaneJoiningPlan ensures that corresponding drm resources are
+    // reserved for use by this display. As such, the caller must ensure that
+    // the LayerToPlaneJoiningPlan is not destructed before the composition is
+    // committed.
+    std::shared_ptr<LayerToPlaneJoiningPlan> composition_plan = nullptr;
     // Reason the composition was flattened, or |kNone| if it wasn't.
     FlattenReason flatten_reason = FlattenReason::kNone;
     // Whether the cursor plane was successfully validated, or |nullopt| if it

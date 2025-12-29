@@ -29,10 +29,17 @@
 
 #include <cassert>
 
+#include "compositor/LayerData.h"
+#include "compositor/LayerToPlaneJoiningPlan.h"
+#include "drm/DrmConnector.h"
 #include "drm/DrmCrtc.h"
 #include "drm/DrmDevice.h"
+#include "drm/DrmDisplayPipeline.h"
+#include "drm/DrmFbImporter.h"
 #include "drm/DrmPlane.h"
 #include "drm/DrmUnique.h"
+#include "drm/ResourceManager.h"
+#include "utils/fd.h"
 #include "utils/log.h"
 
 namespace android::drm_hwcomposer {
@@ -85,7 +92,7 @@ void DrmAtomicStateManager::CleanFailedCommit() {
   // Disable the hw used by the last active composition. This allows us to
   // signal the release fences from that composition to avoid hanging.
   AtomicCommitArgs cl_args{};
-  cl_args.composition = std::make_shared<DrmKmsPlan>();
+  cl_args.composition = std::make_shared<LayerToPlaneJoiningPlan>();
   if (CommitFrame(cl_args)) {
     ALOGE("Failed to clean-up active composition for pipeline %s",
           pipe_->connector->Get()->GetName().c_str());
@@ -314,6 +321,9 @@ bool DrmAtomicStateManager::SetCtmIfNeeded(const AtomicCommitArgs &args,
   }
 
   auto *drm = pipe_->device;
+  if (drm->GetResMan().UseColorPipeline()) {
+    return true;
+  }
   auto ctm_blob = drm->RegisterUserPropertyBlob(args.color_matrix.get(),
                                                 sizeof(drm_color_ctm));
   if (!ctm_blob) {
@@ -456,12 +466,21 @@ bool DrmAtomicStateManager::SetCompositionIfNeeded(const AtomicCommitArgs &args,
       display_rect_info.i_rect = {0, 0, raw_mode.hdisplay, raw_mode.vdisplay};
     }
 
+    DrmModeUserPropertyBlobUnique ctm_3x4_blob;
+    if (args.color_matrix_3x4) {
+      ctm_3x4_blob = pipe_->device
+                         ->RegisterUserPropertyBlob(args.color_matrix_3x4.get(),
+                                                    sizeof(drm_color_ctm_3x4));
+    }
     if (plane->AtomicSetState(*request.property_set, layer, joining.z_pos,
-                              crtc->GetId(), display_rect_info,
-                              damage_blob) != 0) {
+                              crtc->GetId(), display_rect_info, damage_blob,
+                              ctm_3x4_blob) != 0) {
       return false;
     }
     request.used_kms_objects.blobs.emplace_back(std::move(damage_blob));
+    if (args.color_matrix_3x4) {
+      request.used_kms_objects.blobs.emplace_back(std::move(ctm_3x4_blob));
+    }
   }
 
   // Disable all planes that were used in the previous commit which are no

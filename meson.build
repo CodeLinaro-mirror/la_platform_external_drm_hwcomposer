@@ -10,28 +10,28 @@ project(
 inc_include = [include_directories('.')]
 
 src_common = files(
-    'compositor/DrmKmsPlan.cpp',
-    'compositor/FlatteningController.cpp',
     'backend/BackendManager.cpp',
-    'backend/GenericCompositionPlanner.cpp',
     'backend/ClientBackend.cpp',
-    'backend/CompositionPlanner.cpp',
     'backend/GenericBackend.cpp',
+    'compositor/CompositionPlanner.cpp',
+    'compositor/FlatteningController.cpp',
+    'compositor/FlatteningEventAtomReporter.cpp',
+    'compositor/GenericCompositionPlanner.cpp',
+    'compositor/LayerToPlaneJoiningPlan.cpp',
     'hwc/HwcDisplayConfigs.cpp',
     'hwc/HwcDisplay.cpp',
     'hwc/HwcLayer.cpp',
-    'stats/CompositionStats.cpp',
+    'stats/Stats.cpp',
     'stats/CompositionStatsAtomReporter.cpp',
-    'stats/CompositionStatsPoller.cpp',
+    'stats/CountActiveDisplaysReporter.cpp',
+    'stats/StatsPoller.cpp',
+    'stats/DisplayConfigurationResultReporter.cpp',
+    'stats/DisplayHotplugConnectModeDetectedAtomReporter.cpp',
+    'stats/DisplayRefreshRatesChangedAtomReporter.cpp',
     'utils/fd.cpp',
     'utils/LibdisplayEdidWrapper.cpp',
     'utils/properties.cpp',
 )
-
-srcs_hwc2_device = [
-    'hwc2_device/hwc2_device.cpp',
-    'hwc2_device/DrmHwcTwo.cpp',
-]
 
 deps = [
     dependency('base'),
@@ -70,6 +70,7 @@ hwc2_cpp_flags = [
 
 subdir('drm')
 subdir('bufferinfo')
+subdir('hwc')
 
 drmhwc_common = static_library(
     'drm_hwcomposer_common',
@@ -79,5 +80,4 @@ drmhwc_common = static_library(
     dependencies : deps,
 )
 
-subdir('hwc2_device')
 subdir('hwc3')

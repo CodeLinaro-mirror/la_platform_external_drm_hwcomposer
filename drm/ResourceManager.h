@@ -17,17 +17,17 @@
 #pragma once
 
 #include <cstring>
+#include <map>
 #include <mutex>
 #include <set>
 
-#include "DrmDevice.h"
-#include "DrmDisplayPipeline.h"
-#include "DrmFbImporter.h"
-#include "DrmProperty.h"
-#include "UEventListener.h"
-#include "utils/properties.h"
-
 namespace android::drm_hwcomposer {
+
+enum class CtmHandling;
+class DrmConnector;
+class DrmDevice;
+struct DrmDisplayPipeline;
+class UEventListener;
 
 class PipelineToFrontendBindingInterface {
  public:
@@ -61,6 +61,10 @@ class ResourceManager {
     return ctm_handling_;
   }
 
+  bool UseColorPipeline() const {
+    return color_pipeline_enabled_;
+  }
+
   auto &GetMainLock() {
     return main_lock_;
   }
@@ -82,6 +86,7 @@ class ResourceManager {
   // Android properties:
   bool scale_with_gpu_{};
   CtmHandling ctm_handling_{};
+  bool color_pipeline_enabled_{};
 
   std::shared_ptr<UEventListener> uevent_listener_;
 

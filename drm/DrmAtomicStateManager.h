@@ -22,15 +22,30 @@
 #include <memory>
 #include <optional>
 #include <queue>
+#include <thread>
 
-#include "compositor/DisplayInfo.h"
-#include "compositor/DrmKmsPlan.h"
+#include <android-base/thread_annotations.h>
+
 #include "compositor/LayerData.h"
-#include "drm/DrmPlane.h"
-#include "drm/ResourceManager.h"
-#include "drm/VSyncWorker.h"
+#include "drm/DrmMode.h"
+#include "drm/drm_mode.h"
+#include "utils/fd.h"
 
 namespace android::drm_hwcomposer {
+
+template <typename T>
+class BindingOwner;
+
+class DrmFbIdHandle;
+class DrmPlane;
+
+struct DrmDisplayPipeline;
+struct LayerToPlaneJoiningPlan;
+
+enum class Colorspace;
+enum class ContentProtection;
+enum class ContentType;
+enum class HdcpContentType;
 
 struct AtomicCommitArgs {
   /* inputs. All fields are optional, but at least one has to be specified */
@@ -40,8 +55,9 @@ struct AtomicCommitArgs {
   bool seamless = false;
   std::optional<DrmMode> display_mode;
   std::optional<bool> active;
-  std::shared_ptr<DrmKmsPlan> composition;
+  std::shared_ptr<LayerToPlaneJoiningPlan> composition;
   std::shared_ptr<drm_color_ctm> color_matrix;
+  std::shared_ptr<drm_color_ctm_3x4> color_matrix_3x4;
   std::optional<Colorspace> colorspace;
   std::optional<ContentType> content_type;
   std::shared_ptr<hdr_output_metadata> hdr_metadata;
@@ -71,6 +87,9 @@ class DrmAtomicStateManager {
 
   bool ExecuteAtomicCommit(AtomicCommitArgs &args);
   auto ActivateDisplayUsingDPMS() -> int;
+  bool IsCrtcActive() const {
+    return committed_frame_state_.crtc_active_state;
+  }
 
   void StopThread() {
     {
