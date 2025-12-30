@@ -176,6 +176,7 @@ cc_defaults {
 
     defaults: [
         "hwcomposer.drm_defaults",
+        "sdm_backend",
     ],
 
     shared_libs: [
