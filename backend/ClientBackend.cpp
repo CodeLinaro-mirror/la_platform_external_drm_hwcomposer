@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#include "GenericBackend.h"
-#include "GenericCompositionPlanner.h"
+#include "backend/GenericBackend.h"
+#include "compositor/CompositionPlanner.h"
 #include "hwc/HwcDisplay.h"
 
 namespace android::drm_hwcomposer {

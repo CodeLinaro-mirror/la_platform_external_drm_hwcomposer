@@ -27,14 +27,22 @@
 #include <cstdint>
 #include <string>
 
-#include "drm/DrmAtomicStateManager.h"
+#include "bufferinfo/BufferInfo.h"
 #include "drm/DrmConnector.h"
+#include "drm/DrmCrtc.h"
+#include "drm/DrmEncoder.h"
+#include "drm/DrmFbImporter.h"
 #include "drm/DrmPlane.h"
+#include "drm/DrmProperty.h"
+#include "drm/DrmUnique.h"
 #include "drm/ResourceManager.h"
+#include "drm/drm.h"
+#include "utils/fd.h"
 #include "utils/log.h"
-#include "utils/properties.h"
 
 namespace android::drm_hwcomposer {
+
+DrmDevice::~DrmDevice() = default;
 
 auto DrmDevice::CreateInstance(std::string const &path,
                                ResourceManager *res_man, uint32_t index)
@@ -57,6 +65,7 @@ DrmDevice::DrmDevice(ResourceManager *res_man, uint32_t index)
   drm_fb_importer_ = std::make_unique<DrmFbImporter>(*this);
 }
 
+// NOLINTBEGIN(readability-function-cognitive-complexity)
 auto DrmDevice::Init(const char *path) -> int {
   /* TODO: Use drmOpenControl here instead */
   fd_ = MakeSharedFd(open(path, O_RDWR | O_CLOEXEC));
@@ -84,6 +93,11 @@ auto DrmDevice::Init(const char *path) -> int {
     ALOGI("Failed to set writeback cap %d", ret);
   }
 #endif
+
+  if (res_man_->UseColorPipeline()) {
+    ret = drmSetClientCap(*GetFd(), DRM_CLIENT_CAP_PLANE_COLOR_PIPELINE, 1);
+    ALOGW_IF(ret != 0, "Failed to set color pipeline cap %d", ret);
+  }
 
   uint64_t cap_value = 0;
   if (drmGetCap(*GetFd(), DRM_CAP_ADDFB2_MODIFIERS, &cap_value) != 0) {
@@ -165,6 +179,7 @@ auto DrmDevice::Init(const char *path) -> int {
 
   return 0;
 }
+// NOLINTEND(readability-function-cognitive-complexity)
 
 auto DrmDevice::RegisterUserPropertyBlob(void *data, size_t length) const
     -> DrmModeUserPropertyBlobUnique {
@@ -192,6 +207,26 @@ auto DrmDevice::RegisterUserPropertyBlob(void *data, size_t length) const
         // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
         delete it;
       });
+}
+
+DrmCrtc *DrmDevice::FindCrtcById(uint32_t id) const {
+  for (const auto &crtc : crtcs_) {
+    if (crtc->GetId() == id) {
+      return crtc.get();
+    }
+  };
+
+  return nullptr;
+}
+
+DrmEncoder *DrmDevice::FindEncoderById(uint32_t id) const {
+  for (const auto &enc : encoders_) {
+    if (enc->GetId() == id) {
+      return enc.get();
+    }
+  };
+
+  return nullptr;
 }
 
 int DrmDevice::GetProperty(uint32_t obj_id, uint32_t obj_type,

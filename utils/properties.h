@@ -36,6 +36,7 @@ class Properties {
   static auto GetCtmHandling() -> CtmHandling;
   static auto GetBackendOverride() -> std::string;
   static auto GetDevicePath() -> std::string;
+  static auto UseColorPipeline() -> bool;
 };
 
 }  // namespace android::drm_hwcomposer

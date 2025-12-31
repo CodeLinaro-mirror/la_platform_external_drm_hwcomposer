@@ -20,9 +20,11 @@
 
 #include <cinttypes>
 
-#include "Utils.h"
-#include "aidl/android/hardware/graphics/common/Dataspace.h"
-#include "aidl/android/hardware/graphics/common/DisplayHotplugEvent.h"
+#include <aidl/android/hardware/graphics/common/Dataspace.h>
+#include <aidl/android/hardware/graphics/common/DisplayHotplugEvent.h>
+
+#include "drm/DrmHwc.h"
+#include "hwc/HwcDisplay.h"
 
 namespace aidl::android::hardware::graphics::composer3::impl {
 
@@ -95,6 +97,33 @@ void DrmHwcThree::SendHotplugEventToClient(
   }
   composer_callback_->onHotplugEvent(static_cast<int64_t>(display_handle),
                                      event);
+}
+
+void DrmHwcThree::SendHdcpLevelsChangedEventToClient(
+    ::android::drm_hwcomposer::DisplayHandle display_handle,
+    std::optional<enum ::android::drm_hwcomposer::HdcpContentType>
+        current_hdcp_level) {
+  drm::HdcpLevels hdcplevel;
+  // Set the maxLevel as set in SurfaceFlinger for Highest HDCP level
+  hdcplevel.maxLevel = drm::HdcpLevel::HDCP_V2_3;
+
+  if (!current_hdcp_level.has_value()) {
+    hdcplevel.connectedLevel = drm::HdcpLevel::HDCP_NONE;
+    composer_callback_->onHdcpLevelsChanged(static_cast<int64_t>(
+                                                display_handle),
+                                            hdcplevel);
+    return;
+  }
+  switch (current_hdcp_level.value()) {
+    case ::android::drm_hwcomposer::HdcpContentType::kType0:
+      hdcplevel.connectedLevel = drm::HdcpLevel::HDCP_V1;
+      break;
+    case ::android::drm_hwcomposer::HdcpContentType::kType1:
+      hdcplevel.connectedLevel = drm::HdcpLevel::HDCP_V2_2;
+      break;
+  }
+  composer_callback_->onHdcpLevelsChanged(static_cast<int64_t>(display_handle),
+                                          hdcplevel);
 }
 
 auto DrmHwcThree::GetMustValidateDisplay(
