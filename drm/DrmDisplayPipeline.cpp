@@ -19,7 +19,6 @@
 #include "DrmDisplayPipeline.h"
 
 #include "compositor/CompositionPlanner.h"
-#include "drm/DrmAtomicStateManager.h"
 #include "drm/DrmConnector.h"
 #include "drm/DrmCrtc.h"
 #include "drm/DrmDevice.h"
@@ -82,8 +81,6 @@ static auto TryCreatePipeline(DrmDevice &dev, DrmConnector &connector,
     ALOGE("Failed to bind primary plane");
     return {};
   }
-
-  pipe->atomic_commit_sink = DrmAtomicStateManager::CreateInstance(pipe.get());
 
   return pipe;
 }

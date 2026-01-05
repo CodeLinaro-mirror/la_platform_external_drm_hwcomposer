@@ -19,10 +19,11 @@
 #include <memory>
 #include <vector>
 
+#include <drm/DrmAtomicCommitSink.h>
+
 namespace android::drm_hwcomposer {
 
 class CompositionPlanner;
-class DrmAtomicCommitSink;
 class DrmConnector;
 class DrmCrtc;
 class DrmDevice;
