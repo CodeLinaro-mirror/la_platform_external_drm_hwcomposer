@@ -52,7 +52,7 @@ class DrmAtomicStateManager : public DrmAtomicCommitSink {
   bool TestAtomicCommit(AtomicCommitArgs &args) override;
   std::optional<AtomicCommitResult> ExecuteAtomicCommit(
       AtomicCommitArgs &args) override;
-  bool IsCrtcActive() const override;
+  bool IsActive() const override;
   void WaitLastFrame() override;
 
  private:

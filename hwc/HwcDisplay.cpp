@@ -633,7 +633,7 @@ bool HwcDisplay::SetDisplayEnabled(bool enabled) {
   // If the request is to enable the display, the CRTC is not active, and an
   // active config is set, try to reconfigure the pipeline with SetConfig.
   if (enabled) {
-    if (GetPipe().atomic_commit_sink->IsCrtcActive()) {
+    if (GetPipe().atomic_commit_sink->IsActive()) {
       return true;
     }
 
@@ -666,7 +666,7 @@ bool HwcDisplay::GetDisplayEnabled() const {
     return true;
   }
 
-  return GetPipe().atomic_commit_sink->IsCrtcActive();
+  return GetPipe().atomic_commit_sink->IsActive();
 }
 
 void HwcDisplay::SetPipeline(std::shared_ptr<DrmDisplayPipeline> pipeline) {
@@ -1382,7 +1382,7 @@ std::optional<LayerData> HwcDisplay::GetModesetLayerData(
       // Reuse the client layer only when the CRTC is already active. After a
       // teardown (power-off), the cached buffer may contain stale content that
       // we do not want to rescan on modeset.
-      GetPipe().atomic_commit_sink->IsCrtcActive() &&
+      GetPipe().atomic_commit_sink->IsActive() &&
       active_config->mode.GetRawMode().hdisplay == new_width &&
       active_config->mode.GetRawMode().vdisplay == new_height) {
     ALOGV("Use existing client_layer for config.");

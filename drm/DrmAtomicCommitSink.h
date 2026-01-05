@@ -74,7 +74,7 @@ class DrmAtomicCommitSink {
   virtual bool TestAtomicCommit(AtomicCommitArgs &args) = 0;
   virtual std::optional<AtomicCommitResult> ExecuteAtomicCommit(
       AtomicCommitArgs &args) = 0;
-  virtual bool IsCrtcActive() const = 0;
+  virtual bool IsActive() const = 0;
   virtual void WaitLastFrame() = 0;
 };
 

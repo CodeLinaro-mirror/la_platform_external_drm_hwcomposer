@@ -654,7 +654,7 @@ std::optional<AtomicCommitResult> DrmAtomicStateManager::ExecuteAtomicCommit(
   return std::nullopt;
 }
 
-bool DrmAtomicStateManager::IsCrtcActive() const {
+bool DrmAtomicStateManager::IsActive() const {
   return committed_frame_state_.crtc_active_state;
 }
 
