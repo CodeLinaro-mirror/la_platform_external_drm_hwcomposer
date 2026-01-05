@@ -279,7 +279,6 @@ cc_test_host {
         "compositor/FlatteningController.cpp",
         "compositor/FlatteningControllerTests.cpp",
         "compositor/FlatteningEventAtomReporter.cpp",
-        "drm/DrmAtomicStateManager.cpp",
         "drm/DrmColorOp.cpp",
         "drm/DrmConnector.cpp",
         "drm/DrmCrtc.cpp",
