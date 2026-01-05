@@ -54,7 +54,6 @@ cc_defaults {
 
     cppflags: [
         "-DHAS_LIBDISPLAY_INFO",
-        "-DHAS_LIBSYNC",
     ],
 
     cpp_std: "gnu++17",

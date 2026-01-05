@@ -22,9 +22,7 @@
 #include "DrmAtomicStateManager.h"
 
 #include <drm/drm_mode.h>
-#if HAS_LIBSYNC
 #include <sync/sync.h>
-#endif  // HAS_LIBSYNC
 #include <utils/Trace.h>
 
 #include <cassert>
@@ -61,7 +59,6 @@ DrmAtomicStateManager::~DrmAtomicStateManager() {
 }
 
 void DrmAtomicStateManager::WaitLastFrame() {
-#if HAS_LIBSYNC
   SharedFd present_fence;
   {
     std::lock_guard lock(mutex_);
@@ -85,7 +82,6 @@ void DrmAtomicStateManager::WaitLastFrame() {
       CleanupPriorFrameResources();
     }
   }
-#endif  // HAS_LIBSYNC
 }
 
 void DrmAtomicStateManager::CleanFailedCommit() {
@@ -214,7 +210,6 @@ void DrmAtomicStateManager::CheckDoubleSettingState(
   }
 }
 
-#if HAS_LIBSYNC
 bool DrmAtomicStateManager::SetWriteBackFenceIfNeeded(
     const AtomicCommitArgs &args, AtomicRequest &request) {
   if (!pipe_->writeback_connector || !args.writeback_fb) {
@@ -254,13 +249,6 @@ bool DrmAtomicStateManager::SetWriteBackFenceIfNeeded(
 
   return true;
 }
-#else
-// NOLINTNEXTLINE(readability-convert-member-functions-to-static)
-bool DrmAtomicStateManager::SetWriteBackFenceIfNeeded(
-    const AtomicCommitArgs & /* args */, AtomicRequest & /* request */) {
-  return false;
-}
-#endif  // HAS_LIBSYNC
 
 bool DrmAtomicStateManager::SetOutputFence(AtomicRequest &request) {
   auto *crtc = pipe_->crtc->Get();
@@ -574,7 +562,6 @@ void DrmAtomicStateManager::StopThread() {
 }
 
 void DrmAtomicStateManager::ThreadFn() {
-#if HAS_LIBSYNC
   int tracking_at_the_moment = -1;
 
   for (;;) {
@@ -621,7 +608,6 @@ void DrmAtomicStateManager::ThreadFn() {
   }
 
   ALOGI("DrmAtomicStateManager thread exit");
-#endif  // HAS_LIBSYNC
 }
 
 void DrmAtomicStateManager::CleanupPriorFrameResources() {
