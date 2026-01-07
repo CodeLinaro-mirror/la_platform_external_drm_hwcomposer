@@ -26,9 +26,13 @@ extern "C" {
 #include "compositor/DisplayInfo.h"
 #include "drm/DrmUnique.h"
 
-namespace ui {
+namespace aidl::android::hardware::graphics::common {
 enum class Hdr;
-}  // namespace ui
+}  // namespace aidl::android::hardware::graphics::common
+
+namespace android::ui {
+using aidl::android::hardware::graphics::common::Hdr;
+}  // namespace android::ui
 
 namespace android::drm_hwcomposer {
 
