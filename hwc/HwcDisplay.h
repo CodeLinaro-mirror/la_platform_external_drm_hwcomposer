@@ -24,6 +24,7 @@
 #include "drm/drm_mode.h"
 #include "hwc/HwcDisplayConfigs.h"
 #include "hwc/HwcLayer.h"
+#include "utils/EdidWrapper.h"
 
 namespace aidl::android::hardware::graphics::common {
 enum class Hdr;
@@ -39,7 +40,6 @@ class ChangedLayer;
 class DisplayConfigurationResultReporter;
 class DisplayHotplugConnectModeDetectedAtomReporter;
 class DrmHwc;
-class EdidWrapper;
 class FlatteningController;
 class HdcpController;
 class VSyncWorker;
