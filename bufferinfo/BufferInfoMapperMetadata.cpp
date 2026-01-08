@@ -25,6 +25,8 @@
 
 #include <cinttypes>
 
+#include "bufferinfo/BufferInfo.h"
+#include "bufferinfo/BufferInfoGetter.h"
 #include "utils/log.h"
 
 namespace android::drm_hwcomposer {
@@ -46,12 +48,12 @@ std::optional<std::pair<uint32_t, uint32_t>> GetAlignedDimensions(
 
 }  // namespace
 
-BufferInfoGetter *BufferInfoMapperMetadata::CreateInstance() {
+std::unique_ptr<BufferInfoGetter> BufferInfoMapperMetadata::CreateInstance() {
   if (GraphicBufferMapper::getInstance().getMapperVersion() <
       GraphicBufferMapper::GRALLOC_4)
     return nullptr;
 
-  return new BufferInfoMapperMetadata();
+  return std::make_unique<BufferInfoMapperMetadata>();
 }
 
 /* The implementation below makes assumptions on the order and number of file

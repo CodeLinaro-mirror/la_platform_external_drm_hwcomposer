@@ -21,8 +21,9 @@
 #include <cmath>
 #include <cstring>
 
-#include "compositor/DisplayInfo.h"
 #include "drm/DrmConnector.h"
+#include "drm/DrmMode.h"
+#include "utils/log.h"
 
 constexpr uint32_t kHeadlessModeDisplayWidthMm = 163;
 constexpr uint32_t kHeadlessModeDisplayHeightMm = 122;

@@ -19,14 +19,19 @@
 #include <chrono>
 #include <condition_variable>
 #include <functional>
+#include <mutex>
 #include <thread>
 
 #include <android-base/thread_annotations.h>
+
+#include "hwc/HwcDisplay.h"
 
 namespace android::drm_hwcomposer {
 
 // NOLINTNEXTLINE(misc-unused-using-decls): False positive
 using std::chrono_literals::operator""s;
+
+class FlatteningEventAtomReporter;
 
 struct FlatConCallbacks {
   std::function<void()> trigger;
@@ -34,7 +39,7 @@ struct FlatConCallbacks {
 
 class FlatteningController {
  public:
-  FlatteningController(FlatConCallbacks callbacks,
+  FlatteningController(DisplayHandle handle, FlatConCallbacks callbacks,
                        std::chrono::milliseconds timeout);
   ~FlatteningController();
 
@@ -49,16 +54,6 @@ class FlatteningController {
   // and should be flattened by the compositor.
   bool ShouldFlatten() const;
 
- private:
-  // Stop the helper thread
-  void StopThread();
-
-  void ThreadFn();
-
-  std::thread thread_;
-  mutable std::mutex mutex_;
-  std::condition_variable cv_;
-
   enum class State {
     // Thread is not active, should not flatten.
     kDisabled,
@@ -72,12 +67,27 @@ class FlatteningController {
     kExitThread,
   };
 
+ private:
+  // Stop the helper thread
+  void StopThread();
+
+  void ThreadFn();
+
+  void SetState(State state) EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+
+  std::thread thread_;
+  mutable std::mutex mutex_;
+  std::condition_variable cv_;
+
   /* Disable the controller by default as it can cause refresh event to be
    * issued at creation time, even when it is not required. This can fail VTS
    * tests at teardown that check for this behaviour. See:
    * https://cs.android.com/android/platform/superproject/main/+/cedca652b903e4f4e584e457b5a7038e0825fb94:hardware/interfaces/graphics/composer/aidl/vts/VtsComposerClient.cpp;drc=a2a6deaf5036e081f48379b6573db4465538b5ac;l=604
    */
   State state_ GUARDED_BY(mutex_) = State::kDisabled;
+
+  const DisplayHandle handle_;
+  const std::unique_ptr<FlatteningEventAtomReporter> reporter_;
 
   // Only accessed from helper thread.
   const FlatConCallbacks cbks_;

@@ -18,26 +18,38 @@
 
 #include <optional>
 
-#include <ui/GraphicTypes.h>
-
-#include "HwcDisplayConfigs.h"
-#include "HwcLayer.h"
-#include "backend/CompositionPlanner.h"
+#include "compositor/CompositionPlanner.h"
 #include "compositor/DisplayInfo.h"
-#include "compositor/FlatteningController.h"
 #include "compositor/LayerData.h"
-#include "drm/DrmAtomicStateManager.h"
-#include "drm/VSyncWorker.h"
-#include "stats/CompositionStats.h"
-#include "utils/EdidWrapper.h"
+#include "drm/drm_mode.h"
+#include "hwc/HwcDisplayConfigs.h"
+#include "hwc/HwcLayer.h"
+
+namespace aidl::android::hardware::graphics::common {
+enum class Hdr;
+}  // namespace aidl::android::hardware::graphics::common
+
+namespace android::ui {
+using aidl::android::hardware::graphics::common::Hdr;
+}  // namespace android::ui
 
 namespace android::drm_hwcomposer {
 
+class ChangedLayer;
+class DisplayConfigurationResultReporter;
+class DisplayHotplugConnectModeDetectedAtomReporter;
+class DrmHwc;
+class EdidWrapper;
+class FlatteningController;
+class VSyncWorker;
+
+struct AtomicCommitArgs;
+struct CompositionAttributes;
+struct CompositionStats;
+struct DrmDisplayPipeline;
+
 using DisplayHandle = int64_t;
 using EdidWrapperUnique = std::unique_ptr<EdidWrapper>;
-
-class CompositionPlanner;
-class DrmHwc;
 
 class FrontendDisplayBase {
  public:
@@ -147,13 +159,15 @@ class HwcDisplay {
   }
 
   // Physical displays are either internal or external.
-  auto GetDisplayType() -> DisplayType;
+  auto GetDisplayType() const -> DisplayType;
 
   // Enable or disable vsync callbacks.
   void SetVsyncCallbacksEnabled(bool enabled);
 
   // Enable or disable the display.
   bool SetDisplayEnabled(bool enabled);
+
+  bool GetDisplayEnabled() const;
 
   auto GetFrontendPrivateData() -> std::shared_ptr<FrontendDisplayBase> {
     return frontend_private_data_;
@@ -264,6 +278,8 @@ class HwcDisplay {
       const HwcDisplayConfig *config,
       const std::optional<LayerData> &modeset_layer);
 
+  bool ExecuteAtomicCommit(AtomicCommitArgs &a_args) const;
+
   // Sleep the current thread until |present_time| is closest to the next
   // expected vsync time.
   void WaitForPresentTime(int64_t present_time, uint32_t vsync_period_ns);
@@ -289,6 +305,9 @@ class HwcDisplay {
   auto GetEdid() const -> const EdidWrapperUnique & {
     return edid_wrapper_;
   }
+
+  void LogModesOnHotplug();
+  void LogConfigResult(bool blocking, bool success) const;
 
   HwcDisplayConfigs configs_;
 
@@ -316,6 +335,8 @@ class HwcDisplay {
   uint16_t virtual_disp_height_{};
   std::shared_ptr<drm_color_ctm> color_matrix_;
   std::shared_ptr<drm_color_ctm> identity_color_matrix_;
+  std::shared_ptr<drm_color_ctm_3x4> color_matrix_3x4_;
+  std::shared_ptr<drm_color_ctm_3x4> identity_color_matrix_3x4_;
   bool color_transform_is_identity_{};
   bool ctm_has_offset_ = false;
   ContentType content_type_ = ContentType::kNoData;
@@ -335,6 +356,10 @@ class HwcDisplay {
   HwcDisplay::HdcpState hdcp_state_ = HdcpState::kUndesired;
 
   std::shared_ptr<FrontendDisplayBase> frontend_private_data_;
+
+  std::unique_ptr<DisplayHotplugConnectModeDetectedAtomReporter>
+      display_mode_reporter_;
+  std::unique_ptr<DisplayConfigurationResultReporter> config_result_reporter_;
 };
 
 }  // namespace android::drm_hwcomposer

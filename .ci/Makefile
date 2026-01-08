@@ -29,8 +29,6 @@ TIDY_FILES_OVERRIDE := \
     bufferinfo/legacy/BufferInfoMinigbm.cpp:COARSE      \
     drm/DrmFbImporter.h:FINE                            \
     drm/DrmUnique.h:FINE                                \
-    hwc2_device/DrmHwcTwo.cpp:COARSE                    \
-    hwc2_device/DrmHwcTwo.h:COARSE                      \
     hwc/HwcDisplay.cpp:COARSE                           \
     hwc/HwcDisplay.h:COARSE                             \
     utils/log.h:FINE                                    \
@@ -98,10 +96,17 @@ clean:
 # clang-tidy picks up gtest and gmock headers
 # IStats includes are not available in aospless
 SKIP_FILES := \
+    bufferinfo/GrallocBufferCacheTest.cpp \
     compositor/FlatteningControllerTests.cpp \
+    compositor/FlatteningEventAtomReporterDesktop.cpp \
     drm/DrmDisplayPipelineTest.cpp \
-    stats/CompositionStatsTest.cpp \
+    hwc/HwcBufferCacheTest.cpp \
     stats/CompositionStatsAtomReporterDesktop.cpp \
+    stats/CountActiveDisplaysReporterDesktop.cpp \
+    stats/DisplayConfigurationResultReporterDesktop.cpp \
+    stats/DisplayHotplugConnectModeDetectedAtomReporterDesktop.cpp \
+    stats/DisplayRefreshRatesChangedAtomReporterDesktop.cpp \
+    stats/StatsTest.cpp \
 
 BUILD_FILES_AUTO := $(shell find -L $(SRC_DIR) -not -path '*/\.*' -not -path '*/tests/test_include/*' -path '*.cpp')
 SKIP_FILES_path := $(foreach file,$(SKIP_FILES),$(SRC_DIR)/$(file))

@@ -21,9 +21,11 @@
 #include <string>
 #include <vector>
 
-#include "CompositionPlanner.h"
-
 namespace android::drm_hwcomposer {
+
+class BufferInfoGetter;
+class DrmConnector;
+struct DrmDisplayPipeline;
 
 // BackendManager is a singleton that manages the registration of Backends and
 // finding a Backend which can be used to create a DrmDisplayPipeline for a
@@ -47,6 +49,9 @@ class BackendManager {
     virtual std::unique_ptr<DrmDisplayPipeline> CreatePipeline(
         DrmConnector &connector) = 0;
 
+    // Get the BufferInfoGetter for the Backend.
+    virtual std::unique_ptr<BufferInfoGetter> CreateBufferInfoGetter() = 0;
+
    private:
     std::string name_;
   };
@@ -57,6 +62,9 @@ class BackendManager {
 
   std::unique_ptr<DrmDisplayPipeline> CreatePipelineForConnector(
       DrmConnector &connector);
+
+  // Get the BufferInfoGetter for the Backend.
+  std::unique_ptr<BufferInfoGetter> CreateBufferInfoGetter();
 
  private:
   Backend *GetBackendByName(std::string &name);
