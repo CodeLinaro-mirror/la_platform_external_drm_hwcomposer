@@ -79,6 +79,10 @@ void ResourceManager::Init() {
     }
   }
 
+  // Ensure that Backends have been initialized before the BackendManager is
+  // used.
+  BackendManager::GetInstance().InitializeBackends();
+
   auto display_str = Properties::InternalDisplayNames();
   auto display_names = base::Tokenize(display_str, ",");
   displays_.insert(display_names.begin(), display_names.end());
