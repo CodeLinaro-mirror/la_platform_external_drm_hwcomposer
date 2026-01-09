@@ -96,6 +96,7 @@ filegroup {
         "compositor/CompositionPlanner.cpp",
         "compositor/FlatteningController.cpp",
         "compositor/GenericCompositionPlanner.cpp",
+        "compositor/HdcpController.cpp",
         "compositor/LayerToPlaneJoiningPlan.cpp",
 
         "drm/DrmAtomicStateManager.cpp",

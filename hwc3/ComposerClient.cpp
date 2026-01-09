@@ -1530,7 +1530,7 @@ ndk::ScopedAStatus ComposerClient::startHdcpNegotiation(
       levels.connectedLevel != drm::HdcpLevel::HDCP_UNKNOWN) {
     ALOGI("Requested to start HDCP for connected level : %d",
           static_cast<int>(levels.connectedLevel));
-    if (!display->StartHdcp(true)) {
+    if (!display->StartHdcp()) {
       return ToBinderStatus(hwc3::Error::kUnsupported);
     }
   }
