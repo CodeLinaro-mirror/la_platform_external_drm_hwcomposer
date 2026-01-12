@@ -743,8 +743,9 @@ bool HwcDisplay::Init() {
         pipeline_->connector->Get()->GetEdidBlob());
     if (edid) {
       edid_wrapper_ = std::move(edid);
+    } else {
+      ALOGW("Failed to create a LibdisplayInfo parser.");
     }
-    ALOGW_IF(!edid, "Failed to create a LibdisplayInfo parser.");
 #endif
   }
 
