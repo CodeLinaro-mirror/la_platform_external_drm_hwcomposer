@@ -16,8 +16,6 @@
 
 #include "ColorUtil.h"
 
-#include <utils/log.h>
-
 namespace android::drm_hwcomposer {
 
 namespace {

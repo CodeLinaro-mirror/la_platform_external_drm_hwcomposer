@@ -17,7 +17,9 @@
 #pragma once
 
 #include <drm_mode.h>
+#include <utils/log.h>
 
+#include "bufferinfo/BufferInfo.h"
 #include "compositor/DisplayInfo.h"
 #include "drm/drm_mode.h"
 
@@ -71,6 +73,63 @@ class ColorUtil {
    */
   static std::shared_ptr<drm_color_ctm_3x4> ToColorTransform3x4(
       const HalColorTransforMatrix &color_transform_matrix);
+
+  /* Maps to the Colorspace DRM connector property:
+   * https://elixir.bootlin.com/linux/v6.11/source/include/drm/drm_connector.h#L538
+   */
+  static Colorspace ToColorspace(ColorMode mode) {
+    switch (mode) {
+      case ColorMode::kNative:
+        return Colorspace::kDefault;
+      case ColorMode::kBt601_625:
+      case ColorMode::kBt601_625Unadjusted:
+      case ColorMode::kBt601_525:
+      case ColorMode::kBt601_525Unadjusted:
+        // The DP spec does not say whether this is the 525 or the 625 line
+        // version.
+        return Colorspace::kBt601Ycc;
+      case ColorMode::kBt709:
+      case ColorMode::kSrgb:
+        return Colorspace::kBt709Ycc;
+      case ColorMode::kDciP3:
+      case ColorMode::kDisplayP3:
+        return Colorspace::kDciP3RgbD65;
+      case ColorMode::kDisplayBt2020:
+        return Colorspace::kBt2020Rgb;
+      case ColorMode::kAdobeRgb:
+      case ColorMode::kBt2020:
+      case ColorMode::kBt2100Pq:
+      case ColorMode::kBt2100Hlg:
+        ALOGW("Unsupported color mode: %s", mode);
+        return Colorspace::kDefault;
+    }
+  }
+
+  /* Maps to the COLOR_ENCODING DRM connector property:
+   * https://elixir.bootlin.com/linux/v6.11/source/include/drm/drm_color_mgmt.h#L75
+   */
+  static BufferColorEncoding ToColorEncoding(Colorspace colorspace) {
+    switch (colorspace) {
+      case Colorspace::kXvycc601:
+      case Colorspace::kSycc601:
+      case Colorspace::kOpycc601:
+      case Colorspace::kBt601Ycc:
+        return BufferColorEncoding::kItuRec601;
+      case Colorspace::kBt709Ycc:
+      case Colorspace::kXvycc709:
+      case Colorspace::kOprgb:
+        return BufferColorEncoding::kItuRec709;
+      case Colorspace::kBt2020Cycc:
+      case Colorspace::kBt2020Rgb:
+      case Colorspace::kBt2020Ycc:
+        return BufferColorEncoding::kItuRec2020;
+      case Colorspace::kDefault:
+        return BufferColorEncoding::kUndefined;
+      default:
+        ALOGW("Unsupported colorspace: %s", colorspace);
+        return BufferColorEncoding::kUndefined;
+    }
+  }
 };
 
 }  // namespace android::drm_hwcomposer

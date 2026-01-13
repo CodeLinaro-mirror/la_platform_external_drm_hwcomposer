@@ -742,37 +742,7 @@ auto HwcDisplay::GetColorModes() -> std::vector<ColorMode> {
 }
 
 void HwcDisplay::SetColorMode(ColorMode mode) {
-  /* Maps to the Colorspace DRM connector property:
-   * https://elixir.bootlin.com/linux/v6.11/source/include/drm/drm_connector.h#L538
-   */
-  switch (mode) {
-    case ColorMode::kNative:
-      colorspace_ = Colorspace::kDefault;
-      break;
-    case ColorMode::kBt601_625:
-    case ColorMode::kBt601_625Unadjusted:
-    case ColorMode::kBt601_525:
-    case ColorMode::kBt601_525Unadjusted:
-      // The DP spec does not say whether this is the 525 or the 625 line version.
-      colorspace_ = Colorspace::kBt601Ycc;
-      break;
-    case ColorMode::kBt709:
-    case ColorMode::kSrgb:
-      colorspace_ = Colorspace::kBt709Ycc;
-      break;
-    case ColorMode::kDciP3:
-    case ColorMode::kDisplayP3:
-      colorspace_ = Colorspace::kDciP3RgbD65;
-      break;
-    case ColorMode::kDisplayBt2020:
-    case ColorMode::kAdobeRgb:
-    case ColorMode::kBt2020:
-    case ColorMode::kBt2100Pq:
-    case ColorMode::kBt2100Hlg:
-      // HDR color modes should be requested during modeset
-      ALOGW("HDR color modes are not supported with this API.");
-      return;
-  }
+  colorspace_ = ColorUtil::ToColorspace(mode);
 }
 
 void HwcDisplay::GetHdrCapabilities(std::vector<ui::Hdr> *types,
