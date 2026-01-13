@@ -1045,7 +1045,6 @@ bool HwcDisplay::TestComposition(
   return false;
 }
 
-// NOLINTNEXTLINE(readability-function-cognitive-complexity)
 std::optional<AtomicCommitArgs> HwcDisplay::CreateFrameUpdateCommit(
     const CompositionPlanner::ValidatedComposition &composition) const {
   if (IsInHeadlessMode()) {
@@ -1100,73 +1099,12 @@ std::optional<AtomicCommitArgs> HwcDisplay::CreateFrameUpdateCommit(
     a_args.composition = composition.composition_plan;
   } else {
     // Construct a new composition plan.
-    size_t client_layer_count = 0;
-    std::optional<uint32_t> client_z_order;
-    std::map<uint32_t, const HwcLayer *> z_map;
-    std::optional<LayerData> cursor_layer = std::nullopt;
-    for (const auto &[_, layer] : layers_) {
-      auto it = composition.composition_types.find(&layer);
-      CompositionType type = it != composition.composition_types.end()
-                                 ? it->second
-                                 : CompositionType::kInvalid;
-      switch (type) {
-        case CompositionType::kDevice:
-          z_map.emplace(layer.GetZOrder(), &layer);
-          break;
-        case CompositionType::kCursor:
-          if (!cursor_layer.has_value()) {
-            cursor_layer = layer.GetLayerData();
-          } else {
-            ALOGW("Detected multiple cursor layers");
-            z_map.emplace(layer.GetZOrder(), &layer);
-          }
-          break;
-        case CompositionType::kClient:
-          // Place it at the z_order of the lowest client layer
-          client_layer_count++;
-          client_z_order = std::min(client_z_order.value_or(UINT32_MAX),
-                                    layer.GetZOrder());
-          break;
-        case CompositionType::kSolidColor:
-        case CompositionType::kInvalid:
-          ALOGE("Invalid layer type: %d", static_cast<int>(type));
-          continue;
-      }
-    }
+    a_args.composition = CreateLayerToPlaneJoiningPlan(
+        composition.composition_types);
+  }
 
-    if (client_z_order.has_value()) {
-      z_map.emplace(client_z_order.value(), &client_layer_);
-      if (!client_layer_.IsLayerUsableAsDevice()) {
-        /* This may be normally triggered on validation of the first frame
-         * containing CLIENT layer. At this moment client buffer is not yet
-         * provided by the CLIENT.
-         * This may be triggered once in HwcLayer lifecycle in case FB can't be
-         * imported. For example when non-contiguous buffer is imported into
-         * contiguous-only DRM/KMS driver.
-         */
-        return std::nullopt;
-      }
-    }
-
-    ALOGW_IF(z_map.empty() && !cursor_layer.has_value(), "Empty composition");
-
-    std::vector<LayerData> composition_layers;
-
-    // now that they're ordered by z, add them to the composition
-    for (const auto &[_, layer] : z_map) {
-      if (!layer->IsLayerUsableAsDevice()) {
-        return std::nullopt;
-      }
-      composition_layers.emplace_back(layer->GetLayerData());
-    }
-
-    a_args.composition = LayerToPlaneJoiningPlan::
-        CreateLayerToPlaneJoiningPlan(GetPipe(), std::move(composition_layers),
-                                      cursor_layer);
-    if (!a_args.composition) {
-      return std::nullopt;
-    }
-    a_args.composition->client_z_order = client_z_order;
+  if (!a_args.composition) {
+    return std::nullopt;
   }
 
   // CTM will be applied by the client, don't apply DRM CTM
@@ -1189,6 +1127,75 @@ std::optional<AtomicCommitArgs> HwcDisplay::CreateFrameUpdateCommit(
                                          .acquire_fence;
   }
   return a_args;
+}
+
+std::unique_ptr<LayerToPlaneJoiningPlan>
+HwcDisplay::CreateLayerToPlaneJoiningPlan(
+    const CompositionPlanner::CompositionTypeMap &composition_types) const {
+  std::optional<uint32_t> client_z_order;
+  std::map<uint32_t, const HwcLayer *> z_map;
+  std::optional<LayerData> cursor_layer = std::nullopt;
+  for (const auto &[_, layer] : layers_) {
+    auto it = composition_types.find(&layer);
+    CompositionType type = it != composition_types.end()
+                               ? it->second
+                               : CompositionType::kInvalid;
+    switch (type) {
+      case CompositionType::kDevice:
+        z_map.emplace(layer.GetZOrder(), &layer);
+        break;
+      case CompositionType::kCursor:
+        if (!cursor_layer.has_value()) {
+          cursor_layer = layer.GetLayerData();
+        } else {
+          ALOGW("Detected multiple cursor layers");
+          z_map.emplace(layer.GetZOrder(), &layer);
+        }
+        break;
+      case CompositionType::kClient:
+        // Place it at the z_order of the lowest client layer
+        client_z_order = std::min(client_z_order.value_or(UINT32_MAX),
+                                  layer.GetZOrder());
+        break;
+      case CompositionType::kSolidColor:
+      case CompositionType::kInvalid:
+        ALOGE("Invalid layer type: %d", static_cast<int>(type));
+        continue;
+    }
+  }
+
+  if (client_z_order.has_value()) {
+    z_map.emplace(client_z_order.value(), &client_layer_);
+    if (!client_layer_.IsLayerUsableAsDevice()) {
+      /* This may be normally triggered on validation of the first frame
+       * containing CLIENT layer. At this moment client buffer is not yet
+       * provided by the CLIENT.
+       * This may be triggered once in HwcLayer lifecycle in case FB can't be
+       * imported. For example when non-contiguous buffer is imported into
+       * contiguous-only DRM/KMS driver.
+       */
+      return nullptr;
+    }
+  }
+
+  ALOGW_IF(z_map.empty() && !cursor_layer.has_value(), "Empty composition");
+
+  std::vector<LayerData> composition_layers;
+
+  // now that they're ordered by z, add them to the composition
+  for (const auto &[_, layer] : z_map) {
+    if (!layer->IsLayerUsableAsDevice()) {
+      return nullptr;
+    }
+    composition_layers.emplace_back(layer->GetLayerData());
+  }
+  auto composition = LayerToPlaneJoiningPlan::
+      CreateLayerToPlaneJoiningPlan(GetPipe(), std::move(composition_layers),
+                                    cursor_layer);
+  if (composition) {
+    composition->client_z_order = client_z_order;
+  }
+  return composition;
 }
 
 bool HwcDisplay::CommitStagedComposition(SharedFd &out_present_fence) {
