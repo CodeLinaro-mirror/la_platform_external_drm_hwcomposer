@@ -30,6 +30,7 @@
 #include "compositor/CompositionPlanner.h"
 #include "compositor/DisplayInfo.h"
 #include "compositor/FlatteningController.h"
+#include "compositor/HdcpController.h"
 #include "compositor/LayerToPlaneJoiningPlan.h"
 #include "drm/DrmAtomicStateManager.h"
 #include "drm/DrmConnector.h"
@@ -56,6 +57,7 @@ using FlattenReason = CompositionPlanner::FlattenReason;
 namespace {
 
 constexpr auto kFlatteningTimeout = 1s;
+constexpr auto kHdcpRetryTimeout = 1s;
 
 bool float_equals(float a, float b) {
   const float epsilon = 0.001F;
@@ -381,7 +383,7 @@ auto HwcDisplay::ValidateStagedComposition() -> std::vector<ChangedLayer> {
     flatcon_->NewFrame();
   }
 
-  validated_composition_.emplace(pipeline_->backend->ValidateDisplay(this));
+  validated_composition_.emplace(pipeline_->planner->ValidateDisplay(this));
 
   // Iterate through the layers to find which layers actually changed.
   std::vector<ChangedLayer> changed_layers;
@@ -448,7 +450,7 @@ auto HwcDisplay::PresentStagedComposition(
   // slower display. WaitLastFrame() should be called before
   // WaitForPresenttime(), otherwise  can lead to a situation where hwc sleeps
   // for up to 1.25 vsync period and blocks viable presents in SurfaceFlinger.
-  GetPipe().atomic_state_manager->WaitLastFrame();
+  GetPipe().atomic_commit_sink->WaitLastFrame();
 
   uint32_t vperiod_ns = GetCurrentVsyncPeriodNs();
   if (desired_present_time && vperiod_ns != 0) {
@@ -630,9 +632,10 @@ bool HwcDisplay::SetDisplayEnabled(bool enabled) {
   if (IsInHeadlessMode()) {
     return true;
   }
-
+  // If the request is to enable the display, the CRTC is not active, and an
+  // active config is set, try to reconfigure the pipeline with SetConfig.
   if (enabled) {
-    if (GetPipe().atomic_state_manager->IsCrtcActive()) {
+    if (GetPipe().atomic_commit_sink->IsActive()) {
       return true;
     }
 
@@ -641,28 +644,23 @@ bool HwcDisplay::SetDisplayEnabled(bool enabled) {
         ALOGE("Failed to set config to re-enable display after teardown.");
         return false;
       }
-    } else {
-      /*
-       * Setting the display to active before we have a composition
-       * can break some drivers, so skip setting a_args.active to
-       * true, as the next composition frame will implicitly activate
-       * the display
-       */
-      if (GetPipe().atomic_state_manager->ActivateDisplayUsingDPMS() != 0) {
-        return false;
-      }
     }
-    return true;
-  };
+  }
 
-  // Disable the display.
+  // Set the display active state.
   AtomicCommitArgs a_args{};
-  a_args.active = false;
-  a_args.teardown = true;
+  a_args.blocking = true;
+  a_args.active = enabled;
+  if (!enabled) {
+    a_args.teardown = true;
+  }
 
-  const bool commit_success = ExecuteAtomicCommit(a_args);
-  ALOGE_IF(!commit_success, "Failed to apply the dpms composition.");
-  return commit_success;
+  const bool commit_success = ExecuteAtomicCommit(a_args).has_value();
+  ALOGE_IF(!commit_success, "Failed to set display active: %s.",
+           enabled ? "enabled" : "disabled");
+  // If setting to |enabled|, log the error and return true. The next frame
+  // update will try to set it to active again.
+  return enabled || commit_success;
 }
 
 bool HwcDisplay::GetDisplayEnabled() const {
@@ -670,7 +668,7 @@ bool HwcDisplay::GetDisplayEnabled() const {
     return true;
   }
 
-  return GetPipe().atomic_state_manager->IsCrtcActive();
+  return GetPipe().atomic_commit_sink->IsActive();
 }
 
 void HwcDisplay::SetPipeline(std::shared_ptr<DrmDisplayPipeline> pipeline) {
@@ -702,6 +700,7 @@ void HwcDisplay::Deinit() {
 
     validated_composition_.reset();
     flatcon_.reset();
+    hdcpcon_.reset();
   }
 
   if (vsync_worker_) {
@@ -724,6 +723,19 @@ bool HwcDisplay::Init() {
         .trigger = [this]() { hwc_->SendRefreshEventToClient(handle_); }};
     flatcon_ = std::make_unique<FlatteningController>(handle_, flatcbk,
                                                       kFlatteningTimeout);
+
+    if (IsHdcpPropertyPresent()) {
+      ALOGI("HDCP properties found on display %d", int(handle_));
+      auto hdcpconcbks = (struct HdcpConCallbacks){
+          .notify_hdcp_status =
+              [this](std::optional<HdcpContentType> level) {
+                hwc_->SendHdcpLevelsChangedEventToClient(handle_, level);
+              },
+          .trigger_retry_frame =
+              [this]() { hwc_->SendRefreshEventToClient(handle_); }};
+      hdcpcon_ = std::make_unique<HdcpController>(&GetPipe(), hdcpconcbks,
+                                                  kHdcpRetryTimeout);
+    }
 
 #if HAS_LIBDISPLAY_INFO
     auto edid = LibdisplayEdidWrapper::Create(
@@ -861,9 +873,9 @@ auto HwcDisplay::IsHdcpPropertyPresent() -> bool {
   return true;
 }
 
-auto HwcDisplay::StartHdcp(bool start) -> bool {
+auto HwcDisplay::StartHdcp() -> bool {
   /*
-   * Client can request to start Hdcp or Terminate Hdcp based on the bool start
+   * Client can request to start Hdcp
    * If Client requests to start Hdcp, internal state is set to kDesired
    * else the state stays as Undesired
    * Since the HDCP Content and Content Protection prop are optional
@@ -871,15 +883,38 @@ auto HwcDisplay::StartHdcp(bool start) -> bool {
    * return a false to indicate that the request to start/stop
    * HDCP cannot be completed.
    */
-  if (!IsHdcpPropertyPresent()) {
+  if (hdcpcon_ == nullptr) {
     ALOGE(
         "Client requested HDCP, but HDCP properties not available on that "
         "display");
     return false;
   }
-  if (start) {
-    ALOGI("Client requested to start HDCP");
-    hdcp_state_ = HwcDisplay::HdcpState::kDesired;
+  ALOGI("Client requested to start HDCP");
+  hdcpcon_->Start();
+  return true;
+}
+
+auto HwcDisplay::StopHdcp() -> bool {
+  /*
+   * Client or Kernel can Terminate Hdcp
+   * If Client or kernel requests to terminate hdcp, internal state is set to
+   * Undesired Since the HDCP Content and Content Protection prop are optional
+   * We need to make sure the connector has these properties else
+   * return a false to indicate that the request to start/stop
+   * HDCP cannot be completed.
+   */
+  if (hdcpcon_ == nullptr) {
+    ALOGE(
+        "Client requested HDCP, but HDCP properties not available on that "
+        "display");
+    return false;
+  }
+  // Client or Kernel requested HDCP termination. Only act if HDCP is currently
+  // enabled.
+  if (hdcpcon_ &&
+      hdcpcon_->GetHdcpState() == HdcpController::HdcpState::kEnabled) {
+    ALOGI(" Client or Kernel requested to terminate HDCP");
+    hdcpcon_->Terminate();
   }
   return true;
 }
@@ -917,15 +952,15 @@ AtomicCommitArgs HwcDisplay::CreateModesetCommit(
   return args;
 }
 
-bool HwcDisplay::ExecuteAtomicCommit(AtomicCommitArgs &a_args) const {
-  const bool commit_result = GetPipe()
-                                 .atomic_state_manager->ExecuteAtomicCommit(
-                                     a_args);
+std::optional<AtomicCommitResult> HwcDisplay::ExecuteAtomicCommit(
+    AtomicCommitArgs &a_args) const {
+  auto commit_result = GetPipe().atomic_commit_sink->ExecuteAtomicCommit(
+      a_args);
 
   // Log successful modesets (seamless and full), including teardowns.
-  if (!a_args.test_only && (a_args.display_mode || a_args.teardown)) {
+  if (a_args.display_mode || a_args.teardown) {
     const bool blocking = a_args.blocking || a_args.active || a_args.teardown;
-    LogConfigResult(blocking, commit_result);
+    LogConfigResult(blocking, commit_result.has_value());
   }
 
   return commit_result;
@@ -999,8 +1034,7 @@ bool HwcDisplay::TestComposition(
   if (!a_args) {
     return false;
   }
-  a_args->test_only = true;
-  if (ExecuteAtomicCommit(*a_args)) {
+  if (GetPipe().atomic_commit_sink->TestAtomicCommit(*a_args)) {
     // Put the composition plan into the newly-validated composition. Its owner
     // is responsible for keeping it alive until commit.
     composition.composition_plan = a_args->composition;
@@ -1039,12 +1073,14 @@ std::optional<AtomicCommitArgs> HwcDisplay::CreateFrameUpdateCommit(
     a_args.seamless = true;
   }
 
-  if (hdcp_state_ == HwcDisplay::HdcpState::kDesired) {
+  auto hdcp_state = hdcpcon_ ? hdcpcon_->GetHdcpState()
+                             : HdcpController::HdcpState::kUndesired;
+  if (hdcp_state == HdcpController::HdcpState::kDesired) {
     ALOGI("Requesting HDCP to be enabled with Content Type 1");
     a_args.content_protection = ContentProtection::kDesired;
     a_args.hdcp_content_type = HdcpContentType::kType1;
   }
-  if (hdcp_state_ == HwcDisplay::HdcpState::kRetry) {
+  if (hdcp_state == HdcpController::HdcpState::kRetry) {
     ALOGI("Retrying HDCP to be enabled with Content Type 0");
     a_args.content_protection = ContentProtection::kDesired;
     a_args.hdcp_content_type = HdcpContentType::kType0;
@@ -1096,8 +1132,6 @@ std::optional<AtomicCommitArgs> HwcDisplay::CreateFrameUpdateCommit(
   if (use_client_layer) {
     z_map.emplace(client_z_order, &client_layer_);
     if (!client_layer_.IsLayerUsableAsDevice()) {
-      ALOGE_IF(!a_args.test_only,
-               "Client layer must be always usable by DRM/KMS");
       /* This may be normally triggered on validation of the first frame
        * containing CLIENT layer. At this moment client buffer is not yet
        * provided by the CLIENT.
@@ -1148,7 +1182,6 @@ std::optional<AtomicCommitArgs> HwcDisplay::CreateFrameUpdateCommit(
         CreateLayerToPlaneJoiningPlan(GetPipe(), std::move(composition_layers),
                                       cursor_layer);
     if (!a_args.composition) {
-      ALOGE_IF(!a_args.test_only, "Failed to create LayerToPlaneJoiningPlan");
       return std::nullopt;
     }
   }
@@ -1189,18 +1222,19 @@ bool HwcDisplay::CommitStagedComposition(SharedFd &out_present_fence) {
     return false;
   }
 
-  if (!ExecuteAtomicCommit(*a_args)) {
+  auto result = ExecuteAtomicCommit(*a_args);
+  if (!result) {
     ALOGE("Failed to commit the frame composition.");
     return false;
   }
-  out_present_fence = a_args->out_fence;
-  ApplyCommitChanges(*a_args);
+  out_present_fence = result->present_fence;
+  ApplyCommitChanges(*a_args, *result);
   return true;
 }
 
-void HwcDisplay::ApplyCommitChanges(const AtomicCommitArgs &a_args) {
-  ALOGE_IF(a_args.test_only, "Applying commit changes for test_only args.");
-  writeback_complete_fence_ = a_args.out_writeback_complete_fence;
+void HwcDisplay::ApplyCommitChanges(const AtomicCommitArgs &a_args,
+                                    const AtomicCommitResult &result) {
+  writeback_complete_fence_ = result.writeback_complete_fence;
   if (a_args.display_mode) {
     // Get the vsync period before updating active_config_id.
     uint32_t prev_vperiod_ns = GetCurrentVsyncPeriodNs();
@@ -1225,7 +1259,7 @@ void HwcDisplay::ApplyCommitChanges(const AtomicCommitArgs &a_args) {
 
   if (a_args.hdcp_content_type.has_value() ||
       a_args.content_protection.has_value()) {
-    hdcp_state_ = HdcpState::kPending;
+    hdcpcon_->Requested();
   }
 }
 
@@ -1387,9 +1421,9 @@ std::optional<LayerData> HwcDisplay::GetModesetLayerData(
   const HwcDisplayConfig *active_config = GetCurrentConfig();
   if (client_layer_.IsLayerUsableAsDevice() && active_config &&
       // Reuse the client layer only when the CRTC is already active. After a
-      // teardown (power-off), the cached buffer may contain stale content that we
-      // do not want to rescan on modeset.
-      GetPipe().atomic_state_manager->IsCrtcActive() &&
+      // teardown (power-off), the cached buffer may contain stale content that
+      // we do not want to rescan on modeset.
+      GetPipe().atomic_commit_sink->IsActive() &&
       active_config->mode.GetRawMode().hdisplay == new_width &&
       active_config->mode.GetRawMode().vdisplay == new_height) {
     ALOGV("Use existing client_layer for config.");
@@ -1429,9 +1463,8 @@ void HwcDisplay::SetConfigGroupsForActiveConfig() {
   for (auto &[_, config] : configs_.hwc_configs) {
     AtomicCommitArgs commit_args = CreateModesetCommit(&config,
                                                        modeset_layer_data);
-    commit_args.test_only = true;
     commit_args.seamless = true;
-    if (ExecuteAtomicCommit(commit_args)) {
+    if (pipeline_->atomic_commit_sink->TestAtomicCommit(commit_args)) {
       config.group_id = active_config->group_id;
     }
   }
