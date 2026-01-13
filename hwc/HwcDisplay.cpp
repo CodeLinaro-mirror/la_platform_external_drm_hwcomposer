@@ -1090,8 +1090,7 @@ std::optional<AtomicCommitArgs> HwcDisplay::CreateFrameUpdateCommit(
 
   // order the layers by z-order
   size_t client_layer_count = 0;
-  bool use_client_layer = false;
-  uint32_t client_z_order = UINT32_MAX;
+  std::optional<uint32_t> client_z_order;
   std::map<uint32_t, const HwcLayer *> z_map;
   std::optional<LayerData> cursor_layer = std::nullopt;
   for (const auto &[_, layer] : layers_) {
@@ -1113,9 +1112,8 @@ std::optional<AtomicCommitArgs> HwcDisplay::CreateFrameUpdateCommit(
         break;
       case CompositionType::kClient:
         // Place it at the z_order of the lowest client layer
-        use_client_layer = true;
         client_layer_count++;
-        client_z_order = std::min(client_z_order, layer.GetZOrder());
+        client_z_order = std::min(client_z_order.value_or(UINT32_MAX), layer.GetZOrder());
         break;
       case CompositionType::kSolidColor:
       case CompositionType::kInvalid:
@@ -1131,8 +1129,8 @@ std::optional<AtomicCommitArgs> HwcDisplay::CreateFrameUpdateCommit(
     a_args.color_matrix_3x4 = identity_color_matrix_3x4_;
   }
 
-  if (use_client_layer) {
-    z_map.emplace(client_z_order, &client_layer_);
+  if (client_z_order.has_value()) {
+    z_map.emplace(client_z_order.value(), &client_layer_);
     if (!client_layer_.IsLayerUsableAsDevice()) {
       /* This may be normally triggered on validation of the first frame
        * containing CLIENT layer. At this moment client buffer is not yet
@@ -1171,8 +1169,8 @@ std::optional<AtomicCommitArgs> HwcDisplay::CreateFrameUpdateCommit(
     } else {
       // Update client layer because it may become stale between validate and
       // present.
-      if (use_client_layer) {
-        composition.composition_plan->plan[client_z_order]
+      if (client_z_order.has_value()) {
+        composition.composition_plan->plan[client_z_order.value()]
             .layer = client_layer_.GetLayerData();
       }
       a_args.composition = composition.composition_plan;
@@ -1186,9 +1184,7 @@ std::optional<AtomicCommitArgs> HwcDisplay::CreateFrameUpdateCommit(
     if (!a_args.composition) {
       return std::nullopt;
     }
-    if (use_client_layer) {
-      a_args.composition->client_z_order = client_z_order;
-    }
+    a_args.composition->client_z_order = client_z_order;
   }
 
   if (pipeline_->writeback_connector) {
