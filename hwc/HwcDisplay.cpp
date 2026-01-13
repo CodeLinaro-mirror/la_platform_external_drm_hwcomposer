@@ -1186,6 +1186,9 @@ std::optional<AtomicCommitArgs> HwcDisplay::CreateFrameUpdateCommit(
     if (!a_args.composition) {
       return std::nullopt;
     }
+    if (use_client_layer) {
+      a_args.composition->client_z_order = client_z_order;
+    }
   }
 
   if (pipeline_->writeback_connector) {
