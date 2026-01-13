@@ -1089,7 +1089,6 @@ std::optional<AtomicCommitArgs> HwcDisplay::CreateFrameUpdateCommit(
   }
 
   // order the layers by z-order
-  size_t client_layer_count = 0;
   std::optional<uint32_t> client_z_order;
   std::map<uint32_t, const HwcLayer *> z_map;
   std::optional<LayerData> cursor_layer = std::nullopt;
@@ -1112,7 +1111,6 @@ std::optional<AtomicCommitArgs> HwcDisplay::CreateFrameUpdateCommit(
         break;
       case CompositionType::kClient:
         // Place it at the z_order of the lowest client layer
-        client_layer_count++;
         client_z_order = std::min(client_z_order.value_or(UINT32_MAX), layer.GetZOrder());
         break;
       case CompositionType::kSolidColor:
@@ -1120,13 +1118,6 @@ std::optional<AtomicCommitArgs> HwcDisplay::CreateFrameUpdateCommit(
         ALOGE("Invalid layer type: %d", static_cast<int>(type));
         continue;
     }
-  }
-
-  // CTM will be applied by the client, don't apply DRM CTM
-  if (client_layer_count == layers_.size() &&
-      hwc_->GetResMan().GetCtmHandling() == CtmHandling::kDrmOrGpu) {
-    a_args.color_matrix = identity_color_matrix_;
-    a_args.color_matrix_3x4 = identity_color_matrix_3x4_;
   }
 
   if (client_z_order.has_value()) {
@@ -1185,6 +1176,15 @@ std::optional<AtomicCommitArgs> HwcDisplay::CreateFrameUpdateCommit(
       return std::nullopt;
     }
     a_args.composition->client_z_order = client_z_order;
+  }
+
+  // CTM will be applied by the client, don't apply DRM CTM
+  const bool all_client_layers = client_z_order.has_value() &&
+                                 a_args.composition->plan.size() == 1;
+  if (all_client_layers &&
+      hwc_->GetResMan().GetCtmHandling() == CtmHandling::kDrmOrGpu) {
+    a_args.color_matrix = identity_color_matrix_;
+    a_args.color_matrix_3x4 = identity_color_matrix_3x4_;
   }
 
   if (pipeline_->writeback_connector) {
