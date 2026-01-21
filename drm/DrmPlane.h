@@ -37,7 +37,7 @@ struct DstRectInfo;
 struct LayerData;
 
 enum class BufferBlendMode;
-enum class BufferColorSpace;
+enum class BufferColorEncoding;
 enum class BufferSampleRange;
 
 // NOLINTNEXTLINE(readability-identifier-naming)
@@ -121,7 +121,7 @@ class DrmPlane : public PipelineBindable<DrmPlane> {
   DrmProperty color_pipeline_property_;
 
   std::map<BufferBlendMode, uint64_t> blending_enum_map_;
-  std::map<BufferColorSpace, uint64_t> color_encoding_enum_map_;
+  std::map<BufferColorEncoding, uint64_t> color_encoding_enum_map_;
   std::map<BufferSampleRange, uint64_t> color_range_enum_map_;
   std::map<uint64_t, ColorOpType> color_op_type_enum_map_;
 

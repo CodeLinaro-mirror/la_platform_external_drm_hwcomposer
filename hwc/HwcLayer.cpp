@@ -39,8 +39,8 @@ void HwcLayer::SetLayerProperties(const LayerProperties& layer_properties) {
   if (layer_properties.blend_mode) {
     blend_mode_ = layer_properties.blend_mode.value();
   }
-  if (layer_properties.color_space) {
-    color_space_ = layer_properties.color_space.value();
+  if (layer_properties.color_encoding) {
+    color_encoding_ = layer_properties.color_encoding.value();
   }
   if (layer_properties.sample_range) {
     sample_range_ = layer_properties.sample_range.value();
@@ -81,8 +81,8 @@ void HwcLayer::PopulateLayerData() {
   if (blend_mode_ != BufferBlendMode::kUndefined) {
     layer_data_.bi->blend_mode = blend_mode_;
   }
-  if (color_space_ != BufferColorSpace::kUndefined) {
-    layer_data_.bi->color_space = color_space_;
+  if (color_encoding_ != BufferColorEncoding::kUndefined) {
+    layer_data_.bi->color_encoding = color_encoding_;
   }
   if (sample_range_ != BufferSampleRange::kUndefined) {
     layer_data_.bi->sample_range = sample_range_;

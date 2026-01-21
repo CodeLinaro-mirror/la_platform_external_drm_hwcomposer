@@ -466,8 +466,7 @@ bool DrmAtomicStateManager::SetCompositionIfNeeded(const AtomicCommitArgs &args,
     }
     request.used_kms_objects.blobs.emplace_back(std::move(damage_blob));
 
-    if (args.color_matrix &&
-        pipe_->device->GetResMan().UseColorPipeline()) {
+    if (args.color_matrix && pipe_->device->GetResMan().UseColorPipeline()) {
       auto drm_color_matrix = ColorUtil::ToColorTransform3x4(
           *args.color_matrix);
       DrmModeUserPropertyBlobUnique ctm_3x4_blob;

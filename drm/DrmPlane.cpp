@@ -143,13 +143,13 @@ int DrmPlane::Init() {
     if (GetPlaneProperty("COLOR_ENCODING", color_encoding_property_,
                          Presence::kOptional)) {
       color_encoding_property_.AddEnumToMap("ITU-R BT.709 YCbCr",
-                                            BufferColorSpace::kItuRec709,
+                                            BufferColorEncoding::kItuRec709,
                                             color_encoding_enum_map_);
       color_encoding_property_.AddEnumToMap("ITU-R BT.601 YCbCr",
-                                            BufferColorSpace::kItuRec601,
+                                            BufferColorEncoding::kItuRec601,
                                             color_encoding_enum_map_);
       color_encoding_property_.AddEnumToMap("ITU-R BT.2020 YCbCr",
-                                            BufferColorSpace::kItuRec2020,
+                                            BufferColorEncoding::kItuRec2020,
                                             color_encoding_enum_map_);
     }
 
@@ -418,9 +418,10 @@ auto DrmPlane::AtomicSetState(drmModeAtomicReq &pset, LayerData &layer,
   }
 
   if (!drm_->GetResMan().UseColorPipeline()) {
-    if (color_encoding_enum_map_.count(layer.bi->color_space) != 0 &&
-        !color_encoding_property_.AtomicSet(pset, color_encoding_enum_map_.at(
-                                                      layer.bi->color_space))) {
+    if (color_encoding_enum_map_.count(layer.bi->color_encoding) != 0 &&
+        !color_encoding_property_.AtomicSet(pset,
+                                            color_encoding_enum_map_.at(
+                                                layer.bi->color_encoding))) {
       return -EINVAL;
     }
 
