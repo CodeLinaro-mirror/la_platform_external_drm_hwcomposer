@@ -106,29 +106,38 @@ bool HwcDisplayConfigs::Init(DrmConnector &connector) {
   mm_width = connector.GetMmWidth();
   mm_height = connector.GetMmHeight();
 
+  // Order determines preferred output type
+  const OutputType hwc_supported_output_types[] = {
+      OutputType::kSystem,
+      OutputType::kSdr,
+  };
+
   ConfigId first_config_id = next_config_id;
   uint32_t next_group_id = 1;
-  for (const auto &mode : connector.GetModes()) {
-    bool disabled = false;
-    if ((mode.GetRawMode().flags & DRM_MODE_FLAG_3D_MASK) != 0) {
-      ALOGI("Disabling display mode %s (Modes with 3D flag aren't supported)",
-            mode.GetName().c_str());
-      disabled = true;
-    }
 
-    const ConfigId new_config_id = next_config_id++;
-    const uint32_t new_group_id = next_group_id++;
-    hwc_configs[new_config_id] = {
-        .id = new_config_id,
-        .group_id = new_group_id,
-        .mode = mode,
-        .disabled = disabled,
-        .output_type = OutputType::kSystem,
-    };
+  for (const auto &output_type : hwc_supported_output_types) {
+    for (const auto &mode : connector.GetModes()) {
+      bool disabled = false;
+      if ((mode.GetRawMode().flags & DRM_MODE_FLAG_3D_MASK) != 0) {
+        ALOGI("Disabling display mode %s (Modes with 3D flag aren't supported)",
+              mode.GetName().c_str());
+        disabled = true;
+      }
 
-    if ((mode.GetRawMode().type & DRM_MODE_TYPE_PREFERRED) != 0 &&
-        preferred_config_id == 0) {
-      preferred_config_id = new_config_id;
+      const ConfigId new_config_id = next_config_id++;
+      const uint32_t new_group_id = next_group_id++;
+      hwc_configs[new_config_id] = {
+          .id = new_config_id,
+          .group_id = new_group_id,
+          .mode = mode,
+          .disabled = disabled,
+          .output_type = output_type,
+      };
+
+      if ((mode.GetRawMode().type & DRM_MODE_TYPE_PREFERRED) != 0 &&
+          preferred_config_id == 0) {
+        preferred_config_id = new_config_id;
+      }
     }
   }
 
