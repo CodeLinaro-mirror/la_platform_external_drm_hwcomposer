@@ -24,14 +24,27 @@
 #include <sstream>
 
 #include <ui/ColorSpace.h>
+#include <ui/GraphicTypes.h>
 #include <utils/Trace.h>
 
-#include "backend/CompositionPlanner.h"
+#include "compositor/CompositionPlanner.h"
 #include "compositor/DisplayInfo.h"
+#include "compositor/FlatteningController.h"
+#include "compositor/LayerToPlaneJoiningPlan.h"
+#include "drm/DrmAtomicStateManager.h"
 #include "drm/DrmConnector.h"
+#include "drm/DrmCrtc.h"
+#include "drm/DrmDevice.h"
 #include "drm/DrmDisplayPipeline.h"
+#include "drm/DrmFbImporter.h"
 #include "drm/DrmHwc.h"
-#include "stats/CompositionStats.h"
+#include "drm/VSyncWorker.h"
+#include "hwc/HwcLayer.h"
+#include "stats/DisplayConfigurationResultReporter.h"
+#include "stats/DisplayHotplugConnectModeDetectedAtomReporter.h"
+#include "stats/Stats.h"
+#include "utils/EdidWrapper.h"
+#include "utils/log.h"
 #include "utils/properties.h"
 
 using ColorGamut = ::android::ColorSpace;
@@ -43,8 +56,6 @@ using FlattenReason = CompositionPlanner::FlattenReason;
 namespace {
 
 constexpr auto kFlatteningTimeout = 1s;
-constexpr int kCtmRows = 3;
-constexpr int kCtmCols = 3;
 
 bool float_equals(float a, float b) {
   const float epsilon = 0.001F;
@@ -63,15 +74,17 @@ uint64_t To3132FixPt(float in) {
 bool TransformHasOffsetValue(const float *matrix) {
   for (int i = 12; i < 14; i++) {
     if (!float_equals(matrix[i], 0.F)) {
-      ALOGW("DRM API does not support CTM with offsets.");
       return true;
     }
   }
   return false;
 }
 
-auto ToColorTransform(const std::array<float, 16> &color_transform_matrix) {
-  /* HAL provides a 4x4 float type matrix:
+template <typename T>
+std::shared_ptr<T> ToColorTransform(
+    const std::array<float, 16> &color_transform_matrix,
+    const bool output_is_3x4_matrix) {
+  /* HAL provides a transposed 4x4 float type matrix:
    * | 0  1  2  3|
    * | 4  5  6  7|
    * | 8  9 10 11|
@@ -81,7 +94,18 @@ auto ToColorTransform(const std::array<float, 16> &color_transform_matrix) {
    * G_out = R*1 + G*5 + B*9 + 13
    * B_out = R*2 + G*6 + B*10 + 14
    *
-   * DRM expects a 3x3 s31.32 fixed point matrix:
+   * drm_color_ctm_3x4 expects a 3x4 s31.32 fixed point matrix:
+   * out   matrix          in
+   * |R|   |0  1  2  3 |   | R |
+   * |G| = |4  5  6  7 | x | G |
+   * |B|   |8  9  10 11|   | B |
+   *                       |1.0|
+   *
+   * R_out = R*0 + G*1 + B*2 + 3
+   * G_out = R*4 + G*5 + B*6 + 7
+   * B_out = R*8 + G*9 + B*10 + 11
+   *
+   * drm_color_ctm expects a 3x3 s31.32 fixed point matrix:
    * out   matrix    in
    * |R|   |0 1 2|   |R|
    * |G| = |3 4 5| x |G|
@@ -91,15 +115,29 @@ auto ToColorTransform(const std::array<float, 16> &color_transform_matrix) {
    * G_out = R*3 + G*4 + B*5
    * B_out = R*6 + G*7 + B*8
    */
-  auto color_matrix = std::make_shared<drm_color_ctm>();
-  for (int i = 0; i < kCtmCols; i++) {
-    for (int j = 0; j < kCtmRows; j++) {
-      constexpr int kInCtmRows = 4;
-      color_matrix->matrix[(i * kCtmRows) + j] = To3132FixPt(
-          color_transform_matrix[(j * kInCtmRows) + i]);
+  std::shared_ptr<T> color_matrix = std::make_shared<T>();
+  const int rows = output_is_3x4_matrix ? 4 : 3;
+  constexpr int cols = 3;
+  constexpr int halRows = 4;
+  for (int i = 0; i < cols; i++) {
+    for (int j = 0; j < rows; j++) {
+      color_matrix->matrix[(i * rows) + j] = To3132FixPt(
+          color_transform_matrix[(j * halRows) + i]);
     }
   }
   return color_matrix;
+}
+
+std::shared_ptr<drm_color_ctm> ToColorTransform(
+    const std::array<float, 16> &color_transform_matrix) {
+  return ToColorTransform<drm_color_ctm>(color_transform_matrix,
+                                         /*output_is_3x4_matrix=*/false);
+}
+
+std::shared_ptr<drm_color_ctm_3x4> ToColorTransform3x4(
+    const std::array<float, 16> &color_transform_matrix) {
+  return ToColorTransform<drm_color_ctm_3x4>(color_transform_matrix,
+                                             /*output_is_3x4_matrix=*/true);
 }
 
 }  // namespace
@@ -134,6 +172,11 @@ HwcDisplay::HwcDisplay(DisplayHandle handle, bool is_virtual, DrmHwc *hwc)
   writeback_layer_ = std::make_unique<HwcLayer>(this);
 
   identity_color_matrix_ = ToColorTransform(kIdentityMatrix);
+  identity_color_matrix_3x4_ = ToColorTransform3x4(kIdentityMatrix);
+
+  display_mode_reporter_ = DisplayHotplugConnectModeDetectedAtomReporter::
+      Create();
+  config_result_reporter_ = DisplayConfigurationResultReporter::Create();
 }
 
 void HwcDisplay::SetColorTransformMatrix(
@@ -156,11 +199,13 @@ void HwcDisplay::SetColorTransformMatrix(
   if (!ctm_has_offset_) {
     color_matrix_ = ToColorTransform(color_transform_matrix);
   }
+  color_matrix_3x4_ = ToColorTransform3x4(color_transform_matrix);
 }
 
 void HwcDisplay::SetColorMatrixToIdentity() {
   ctm_has_offset_ = false;
   color_matrix_ = identity_color_matrix_;
+  color_matrix_3x4_ = identity_color_matrix_3x4_;
   color_transform_is_identity_ = true;
 }
 
@@ -253,7 +298,7 @@ HwcDisplay::ConfigError HwcDisplay::SetConfig(ConfigId config) {
   AtomicCommitArgs commit_args = CreateModesetCommit(new_config,
                                                      modeset_layer_data);
   commit_args.blocking = true;
-  if (!GetPipe().atomic_state_manager->ExecuteAtomicCommit(commit_args)) {
+  if (!ExecuteAtomicCommit(commit_args)) {
     ALOGE("Blocking config failed.");
     return HwcDisplay::ConfigError::kConfigFailed;
   }
@@ -327,12 +372,6 @@ auto HwcDisplay::ValidateStagedComposition() -> std::vector<ChangedLayer> {
   for (auto &l : layers_) {
     l.second.SetPriorBufferScanOutFlag(l.second.GetValidatedType() !=
                                        CompositionType::kClient);
-
-    /* Populate layer data for layers that might be mapped to a drm plane. */
-    if (l.second.GetSfType() == CompositionType::kDevice ||
-        l.second.GetSfType() == CompositionType::kCursor) {
-      l.second.PopulateLayerData();
-    }
   }
 
   // Notify the flattening controller of a new frame.
@@ -536,7 +575,7 @@ auto HwcDisplay::GetPort() const -> uint8_t {
           (kConnectorIdx & kConnectorBitMask));
 }
 
-auto HwcDisplay::GetDisplayType() -> DisplayType {
+auto HwcDisplay::GetDisplayType() const -> DisplayType {
   if (is_virtual_) {
     return kVirtual;
   }
@@ -591,25 +630,47 @@ bool HwcDisplay::SetDisplayEnabled(bool enabled) {
   if (IsInHeadlessMode()) {
     return true;
   }
+
   if (enabled) {
-    /*
-     * Setting the display to active before we have a composition
-     * can break some drivers, so skip setting a_args.active to
-     * true, as the next composition frame will implicitly activate
-     * the display
-     */
-    return GetPipe().atomic_state_manager->ActivateDisplayUsingDPMS() == 0;
+    if (GetPipe().atomic_state_manager->IsCrtcActive()) {
+      return true;
+    }
+
+    if (GetConfig(configs_.active_config_id)) {
+      if (SetConfig(configs_.active_config_id) != ConfigError::kNone) {
+        ALOGE("Failed to set config to re-enable display after teardown.");
+        return false;
+      }
+    } else {
+      /*
+       * Setting the display to active before we have a composition
+       * can break some drivers, so skip setting a_args.active to
+       * true, as the next composition frame will implicitly activate
+       * the display
+       */
+      if (GetPipe().atomic_state_manager->ActivateDisplayUsingDPMS() != 0) {
+        return false;
+      }
+    }
+    return true;
   };
 
   // Disable the display.
   AtomicCommitArgs a_args{};
   a_args.active = false;
+  a_args.teardown = true;
 
-  const bool commit_success = GetPipe()
-                                  .atomic_state_manager->ExecuteAtomicCommit(
-                                      a_args);
+  const bool commit_success = ExecuteAtomicCommit(a_args);
   ALOGE_IF(!commit_success, "Failed to apply the dpms composition.");
   return commit_success;
+}
+
+bool HwcDisplay::GetDisplayEnabled() const {
+  if (IsInHeadlessMode()) {
+    return true;
+  }
+
+  return GetPipe().atomic_state_manager->IsCrtcActive();
 }
 
 void HwcDisplay::SetPipeline(std::shared_ptr<DrmDisplayPipeline> pipeline) {
@@ -621,6 +682,9 @@ void HwcDisplay::SetPipeline(std::shared_ptr<DrmDisplayPipeline> pipeline) {
     bool success = Init();
     ALOGE_IF(!success, "Failed to init HwcDisplay after setting pipeline.");
     hwc_->ScheduleHotplugEvent(handle_, DrmHwc::kConnected);
+    if (pipeline_) {
+      LogModesOnHotplug();
+    }
   } else {
     hwc_->ScheduleHotplugEvent(handle_, DrmHwc::kDisconnected);
   }
@@ -629,12 +693,12 @@ void HwcDisplay::SetPipeline(std::shared_ptr<DrmDisplayPipeline> pipeline) {
 void HwcDisplay::Deinit() {
   if (pipeline_ != nullptr) {
     AtomicCommitArgs a_args{};
-    a_args.composition = std::make_shared<DrmKmsPlan>();
-    GetPipe().atomic_state_manager->ExecuteAtomicCommit(a_args);
+    a_args.composition = std::make_shared<LayerToPlaneJoiningPlan>();
+    ExecuteAtomicCommit(a_args);
     a_args.composition = {};
     a_args.active = false;
     a_args.teardown = true;
-    GetPipe().atomic_state_manager->ExecuteAtomicCommit(a_args);
+    ExecuteAtomicCommit(a_args);
 
     validated_composition_.reset();
     flatcon_.reset();
@@ -644,8 +708,6 @@ void HwcDisplay::Deinit() {
     vsync_worker_->StopThread();
     vsync_worker_ = {};
   }
-
-  client_layer_.ClearSlots();
 }
 
 bool HwcDisplay::Init() {
@@ -660,7 +722,7 @@ bool HwcDisplay::Init() {
   if (!IsInHeadlessMode()) {
     auto flatcbk = (struct FlatConCallbacks){
         .trigger = [this]() { hwc_->SendRefreshEventToClient(handle_); }};
-    flatcon_ = std::make_unique<FlatteningController>(flatcbk,
+    flatcon_ = std::make_unique<FlatteningController>(handle_, flatcbk,
                                                       kFlatteningTimeout);
 
 #if HAS_LIBDISPLAY_INFO
@@ -827,7 +889,11 @@ AtomicCommitArgs HwcDisplay::CreateModesetCommit(
     const std::optional<LayerData> &modeset_layer) {
   AtomicCommitArgs args{};
 
-  args.color_matrix = color_matrix_;
+  if (hwc_->GetResMan().UseColorPipeline()) {
+    args.color_matrix_3x4 = color_matrix_3x4_;
+  } else {
+    args.color_matrix = color_matrix_;
+  }
   args.content_type = content_type_;
   args.colorspace = colorspace_;
   args.hdr_metadata = hdr_metadata_;
@@ -844,12 +910,25 @@ AtomicCommitArgs HwcDisplay::CreateModesetCommit(
 
   args.display_mode = config->mode;
   args.active = true;
-  args.composition = DrmKmsPlan::CreateDrmKmsPlan(GetPipe(),
-                                                  std::move(
-                                                      composition_layers));
+  args.composition = LayerToPlaneJoiningPlan::
+      CreateLayerToPlaneJoiningPlan(GetPipe(), std::move(composition_layers));
   ALOGW_IF(!args.composition, "No composition for blocking modeset");
 
   return args;
+}
+
+bool HwcDisplay::ExecuteAtomicCommit(AtomicCommitArgs &a_args) const {
+  const bool commit_result = GetPipe()
+                                 .atomic_state_manager->ExecuteAtomicCommit(
+                                     a_args);
+
+  // Log successful modesets (seamless and full), including teardowns.
+  if (!a_args.test_only && (a_args.display_mode || a_args.teardown)) {
+    const bool blocking = a_args.blocking || a_args.active || a_args.teardown;
+    LogConfigResult(blocking, commit_result);
+  }
+
+  return commit_result;
 }
 
 void HwcDisplay::WaitForPresentTime(int64_t present_time,
@@ -921,7 +1000,7 @@ bool HwcDisplay::TestComposition(
     return false;
   }
   a_args->test_only = true;
-  if (GetPipe().atomic_state_manager->ExecuteAtomicCommit(*a_args)) {
+  if (ExecuteAtomicCommit(*a_args)) {
     // Put the composition plan into the newly-validated composition. Its owner
     // is responsible for keeping it alive until commit.
     composition.composition_plan = a_args->composition;
@@ -939,7 +1018,11 @@ std::optional<AtomicCommitArgs> HwcDisplay::CreateFrameUpdateCommit(
   }
 
   AtomicCommitArgs a_args;
-  a_args.color_matrix = color_matrix_;
+  if (hwc_->GetResMan().UseColorPipeline()) {
+    a_args.color_matrix_3x4 = color_matrix_3x4_;
+  } else {
+    a_args.color_matrix = color_matrix_;
+  }
   a_args.content_type = content_type_;
   a_args.colorspace = colorspace_;
   a_args.hdr_metadata = hdr_metadata_;
@@ -1007,6 +1090,7 @@ std::optional<AtomicCommitArgs> HwcDisplay::CreateFrameUpdateCommit(
   if (client_layer_count == layers_.size() &&
       hwc_->GetResMan().GetCtmHandling() == CtmHandling::kDrmOrGpu) {
     a_args.color_matrix = identity_color_matrix_;
+    a_args.color_matrix_3x4 = identity_color_matrix_3x4_;
   }
 
   if (use_client_layer) {
@@ -1043,8 +1127,8 @@ std::optional<AtomicCommitArgs> HwcDisplay::CreateFrameUpdateCommit(
     if (composition.composition_plan->plan.size() !=
         composition_layers.size() + cursor_layer.has_value()) {
       ALOGE(
-          "Cached DrmKmsPlan size=%zu does not match composition size=%zu "
-          "(+cursor=%u)",
+          "Cached LayerToPlaneJoiningPlan size=%zu does not match composition "
+          "size=%zu (+cursor=%u)",
           composition.composition_plan->plan.size(), composition_layers.size(),
           cursor_layer.has_value());
       // New plan will be created instead.
@@ -1060,18 +1144,16 @@ std::optional<AtomicCommitArgs> HwcDisplay::CreateFrameUpdateCommit(
   }
 
   if (!a_args.composition) {
-    a_args.composition = DrmKmsPlan::CreateDrmKmsPlan(GetPipe(),
-                                                      std::move(
-                                                          composition_layers),
-                                                      cursor_layer);
+    a_args.composition = LayerToPlaneJoiningPlan::
+        CreateLayerToPlaneJoiningPlan(GetPipe(), std::move(composition_layers),
+                                      cursor_layer);
     if (!a_args.composition) {
-      ALOGE_IF(!a_args.test_only, "Failed to create DrmKmsPlan");
+      ALOGE_IF(!a_args.test_only, "Failed to create LayerToPlaneJoiningPlan");
       return std::nullopt;
     }
   }
 
   if (pipeline_->writeback_connector) {
-    writeback_layer_->PopulateLayerData();
     if (!writeback_layer_->IsLayerUsableAsDevice()) {
       ALOGE("Writeback layer not usable by DRM/KMS - no valid buffer set");
       return std::nullopt;
@@ -1096,16 +1178,6 @@ bool HwcDisplay::CommitStagedComposition(SharedFd &out_present_fence) {
     return false;
   }
 
-  // Client layer needs to be populated after validation since the client may
-  // not provide a new buffer until after validation.
-  if (std::any_of(validated_composition_->composition_types.begin(),
-                  validated_composition_->composition_types.end(),
-                  [](const auto &pair) -> bool {
-                    return pair.second == CompositionType::kClient;
-                  })) {
-    client_layer_.PopulateLayerData();
-  }
-
   auto a_args = CreateFrameUpdateCommit(validated_composition_.value());
   // |validated_composition_| can safely be reset now. |a_args| holds its own
   // pointer to the plan which will remain in scope until the commit is finished
@@ -1117,7 +1189,7 @@ bool HwcDisplay::CommitStagedComposition(SharedFd &out_present_fence) {
     return false;
   }
 
-  if (!GetPipe().atomic_state_manager->ExecuteAtomicCommit(*a_args)) {
+  if (!ExecuteAtomicCommit(*a_args)) {
     ALOGE("Failed to commit the frame composition.");
     return false;
   }
@@ -1161,7 +1233,8 @@ bool HwcDisplay::CtmByGpu() const {
   if (color_transform_is_identity_)
     return false;
 
-  if (GetPipe().crtc->Get()->GetCtmProperty() && !ctm_has_offset_)
+  if (!hwc_->GetResMan().UseColorPipeline() &&
+      GetPipe().crtc->Get()->GetCtmProperty() && !ctm_has_offset_)
     return false;
 
   if (hwc_->GetResMan().GetCtmHandling() == CtmHandling::kDrmOrIgnore)
@@ -1313,6 +1386,10 @@ std::optional<LayerData> HwcDisplay::GetModesetLayerData(
 
   const HwcDisplayConfig *active_config = GetCurrentConfig();
   if (client_layer_.IsLayerUsableAsDevice() && active_config &&
+      // Reuse the client layer only when the CRTC is already active. After a
+      // teardown (power-off), the cached buffer may contain stale content that we
+      // do not want to rescan on modeset.
+      GetPipe().atomic_state_manager->IsCrtcActive() &&
       active_config->mode.GetRawMode().hdisplay == new_width &&
       active_config->mode.GetRawMode().vdisplay == new_height) {
     ALOGV("Use existing client_layer for config.");
@@ -1320,24 +1397,22 @@ std::optional<LayerData> HwcDisplay::GetModesetLayerData(
   }
 
   ALOGV("Allocate modeset buffer.");
-  auto modeset_buffer = GetPipe().device->CreateBufferForModeset(new_width,
-                                                                 new_height);
+  std::optional<BufferInfo>
+      modeset_buffer = GetPipe().device->CreateBufferForModeset(new_width,
+                                                                new_height);
   if (!modeset_buffer)
     return std::nullopt;
 
   auto modeset_layer = std::make_unique<HwcLayer>(this);
   modeset_layer->SetLayerProperties({
-      .slot_buffer = std::optional<HwcLayer::Buffer>({
-          .slot_id = 0,
-          .bi = modeset_buffer,
-      }),
-      .active_slot = std::optional<HwcLayer::Slot>({
-          .slot_id = 0,
+      .buffer = std::optional<HwcLayer::Buffer>({
+          .bi = modeset_buffer.value(),
+          .fb = GetPipe().device->GetDrmFbImporter().GetOrCreateFbId(
+              &modeset_buffer.value()),
           .fence = {},
       }),
       .blend_mode = BufferBlendMode::kNone,
   });
-  modeset_layer->PopulateLayerData();
 
   return modeset_layer->GetLayerData();
 }
@@ -1356,7 +1431,7 @@ void HwcDisplay::SetConfigGroupsForActiveConfig() {
                                                        modeset_layer_data);
     commit_args.test_only = true;
     commit_args.seamless = true;
-    if (pipeline_->atomic_state_manager->ExecuteAtomicCommit(commit_args)) {
+    if (ExecuteAtomicCommit(commit_args)) {
       config.group_id = active_config->group_id;
     }
   }
@@ -1371,6 +1446,93 @@ std::pair<uint32_t, uint32_t> HwcDisplay::GetSize() const {
   }
   return std::make_pair(config->mode.GetRawMode().hdisplay,
                         config->mode.GetRawMode().vdisplay);
+}
+
+void HwcDisplay::LogModesOnHotplug() {
+  if (!display_mode_reporter_) {
+    return;
+  }
+
+  const HwcDisplay::DisplayType display_type = GetDisplayType();
+  if (display_type != HwcDisplay::DisplayType::kInternal &&
+      display_type != HwcDisplay::DisplayType::kExternal) {
+    return;
+  }
+
+  using ModeAtom = DisplayHotplugConnectModeDetectedAtomReporter::Atom;
+  std::vector<ModeAtom> submitted_atoms;
+  for (const auto &[id, hwc_mode] : configs_.hwc_configs) {
+    const DrmMode &mode = hwc_mode.mode;
+    const drmModeModeInfo &raw_mode = mode.GetRawMode();
+    const bool is_preferred = (raw_mode.type & DRM_MODE_TYPE_PREFERRED) != 0;
+
+    constexpr float kMmPerInch = 25.4;
+    const auto [width_mm, height_mm] = GetDisplayBoundsMm();
+    int32_t dpi_x = -1;
+    if (width_mm > 0) {
+      dpi_x = static_cast<int32_t>(
+          lround((static_cast<float>(raw_mode.hdisplay) * kMmPerInch) /
+                 static_cast<float>(width_mm)));
+    }
+    int32_t dpi_y = dpi_x;
+    if (height_mm > 0) {
+      dpi_y = static_cast<int32_t>(
+          lround((static_cast<float>(raw_mode.vdisplay) * kMmPerInch) /
+                 static_cast<float>(height_mm)));
+    }
+
+    using AtomDisplayType = DisplayHotplugConnectModeDetectedAtomReporter::
+        DisplayType;
+    const ModeAtom atom =
+        {.display_handle = handle_,
+         .resolution_x = raw_mode.hdisplay,
+         .resolution_y = raw_mode.vdisplay,
+         .refresh_rate = static_cast<int32_t>(lround(mode.GetVRefresh())),
+         .dpi_x = dpi_x,
+         .dpi_y = dpi_y,
+         .display_type = display_type == HwcDisplay::DisplayType::kInternal
+                             ? AtomDisplayType::kInternal
+                             : AtomDisplayType::kExternal,
+         .is_preferred = is_preferred};
+
+    if (std::find(submitted_atoms.begin(), submitted_atoms.end(), atom) !=
+        submitted_atoms.end()) {
+      continue;
+    }
+
+    display_mode_reporter_->PushAtom(atom);
+    submitted_atoms.push_back(atom);
+  }
+}
+
+void HwcDisplay::LogConfigResult(bool blocking, bool success) const {
+  if (!config_result_reporter_) {
+    return;
+  }
+
+  DisplayConfigurationResultReporter::DisplayType
+      display_type = DisplayConfigurationResultReporter::DisplayType::
+          kUnspecified;
+  switch (GetDisplayType()) {
+    case HwcDisplay::DisplayType::kInternal:
+      display_type = DisplayConfigurationResultReporter::DisplayType::kInternal;
+      break;
+    case HwcDisplay::DisplayType::kExternal:
+      display_type = DisplayConfigurationResultReporter::DisplayType::kExternal;
+      break;
+    default:
+      display_type = DisplayConfigurationResultReporter::DisplayType::
+          kUnspecified;
+      break;
+  }
+
+  const DisplayConfigurationResultReporter::Atom atom{
+      .display_handle = handle_,
+      .success = success,
+      .is_seamless = !blocking,
+      .display_type = display_type,
+  };
+  config_result_reporter_->PushAtom(atom);
 }
 
 }  // namespace android::drm_hwcomposer

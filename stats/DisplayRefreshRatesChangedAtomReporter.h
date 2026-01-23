@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022 The Android Open Source Project
+ * Copyright (C) 2025 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,25 +19,13 @@
 #include <memory>
 #include <vector>
 
-#include "LayerData.h"
-
 namespace android::drm_hwcomposer {
+class DisplayRefreshRatesChangedAtomReporter {
+ public:
+  static std::unique_ptr<DisplayRefreshRatesChangedAtomReporter> Create();
 
-class DrmDevice;
-
-struct DrmKmsPlan {
-  struct LayerToPlaneJoining {
-    LayerData layer;
-    std::shared_ptr<BindingOwner<DrmPlane>> plane;
-    int z_pos;
-  };
-
-  std::vector<LayerToPlaneJoining> plan;
-
-  static auto CreateDrmKmsPlan(
-      const DrmDisplayPipeline &pipe, std::vector<LayerData> composition,
-      std::optional<LayerData> cursor_layer = std::nullopt)
-      -> std::unique_ptr<DrmKmsPlan>;
+  virtual void UpdateRefreshRates(std::vector<int32_t> refresh_rates) = 0;
+  virtual ~DisplayRefreshRatesChangedAtomReporter() = default;
 };
 
 }  // namespace android::drm_hwcomposer

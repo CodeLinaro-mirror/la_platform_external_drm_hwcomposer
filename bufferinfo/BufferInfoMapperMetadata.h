@@ -18,7 +18,11 @@
 
 #include "bufferinfo/BufferInfoGetter.h"
 
+#include <memory>
+
 namespace android::drm_hwcomposer {
+
+struct BufferInfo;
 
 class BufferInfoMapperMetadata : public BufferInfoGetter {
  public:
@@ -28,7 +32,7 @@ class BufferInfoMapperMetadata : public BufferInfoGetter {
 
   static int GetFds(buffer_handle_t handle, BufferInfo *bo);
 
-  static BufferInfoGetter *CreateInstance();
+  static std::unique_ptr<BufferInfoGetter> CreateInstance();
 };
 
 }  // namespace android::drm_hwcomposer

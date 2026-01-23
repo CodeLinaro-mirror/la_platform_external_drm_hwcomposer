@@ -36,7 +36,6 @@
 #include <aidl/android/hardware/graphics/composer3/PresentOrValidate.h>
 #include <aidl/android/hardware/graphics/composer3/RenderIntent.h>
 #include <aidlcommonsupport/NativeHandle.h>
-#include <android-base/logging.h>
 #include <android/binder_auto_utils.h>
 #include <android/binder_ibinder_platform.h>
 #include <cutils/native_handle.h>
@@ -44,23 +43,33 @@
 #include <utils/Trace.h>
 
 #include "bufferinfo/BufferInfo.h"
+#include "bufferinfo/BufferInfoGetter.h"
+#include "bufferinfo/GrallocBufferCache.h"
 #include "compositor/DisplayInfo.h"
+#include "drm/DrmDevice.h"
+#include "drm/DrmDisplayPipeline.h"
+#include "drm/DrmFbImporter.h"
 #include "hwc/HwcDisplay.h"
 #include "hwc/HwcDisplayConfigs.h"
 #include "hwc/HwcLayer.h"
+#include "hwc3/CommandResultWriter.h"
 #include "hwc3/DrmHwcThree.h"
 #include "hwc3/Utils.h"
 #include "stats/CompositionStatsAtomReporter.h"
-#include "stats/CompositionStatsPoller.h"
+#include "stats/CountActiveDisplaysReporter.h"
+#include "stats/StatsPoller.h"
+#include "utils/fd.h"
+#include "utils/log.h"
+#include "utils/properties.h"
 
 using ::android::drm_hwcomposer::BufferBlendMode;
 using ::android::drm_hwcomposer::BufferColorSpace;
 using ::android::drm_hwcomposer::BufferSampleRange;
-using ::android::drm_hwcomposer::CompositionStatsPoller;
 using ::android::drm_hwcomposer::CompositionType;
 using ::android::drm_hwcomposer::DamageInfo;
 using ::android::drm_hwcomposer::DisplayHandle;
 using ::android::drm_hwcomposer::DstRectInfo;
+using ::android::drm_hwcomposer::GrallocBufferCache;
 using ::android::drm_hwcomposer::HwcDisplay;
 using ::android::drm_hwcomposer::HwcDisplayConfig;
 using ::android::drm_hwcomposer::HwcLayer;
@@ -68,6 +77,7 @@ using ::android::drm_hwcomposer::IRect;
 using ::android::drm_hwcomposer::LayerTransform;
 using ::android::drm_hwcomposer::PanelOrientation;
 using ::android::drm_hwcomposer::SrcRectInfo;
+using ::android::drm_hwcomposer::StatsPoller;
 
 using HwcOutputType = ::android::drm_hwcomposer::OutputType;
 #if __ANDROID_API__ >= 36
@@ -379,116 +389,29 @@ std::optional<DamageInfo> AidlToDamage(
 
 }  // namespace
 
-class Hwc3BufferHandle : public ::android::drm_hwcomposer::PrimeFdsSharedBase {
- public:
-  static auto Create(buffer_handle_t handle)
-      -> std::shared_ptr<Hwc3BufferHandle> {
-    auto hwc3 = std::shared_ptr<Hwc3BufferHandle>(new Hwc3BufferHandle());
-
-    auto result = ::android::GraphicBufferMapper::get()
-        .importBufferNoValidate(handle, &hwc3->imported_handle_);
-
-    if (result != ::android::NO_ERROR) {
-      ALOGE("Failed to import buffer handle: %d", result);
-      return nullptr;
-    }
-
-    return hwc3;
+static auto ImportFb(HwcDisplay* display,
+                     ::android::drm_hwcomposer::BufferInfo& bi)
+    -> std::shared_ptr<::android::drm_hwcomposer::DrmFbIdHandle> {
+  if (display->IsInHeadlessMode()) {
+    return nullptr;
   }
+  auto fb = display->GetPipe().device->GetDrmFbImporter().GetOrCreateFbId(&bi);
+  ALOGE_IF(fb == nullptr, "Failed to import framebuffer");
+  return fb;
+}
 
-  auto GetHandle() const -> buffer_handle_t {
-    return imported_handle_;
-  }
-
-  ~Hwc3BufferHandle() override {
-    ::android::GraphicBufferMapper::get().freeBuffer(imported_handle_);
-  }
-
- private:
-  Hwc3BufferHandle() = default;
-  buffer_handle_t imported_handle_{};
-};
-
-class Hwc3Layer : public ::android::drm_hwcomposer::FrontendLayerBase {
- public:
-  auto HandleNextBuffer(std::optional<buffer_handle_t> raw_handle,
-                        ::android::drm_hwcomposer::SharedFd fence_fd,
-                        int32_t slot_id)
-      -> std::optional<HwcLayer::LayerProperties> {
-    HwcLayer::LayerProperties lp;
-    if (!raw_handle && slots_.count(slot_id) != 0) {
-      lp.active_slot = {
-          .slot_id = slot_id,
-          .fence = std::move(fence_fd),
-      };
-
-      return lp;
-    }
-
-    if (!raw_handle) {
-      ALOGE("Buffer handle is nullopt but slot was not cached.");
-      return std::nullopt;
-    }
-
-    auto hwc3 = Hwc3BufferHandle::Create(*raw_handle);
-    if (!hwc3) {
-      return std::nullopt;
-    }
-
-    auto bi = ::android::drm_hwcomposer::BufferInfoGetter::GetInstance()
-                  ->GetBoInfo(hwc3->GetHandle());
-    if (bi) {
-      bi->fds_shared = hwc3;
-
-      lp.slot_buffer = {
-          .slot_id = slot_id,
-          .bi = bi,
-      };
-    }
-
-    lp.active_slot = {
-        .slot_id = slot_id,
-        .fence = std::move(fence_fd),
-    };
-
-    slots_[slot_id] = hwc3;
-
-    return lp;
-  }
-
-  [[maybe_unused]]
-  auto HandleClearSlot(int32_t slot_id)
-      -> std::optional<HwcLayer::LayerProperties> {
-    if (slots_.count(slot_id) == 0) {
-      return std::nullopt;
-    }
-
-    slots_.erase(slot_id);
-
-    auto lp = HwcLayer::LayerProperties{};
-    lp.slot_buffer = {
-        .slot_id = slot_id,
-        .bi = std::nullopt,
-    };
-
-    return lp;
-  }
-
-  void ClearSlots() {
-    slots_.clear();
-  }
-
- private:
-  std::map<int32_t /*slot*/, std::shared_ptr<Hwc3BufferHandle>> slots_;
-};
-
-static auto GetHwc3Layer(HwcLayer& layer) -> std::shared_ptr<Hwc3Layer> {
+static auto GetBufferCache(HwcDisplay* parent, HwcLayer& layer)
+    -> std::shared_ptr<GrallocBufferCache> {
   auto frontend_private_data = layer.GetFrontendPrivateData();
   if (!frontend_private_data) {
-    frontend_private_data = std::make_shared<Hwc3Layer>();
+    frontend_private_data = std::make_shared<GrallocBufferCache>(
+        [parent](auto& bi)
+            -> std::shared_ptr<::android::drm_hwcomposer::DrmFbIdHandle> {
+          return ImportFb(parent, bi);
+        });
     layer.SetFrontendPrivateData(frontend_private_data);
   }
-  return std::static_pointer_cast<Hwc3Layer>(frontend_private_data);
+  return std::static_pointer_cast<GrallocBufferCache>(frontend_private_data);
 }
 
 ComposerClient::ComposerClient() {
@@ -499,12 +422,14 @@ void ComposerClient::Init() {
   DEBUG_FUNC();
   hwc_ = std::make_unique<DrmHwcThree>();
 
-  auto reporter = ::android::drm_hwcomposer::CompositionStatsAtomReporter::
-      Create();
-  if (reporter) {
-    stats_poller_ = std::make_unique<CompositionStatsPoller>(std::move(
-                                                                 reporter),
-                                                             hwc_.get());
+  auto composition_reporter = ::android::drm_hwcomposer::
+      CompositionStatsAtomReporter::Create();
+  auto count_active_displays_reporter = ::android::drm_hwcomposer::
+      CountActiveDisplaysReporter::Create();
+  if (composition_reporter && count_active_displays_reporter) {
+    stats_poller_ = std::make_unique<
+        StatsPoller>(std::move(composition_reporter),
+                     std::move(count_active_displays_reporter), hwc_.get());
   }
 }
 
@@ -516,7 +441,7 @@ ComposerClient::~ComposerClient() {
     hwc_->DeinitDisplays();
     hwc_.reset();
   }
-  LOG(DEBUG) << "removed composer client";
+  ALOGD("removed composer client");
 }
 
 ndk::ScopedAStatus ComposerClient::createLayer(int64_t display_handle,
@@ -648,21 +573,15 @@ void ComposerClient::DispatchLayerCommand(int64_t display_handle,
 
   /* https://source.android.com/docs/core/graphics/reduce-consumption */
   if (command.bufferSlotsToClear) {
-    auto hwc3_layer = GetHwc3Layer(*layer);
+    auto buffer_cache = GetBufferCache(display, *layer);
     for (const auto& slot : *command.bufferSlotsToClear) {
-      auto lp = hwc3_layer->HandleClearSlot(slot);
-      if (!lp) {
-        cmd_result_writer_->AddError(hwc3::Error::kBadLayer);
-        return;
-      }
-
-      layer->SetLayerProperties(lp.value());
+      buffer_cache->ClearSlot(slot);
     }
   }
 
   HwcLayer::LayerProperties properties;
   if (command.buffer) {
-    auto hwc3_layer = GetHwc3Layer(*layer);
+    auto buffer_cache = GetBufferCache(display, *layer);
     std::optional<buffer_handle_t> buffer_handle = std::nullopt;
     if (command.buffer->handle) {
       buffer_handle = ::android::makeFromAidl(*command.buffer->handle);
@@ -672,7 +591,7 @@ void ComposerClient::DispatchLayerCommand(int64_t display_handle,
     auto fence = const_cast<::ndk::ScopedFileDescriptor&>(command.buffer->fence)
                      .release();
 
-    auto lp = hwc3_layer
+    auto lp = buffer_cache
                   ->HandleNextBuffer(buffer_handle,
                                      ::android::drm_hwcomposer::MakeSharedFd(
                                          fence),
@@ -683,7 +602,7 @@ void ComposerClient::DispatchLayerCommand(int64_t display_handle,
       return;
     }
 
-    properties = lp.value();
+    properties.buffer = lp;
   }
 
   properties.blend_mode = AidlToBlendMode(command.blendMode);
@@ -1129,7 +1048,8 @@ ndk::ScopedAStatus ComposerClient::getDisplayPhysicalOrientation(
       *orientation = common::Transform::ROT_90;
       break;
     default:
-      ALOGE("Unknown panel orientation value: %d", drm_orientation);
+      ALOGE("Unknown panel orientation value: %d",
+            static_cast<int>(drm_orientation));
       return ToBinderStatus(hwc3::Error::kBadDisplay);
   }
 
@@ -1208,7 +1128,6 @@ ndk::ScopedAStatus ComposerClient::getReadbackBufferFence(
   ::android::drm_hwcomposer::SharedFd fence = display
                                                   ->GetWritebackBufferFence();
   display->SetWritebackEnabled(false);
-  display->GetWritebackLayer()->ClearSlots();
 
   if (!fence) {
     ALOGE("ComposerClient: Failed to get readback buffer fence");
@@ -1314,9 +1233,8 @@ ndk::ScopedAStatus ComposerClient::setActiveConfigWithConstraints(
    */
   if (!same_resolution) {
     auto& client_layer = display->GetClientLayer();
-    auto hwc3_layer = GetHwc3Layer(client_layer);
-    hwc3_layer->ClearSlots();
-    client_layer.ClearSlots();
+    auto buffer_cache = GetBufferCache(display, client_layer);
+    buffer_cache->ClearSlots();
   }
 
   // Always try to queue a seamless commit to reduce jank and flicker artifacts.
@@ -1355,6 +1273,7 @@ ndk::ScopedAStatus ComposerClient::setActiveConfigWithConstraints(
       return ToBinderStatus(hwc3::Error::kBadConfig);
 #endif
     case HwcDisplay::ConfigError::kNone:
+      hwc_->LogRefreshRateChanges();
       return ndk::ScopedAStatus::ok();
   }
 }
@@ -1505,25 +1424,27 @@ ndk::ScopedAStatus ComposerClient::setReadbackBuffer(
           result);
     return ToBinderStatus(hwc3::Error::kBadParameter);
   }
-  HwcLayer::LayerProperties properties;
-  properties.slot_buffer = {
-      .slot_id = 0,
-      .bi = ::android::drm_hwcomposer::BufferInfoGetter::GetInstance()
-                ->GetBoInfo(imported_handle),
-  };
-  ndk::ScopedFileDescriptor release_fence = ndk::ScopedFileDescriptor(
-      release_fence_in.get());
-  properties.active_slot = {
-      .slot_id = 0,
-      .fence = ::android::drm_hwcomposer::MakeSharedFd(release_fence.release()),
-  };
-  properties.blend_mode = BufferBlendMode::kNone;
 
   std::unique_ptr<HwcLayer>& writeback_layer = display->GetWritebackLayer();
   if (!writeback_layer) {
     ALOGE("HwcDisplay: Writeback layer not available");
     return ToBinderStatus(hwc3::Error::kBadParameter);
   }
+  HwcLayer::LayerProperties properties;
+  ndk::ScopedFileDescriptor release_fence = ndk::ScopedFileDescriptor(
+      release_fence_in.get());
+  properties.blend_mode = BufferBlendMode::kNone;
+  auto bi = ::android::drm_hwcomposer::BufferInfoGetter::GetInstance()
+                ->GetBoInfo(imported_handle);
+  if (bi == std::nullopt) {
+    ALOGE("Failed to get BufferInfo for readback buffer.");
+    return ToBinderStatus(hwc3::Error::kBadParameter);
+  }
+  properties.buffer = {
+      .bi = bi.value(),
+      .fb = ImportFb(display, *bi),
+      .fence = ::android::drm_hwcomposer::MakeSharedFd(release_fence.release()),
+  };
   writeback_layer->SetLayerProperties(properties);
 
   return ndk::ScopedAStatus::ok();
@@ -1608,7 +1529,7 @@ ndk::ScopedAStatus ComposerClient::startHdcpNegotiation(
   if (levels.connectedLevel != drm::HdcpLevel::HDCP_NONE &&
       levels.connectedLevel != drm::HdcpLevel::HDCP_UNKNOWN) {
     ALOGI("Requested to start HDCP for connected level : %d",
-          levels.connectedLevel);
+          static_cast<int>(levels.connectedLevel));
     if (!display->StartHdcp(true)) {
       return ToBinderStatus(hwc3::Error::kUnsupported);
     }
@@ -1653,7 +1574,7 @@ void ComposerClient::ExecuteSetDisplayClientTarget(
   }
 
   auto& client_layer = display->GetClientLayer();
-  auto hwc3layer = GetHwc3Layer(client_layer);
+  auto buffer_cache = GetBufferCache(display, client_layer);
 
   std::optional<buffer_handle_t> raw_buffer = std::nullopt;
   if (command.buffer.handle) {
@@ -1664,12 +1585,13 @@ void ComposerClient::ExecuteSetDisplayClientTarget(
   auto fence = const_cast<::ndk::ScopedFileDescriptor&>(command.buffer.fence)
                    .release();
 
-  auto properties = hwc3layer->HandleNextBuffer(raw_buffer,
-                                                ::android::drm_hwcomposer::
-                                                    MakeSharedFd(fence),
-                                                command.buffer.slot);
+  auto buffer = buffer_cache
+                    ->HandleNextBuffer(raw_buffer,
+                                       ::android::drm_hwcomposer::MakeSharedFd(
+                                           fence),
+                                       command.buffer.slot);
 
-  if (!properties) {
+  if (!buffer) {
     ALOGE("Failed to import client target buffer.");
     /* Here, sending an error would be the natural way to do the thing.
      * But VTS checks for no error. Is it the VTS issue?
@@ -1677,11 +1599,12 @@ void ComposerClient::ExecuteSetDisplayClientTarget(
      */
     return;
   }
-
-  properties->color_space = AidlToColorSpace(command.dataspace);
-  properties->sample_range = AidlToSampleRange(command.dataspace);
-
-  client_layer.SetLayerProperties(properties.value());
+  HwcLayer::LayerProperties properties = {
+      .buffer = buffer,
+      .color_space = AidlToColorSpace(command.dataspace),
+      .sample_range = AidlToSampleRange(command.dataspace),
+  };
+  client_layer.SetLayerProperties(properties);
 }
 
 void ComposerClient::ExecuteSetDisplayOutputBuffer(int64_t display_handle,
@@ -1698,7 +1621,7 @@ void ComposerClient::ExecuteSetDisplayOutputBuffer(int64_t display_handle,
     return;
   }
 
-  auto hwc3layer = GetHwc3Layer(*writeback_layer);
+  auto buffer_cache = GetBufferCache(display, *writeback_layer);
 
   std::optional<buffer_handle_t> raw_buffer = std::nullopt;
   if (buffer.handle) {
@@ -1708,17 +1631,20 @@ void ComposerClient::ExecuteSetDisplayOutputBuffer(int64_t display_handle,
   // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
   auto fence = const_cast<::ndk::ScopedFileDescriptor&>(buffer.fence).release();
 
-  auto properties = hwc3layer->HandleNextBuffer(raw_buffer,
-                                                ::android::drm_hwcomposer::
-                                                    MakeSharedFd(fence),
-                                                buffer.slot);
+  HwcLayer::LayerProperties properties = {
+      .buffer = buffer_cache
+                    ->HandleNextBuffer(raw_buffer,
+                                       ::android::drm_hwcomposer::MakeSharedFd(
+                                           fence),
+                                       buffer.slot),
+  };
 
-  if (!properties) {
+  if (!properties.buffer) {
     cmd_result_writer_->AddError(hwc3::Error::kBadLayer);
     return;
   }
 
-  writeback_layer->SetLayerProperties(properties.value());
+  writeback_layer->SetLayerProperties(properties);
 }
 
 }  // namespace aidl::android::hardware::graphics::composer3::impl

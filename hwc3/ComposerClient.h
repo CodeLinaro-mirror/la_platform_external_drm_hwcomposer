@@ -18,21 +18,27 @@
 
 #include <memory>
 
-#include "aidl/android/hardware/graphics/composer3/BnComposerClient.h"
-#include "aidl/android/hardware/graphics/composer3/LayerCommand.h"
+#include <aidl/android/hardware/graphics/composer3/BnComposerClient.h>
+#include <aidl/android/hardware/graphics/composer3/LayerCommand.h>
+
 #include "hwc/HwcLayer.h"
-#include "hwc3/CommandResultWriter.h"
-#include "hwc3/Utils.h"
-#include "utils/Mutex.h"
 
 using AidlHdcpLevels = aidl::android::hardware::drm::HdcpLevels;
 using AidlPixelFormat = aidl::android::hardware::graphics::common::PixelFormat;
 using AidlNativeHandle = aidl::android::hardware::common::NativeHandle;
 
 namespace android::drm_hwcomposer {
-class CompositionStatsPoller;
+class StatsPoller;
 class HwcDisplay;
 }  // namespace android::drm_hwcomposer
+
+namespace aidl::android::hardware::graphics::composer3 {
+class CommandResultWriter;
+
+namespace hwc3 {
+enum class Error;
+}  // namespace hwc3
+}  // namespace aidl::android::hardware::graphics::composer3
 
 namespace aidl::android::hardware::graphics::composer3::impl {
 using AidlColorMode = ColorMode;
@@ -183,8 +189,7 @@ class ComposerClient : public BnComposerClient {
 
   std::unique_ptr<DrmHwcThree> hwc_;
 
-  std::unique_ptr<::android::drm_hwcomposer::CompositionStatsPoller>
-      stats_poller_;
+  std::unique_ptr<::android::drm_hwcomposer::StatsPoller> stats_poller_;
 };
 
 }  // namespace aidl::android::hardware::graphics::composer3::impl
