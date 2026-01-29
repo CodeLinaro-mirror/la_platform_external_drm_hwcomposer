@@ -199,7 +199,7 @@ void HwcDisplay::SetOutputType(OutputType hdr_output_type) {
     case OutputType::kSdr:
       [[fallthrough]];
     default:
-      hdr_metadata_.reset();
+      hdr_metadata_ = std::make_shared<hdr_output_metadata>();
       min_bpc_ = 6;
       colorspace_ = Colorspace::kDefault;
   }
