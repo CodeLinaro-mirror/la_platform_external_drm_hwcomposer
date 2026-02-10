@@ -182,6 +182,7 @@ void HwcDisplay::SetOutputType(OutputType hdr_output_type) {
       SetHdrOutputMetadata(ui::Hdr::HDR10);
       min_bpc_ = 8;
       colorspace_ = Colorspace::kBt2020Rgb;
+      transfer_func_ = TransferFunction::kPq;
       break;
     }
     case OutputType::kSystem: {
@@ -191,6 +192,7 @@ void HwcDisplay::SetOutputType(OutputType hdr_output_type) {
         SetHdrOutputMetadata(hdr_types.front());
         min_bpc_ = 8;
         colorspace_ = Colorspace::kBt2020Rgb;
+        transfer_func_ = TransferFunction::kPq;
         break;
       }
       [[fallthrough]];
@@ -203,6 +205,7 @@ void HwcDisplay::SetOutputType(OutputType hdr_output_type) {
       hdr_metadata_ = std::make_shared<hdr_output_metadata>();
       min_bpc_ = 6;
       colorspace_ = Colorspace::kDefault;
+      transfer_func_ = TransferFunction::kUnknown;
   }
 }
 
@@ -911,6 +914,7 @@ AtomicCommitArgs HwcDisplay::CreateModesetCommit(
   args.color_matrix = color_matrix_;
   args.content_type = content_type_;
   args.colorspace = colorspace_;
+  args.transfer_func = transfer_func_;
   args.hdr_metadata = hdr_metadata_;
   args.min_bpc = min_bpc_;
 
@@ -1035,6 +1039,7 @@ std::optional<AtomicCommitArgs> HwcDisplay::CreateFrameUpdateCommit(
   a_args.color_matrix = color_matrix_;
   a_args.content_type = content_type_;
   a_args.colorspace = colorspace_;
+  a_args.transfer_func = transfer_func_;
   a_args.hdr_metadata = hdr_metadata_;
   a_args.min_bpc = min_bpc_;
 
