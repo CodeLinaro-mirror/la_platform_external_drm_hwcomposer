@@ -59,6 +59,7 @@ cc_defaults {
     static_libs: [
         "libaidlcommonsupport",
         "libdisplay_info",
+        "libmath",
     ],
 
     header_libs: [
@@ -72,7 +73,6 @@ cc_defaults {
 
     cppflags: [
         "-DHAS_LIBDISPLAY_INFO",
-        "-DHAS_LIBSYNC",
     ],
 
     cpp_std: "gnu++17",
@@ -97,6 +97,7 @@ filegroup {
         "compositor/CompositionPlanner.cpp",
         "compositor/FlatteningController.cpp",
         "compositor/GenericCompositionPlanner.cpp",
+        "compositor/HdcpController.cpp",
         "compositor/LayerToPlaneJoiningPlan.cpp",
 
         "drm/DrmAtomicStateManager.cpp",
@@ -127,6 +128,7 @@ filegroup {
         "stats/Stats.cpp",
         "stats/StatsPoller.cpp",
 
+        "utils/ColorUtil.cpp",
         "utils/LibdisplayEdidWrapper.cpp",
         "utils/fd.cpp",
         "utils/properties.cpp",
@@ -297,7 +299,6 @@ cc_test_host {
         "compositor/FlatteningController.cpp",
         "compositor/FlatteningControllerTests.cpp",
         "compositor/FlatteningEventAtomReporter.cpp",
-        "drm/DrmAtomicStateManager.cpp",
         "drm/DrmColorOp.cpp",
         "drm/DrmConnector.cpp",
         "drm/DrmCrtc.cpp",
@@ -323,6 +324,7 @@ cc_test_host {
         "libgmock",
         "libgtest",
         "liblog",
+        "libmath",
     ],
     shared_libs: [
         "libhardware",

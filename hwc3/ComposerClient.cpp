@@ -63,8 +63,8 @@
 #include "utils/properties.h"
 
 using ::android::drm_hwcomposer::BufferBlendMode;
-using ::android::drm_hwcomposer::BufferColorSpace;
 using ::android::drm_hwcomposer::BufferSampleRange;
+using ::android::drm_hwcomposer::Colorspace;
 using ::android::drm_hwcomposer::CompositionType;
 using ::android::drm_hwcomposer::DamageInfo;
 using ::android::drm_hwcomposer::DisplayHandle;
@@ -110,36 +110,37 @@ std::optional<BufferBlendMode> AidlToBlendMode(
   }
 }
 
-std::optional<BufferColorSpace> AidlToColorSpace(
-    const common::Dataspace& dataspace) {
+std::optional<Colorspace> AidlToColorspace(const common::Dataspace& dataspace) {
   int32_t standard = static_cast<int32_t>(dataspace) &
                      static_cast<int32_t>(common::Dataspace::STANDARD_MASK);
   switch (standard) {
     case static_cast<int32_t>(common::Dataspace::STANDARD_BT709):
-      return BufferColorSpace::kItuRec709;
+      return Colorspace::kBt709Ycc;
     case static_cast<int32_t>(common::Dataspace::STANDARD_BT601_625):
     case static_cast<int32_t>(common::Dataspace::STANDARD_BT601_625_UNADJUSTED):
     case static_cast<int32_t>(common::Dataspace::STANDARD_BT601_525):
     case static_cast<int32_t>(common::Dataspace::STANDARD_BT601_525_UNADJUSTED):
-      return BufferColorSpace::kItuRec601;
+      return Colorspace::kBt601Ycc;
+    case static_cast<int32_t>(common::Dataspace::DCI_P3):
+      return Colorspace::kDciP3RgbD65;
     case static_cast<int32_t>(common::Dataspace::STANDARD_BT2020):
     case static_cast<int32_t>(
         common::Dataspace::STANDARD_BT2020_CONSTANT_LUMINANCE):
-      return BufferColorSpace::kItuRec2020;
+      return Colorspace::kBt2020Rgb;
     case static_cast<int32_t>(common::Dataspace::UNKNOWN):
-      return BufferColorSpace::kUndefined;
+      return Colorspace::kDefault;
     default:
       ALOGE("Unsupported standard: %d", standard);
       return std::nullopt;
   }
 }
 
-std::optional<BufferColorSpace> AidlToColorSpace(
+std::optional<Colorspace> AidlToColorspace(
     const std::optional<ParcelableDataspace>& dataspace) {
   if (!dataspace) {
     return std::nullopt;
   }
-  return AidlToColorSpace(dataspace->dataspace);
+  return AidlToColorspace(dataspace->dataspace);
 }
 
 std::optional<BufferSampleRange> AidlToSampleRange(
@@ -606,7 +607,7 @@ void ComposerClient::DispatchLayerCommand(int64_t display_handle,
   }
 
   properties.blend_mode = AidlToBlendMode(command.blendMode);
-  properties.color_space = AidlToColorSpace(command.dataspace);
+  properties.colorspace = AidlToColorspace(command.dataspace);
   properties.sample_range = AidlToSampleRange(command.dataspace);
   properties.composition_type = AidlToCompositionType(command.composition);
   properties.display_frame = AidlToDstRect(command.displayFrame);
@@ -1530,7 +1531,7 @@ ndk::ScopedAStatus ComposerClient::startHdcpNegotiation(
       levels.connectedLevel != drm::HdcpLevel::HDCP_UNKNOWN) {
     ALOGI("Requested to start HDCP for connected level : %d",
           static_cast<int>(levels.connectedLevel));
-    if (!display->StartHdcp(true)) {
+    if (!display->StartHdcp()) {
       return ToBinderStatus(hwc3::Error::kUnsupported);
     }
   }
@@ -1601,8 +1602,8 @@ void ComposerClient::ExecuteSetDisplayClientTarget(
   }
   HwcLayer::LayerProperties properties = {
       .buffer = buffer,
-      .color_space = AidlToColorSpace(command.dataspace),
       .sample_range = AidlToSampleRange(command.dataspace),
+      .colorspace = AidlToColorspace(command.dataspace),
   };
   client_layer.SetLayerProperties(properties);
 }

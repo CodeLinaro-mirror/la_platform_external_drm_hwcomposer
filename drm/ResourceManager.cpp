@@ -51,6 +51,8 @@ void ResourceManager::Init() {
     return;
   }
 
+  color_pipeline_enabled_ = Properties::UseColorPipeline();
+
   // Could be a valid path or it can have at the end of it the wildcard %
   // which means that it will try open all devices until an error is met.
   std::string path_pattern = Properties::GetDevicePath();
@@ -79,21 +81,26 @@ void ResourceManager::Init() {
     }
   }
 
+  // Ensure that Backends have been initialized before the BackendManager is
+  // used.
+  BackendManager::GetInstance().InitializeBackends();
+
   auto display_str = Properties::InternalDisplayNames();
   auto display_names = base::Tokenize(display_str, ",");
   displays_.insert(display_names.begin(), display_names.end());
 
   scale_with_gpu_ = Properties::ScaleWithGpu();
   ctm_handling_ = Properties::GetCtmHandling();
-  color_pipeline_enabled_ = Properties::UseColorPipeline();
 
-  auto buffer_info_getter = BackendManager::GetInstance()
-                                .CreateBufferInfoGetter();
-  if (!buffer_info_getter) {
-    ALOGE("Failed to create BufferInfoGetter");
-    return;
+  if (BufferInfoGetter::GetInstance() == nullptr) {
+    auto buffer_info_getter = BackendManager::GetInstance()
+                                  .CreateBufferInfoGetter();
+    if (!buffer_info_getter) {
+      ALOGE("Failed to create BufferInfoGetter");
+      return;
+    }
+    BufferInfoGetter::Init(std::move(buffer_info_getter));
   }
-  BufferInfoGetter::Init(std::move(buffer_info_getter));
 
   for (auto &drm : drms_) {
     drm->ResetConnectorsAndCrtcs();
@@ -172,6 +179,12 @@ void ResourceManager::UpdateFrontendDisplays() {
 
       // Handle the Content Protection Uevent to update its status
       conn->UpdateContentProtection();
+
+      // If content protection is not enabled anymore, inform frontend so it
+      // can terminate HDCP handling for this display.
+      if (!conn->IsContentProtectionEnabled()) {
+        frontend_interface_->NotifyHdcpTermination(attached_pipelines_[conn]);
+      }
     }
   }
   frontend_interface_->FinalizeDisplayBinding();

@@ -17,6 +17,7 @@ src_common = files(
     'compositor/FlatteningController.cpp',
     'compositor/FlatteningEventAtomReporter.cpp',
     'compositor/GenericCompositionPlanner.cpp',
+    'compositor/HdcpController.cpp',
     'compositor/LayerToPlaneJoiningPlan.cpp',
     'hwc/HwcDisplayConfigs.cpp',
     'hwc/HwcDisplay.cpp',
@@ -28,6 +29,7 @@ src_common = files(
     'stats/DisplayConfigurationResultReporter.cpp',
     'stats/DisplayHotplugConnectModeDetectedAtomReporter.cpp',
     'stats/DisplayRefreshRatesChangedAtomReporter.cpp',
+    'utils/ColorUtil.cpp',
     'utils/fd.cpp',
     'utils/LibdisplayEdidWrapper.cpp',
     'utils/properties.cpp',
@@ -54,7 +56,6 @@ message('ANDROID_SDK_VERSION = ' + android_sdk_version)
 common_cpp_flags = [
     '-DUSE_IMAPPER4_METADATA_API',
     '-D__ANDROID_API__=' + android_sdk_version,
-    '-DHAS_LIBSYNC',
 ]
 
 dep_libdisplay_info = dependency('display_info', required : false)

@@ -24,6 +24,7 @@
 #include "drm/drm_mode.h"
 #include "hwc/HwcDisplayConfigs.h"
 #include "hwc/HwcLayer.h"
+#include "utils/EdidWrapper.h"
 
 namespace aidl::android::hardware::graphics::common {
 enum class Hdr;
@@ -39,11 +40,12 @@ class ChangedLayer;
 class DisplayConfigurationResultReporter;
 class DisplayHotplugConnectModeDetectedAtomReporter;
 class DrmHwc;
-class EdidWrapper;
 class FlatteningController;
+class HdcpController;
 class VSyncWorker;
 
 struct AtomicCommitArgs;
+struct AtomicCommitResult;
 struct CompositionAttributes;
 struct CompositionStats;
 struct DrmDisplayPipeline;
@@ -70,14 +72,6 @@ class HwcDisplay {
   };
 
   enum DisplayType { kInternal, kExternal, kVirtual };
-
-  enum class HdcpState : int {
-    kUndesired,
-    kDesired,
-    kPending,
-    kEnabled,
-    kRetry
-  };
 
   HwcDisplay(DisplayHandle handle, bool is_virtual, DrmHwc *hwc);
   HwcDisplay(const HwcDisplay &) = delete;
@@ -187,7 +181,8 @@ class HwcDisplay {
                           float *max_average_luminance, float *min_luminance);
 
   auto IsHdcpPropertyPresent() -> bool;
-  auto StartHdcp(bool start) -> bool;
+  auto StartHdcp() -> bool;
+  auto StopHdcp() -> bool;
 
   bool IsWritebackSupported();
   bool SetWritebackEnabled(bool enabled);
@@ -240,6 +235,10 @@ class HwcDisplay {
     return flatcon_.get();
   }
 
+  const HdcpController *GetHdcpController() const {
+    return hdcpcon_.get();
+  }
+
   auto GetClientLayer() -> HwcLayer & {
     return client_layer_;
   }
@@ -268,17 +267,23 @@ class HwcDisplay {
   std::optional<AtomicCommitArgs> CreateFrameUpdateCommit(
       const CompositionPlanner::ValidatedComposition &composition) const;
 
+  // Creates a LayerToPlaneJoiningPlan for the given composition type map.
+  std::unique_ptr<LayerToPlaneJoiningPlan> CreateLayerToPlaneJoiningPlan(
+      const CompositionPlanner::CompositionTypeMap &composition_types) const;
+
   bool CommitStagedComposition(SharedFd &out_present_fence);
 
   // Update HwcDisplay state tracking to reflect what was committed in |a_args|.
   // This should be called after a successful commit.
-  void ApplyCommitChanges(const AtomicCommitArgs &a_args);
+  void ApplyCommitChanges(const AtomicCommitArgs &a_args,
+                          const AtomicCommitResult &result);
 
   AtomicCommitArgs CreateModesetCommit(
       const HwcDisplayConfig *config,
       const std::optional<LayerData> &modeset_layer);
 
-  bool ExecuteAtomicCommit(AtomicCommitArgs &a_args) const;
+  std::optional<AtomicCommitResult> ExecuteAtomicCommit(
+      AtomicCommitArgs &a_args) const;
 
   // Sleep the current thread until |present_time| is closest to the next
   // expected vsync time.
@@ -321,6 +326,7 @@ class HwcDisplay {
   std::shared_ptr<DrmDisplayPipeline> pipeline_;
 
   std::unique_ptr<FlatteningController> flatcon_;
+  std::unique_ptr<HdcpController> hdcpcon_;
 
   std::unique_ptr<VSyncWorker> vsync_worker_;
   bool vsync_event_en_{};
@@ -333,10 +339,8 @@ class HwcDisplay {
   std::unique_ptr<HwcLayer> writeback_layer_;
   uint16_t virtual_disp_width_{};
   uint16_t virtual_disp_height_{};
-  std::shared_ptr<drm_color_ctm> color_matrix_;
-  std::shared_ptr<drm_color_ctm> identity_color_matrix_;
-  std::shared_ptr<drm_color_ctm_3x4> color_matrix_3x4_;
-  std::shared_ptr<drm_color_ctm_3x4> identity_color_matrix_3x4_;
+  std::shared_ptr<HalColorTransforMatrix> color_matrix_;
+  std::shared_ptr<HalColorTransforMatrix> identity_color_matrix_;
   bool color_transform_is_identity_{};
   bool ctm_has_offset_ = false;
   ContentType content_type_ = ContentType::kNoData;
@@ -352,8 +356,6 @@ class HwcDisplay {
 
   uint32_t frame_no_ = 0;
   std::map<CompositionAttributes, CompositionStats> comp_stats_{};
-
-  HwcDisplay::HdcpState hdcp_state_ = HdcpState::kUndesired;
 
   std::shared_ptr<FrontendDisplayBase> frontend_private_data_;
 

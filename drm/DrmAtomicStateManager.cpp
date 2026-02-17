@@ -22,11 +22,10 @@
 #include "DrmAtomicStateManager.h"
 
 #include <drm/drm_mode.h>
-#if HAS_LIBSYNC
 #include <sync/sync.h>
-#endif  // HAS_LIBSYNC
 #include <utils/Trace.h>
 
+#include <algorithm>
 #include <cassert>
 
 #include "compositor/LayerData.h"
@@ -39,14 +38,15 @@
 #include "drm/DrmPlane.h"
 #include "drm/DrmUnique.h"
 #include "drm/ResourceManager.h"
+#include "utils/ColorUtil.h"
 #include "utils/fd.h"
 #include "utils/log.h"
 
 namespace android::drm_hwcomposer {
 
 auto DrmAtomicStateManager::CreateInstance(DrmDisplayPipeline *pipe)
-    -> std::shared_ptr<DrmAtomicStateManager> {
-  auto dasm = std::shared_ptr<DrmAtomicStateManager>(
+    -> std::unique_ptr<DrmAtomicStateManager> {
+  auto dasm = std::unique_ptr<DrmAtomicStateManager>(
       new DrmAtomicStateManager());
 
   dasm->pipe_ = pipe;
@@ -61,7 +61,6 @@ DrmAtomicStateManager::~DrmAtomicStateManager() {
 }
 
 void DrmAtomicStateManager::WaitLastFrame() {
-#if HAS_LIBSYNC
   SharedFd present_fence;
   {
     std::lock_guard lock(mutex_);
@@ -85,7 +84,6 @@ void DrmAtomicStateManager::WaitLastFrame() {
       CleanupPriorFrameResources();
     }
   }
-#endif  // HAS_LIBSYNC
 }
 
 void DrmAtomicStateManager::CleanFailedCommit() {
@@ -93,14 +91,15 @@ void DrmAtomicStateManager::CleanFailedCommit() {
   // signal the release fences from that composition to avoid hanging.
   AtomicCommitArgs cl_args{};
   cl_args.composition = std::make_shared<LayerToPlaneJoiningPlan>();
-  if (CommitFrame(cl_args)) {
+  if (CommitFrame(cl_args, /* test_only */ false)) {
     ALOGE("Failed to clean-up active composition for pipeline %s",
           pipe_->connector->Get()->GetName().c_str());
   }
 }
 
 // NOLINTNEXTLINE (readability-function-cognitive-complexity): Fixme
-bool DrmAtomicStateManager::CommitFrame(AtomicCommitArgs &args) {
+std::optional<AtomicCommitResult> DrmAtomicStateManager::CommitFrame(
+    AtomicCommitArgs &args, bool test_only) {
   // NOLINTNEXTLINE(misc-const-correctness)
   ATRACE_CALL();
 
@@ -109,7 +108,7 @@ bool DrmAtomicStateManager::CommitFrame(AtomicCommitArgs &args) {
 
   if (!args.HasInputs()) {
     /* nothing to do */
-    return true;
+    return AtomicCommitResult{};
   }
 
   if (!committed_frame_state_.crtc_active_state) {
@@ -121,7 +120,7 @@ bool DrmAtomicStateManager::CommitFrame(AtomicCommitArgs &args) {
   auto atomic_request = GetAtomicModeReqForArgs(args);
   if (!atomic_request) {
     ALOGE("Failed to get property set");
-    return false;
+    return std::nullopt;
   }
 
   uint32_t flags = args.seamless ? 0U : DRM_MODE_ATOMIC_ALLOW_MODESET;
@@ -129,7 +128,7 @@ bool DrmAtomicStateManager::CommitFrame(AtomicCommitArgs &args) {
   char err_buf[error_buf_max_size];
   auto *drm = pipe_->device;
 
-  if (args.test_only) {
+  if (test_only) {
     ATRACE_NAME("TestOnlyCommit");
     auto err = drmModeAtomicCommit(*drm->GetFd(),
                                    atomic_request->property_set.get(),
@@ -138,7 +137,7 @@ bool DrmAtomicStateManager::CommitFrame(AtomicCommitArgs &args) {
     ALOGW_IF(err != 0, "Test-only seamless=%d ret=%d errno=%d strerror=%s\n",
              args.seamless, err, errno,
              strerror_r(errno, err_buf, error_buf_max_size));
-    return err == 0;
+    return err == 0 ? std::make_optional<AtomicCommitResult>() : std::nullopt;
   }
 
   WaitLastFrame();
@@ -168,14 +167,15 @@ bool DrmAtomicStateManager::CommitFrame(AtomicCommitArgs &args) {
   if (err != 0) {
     ALOGE("Failed to commit pset ret=%d errno=%d strerror=%s\n", err, errno,
           strerror_r(errno, err_buf, error_buf_max_size));
-    return false;
+    return std::nullopt;
   }
 
-  args.out_fence = MakeSharedFd(atomic_request->out_fence_address);
+  AtomicCommitResult result;
+  result.present_fence = MakeSharedFd(atomic_request->out_fence_address);
 
   // Store the writeback fence if this operation used a writeback connector
   if (pipe_->writeback_connector && args.writeback_fb) {
-    args.out_writeback_complete_fence = MakeSharedFd(
+    result.writeback_complete_fence = MakeSharedFd(
         atomic_request->wb_fence_address);
   }
 
@@ -189,7 +189,7 @@ bool DrmAtomicStateManager::CommitFrame(AtomicCommitArgs &args) {
   if (nonblock) {
     {
       const std::lock_guard lock(mutex_);
-      last_present_fence_ = args.out_fence;
+      last_present_fence_ = result.present_fence;
       frame_objects_.emplace(std::move(atomic_request->used_kms_objects));
       frames_staged_++;
     }
@@ -201,7 +201,7 @@ bool DrmAtomicStateManager::CommitFrame(AtomicCommitArgs &args) {
     frame_objects_.emplace(std::move(atomic_request->used_kms_objects));
   }
 
-  return true;
+  return result;
 }
 
 void DrmAtomicStateManager::CheckDoubleSettingState(
@@ -212,7 +212,6 @@ void DrmAtomicStateManager::CheckDoubleSettingState(
   }
 }
 
-#if HAS_LIBSYNC
 bool DrmAtomicStateManager::SetWriteBackFenceIfNeeded(
     const AtomicCommitArgs &args, AtomicRequest &request) {
   if (!pipe_->writeback_connector || !args.writeback_fb) {
@@ -252,13 +251,6 @@ bool DrmAtomicStateManager::SetWriteBackFenceIfNeeded(
 
   return true;
 }
-#else
-// NOLINTNEXTLINE(readability-convert-member-functions-to-static)
-bool DrmAtomicStateManager::SetWriteBackFenceIfNeeded(
-    const AtomicCommitArgs & /* args */, AtomicRequest & /* request */) {
-  return false;
-}
-#endif  // HAS_LIBSYNC
 
 bool DrmAtomicStateManager::SetOutputFence(AtomicRequest &request) {
   auto *crtc = pipe_->crtc->Get();
@@ -322,9 +314,10 @@ bool DrmAtomicStateManager::SetCtmIfNeeded(const AtomicCommitArgs &args,
 
   auto *drm = pipe_->device;
   if (drm->GetResMan().UseColorPipeline()) {
-    return true;
+    return crtc->GetCtmProperty().AtomicSet(*request.property_set, 0);
   }
-  auto ctm_blob = drm->RegisterUserPropertyBlob(args.color_matrix.get(),
+  auto drm_color_matrix = ColorUtil::ToColorTransform3x3(args.color_matrix);
+  auto ctm_blob = drm->RegisterUserPropertyBlob(drm_color_matrix.get(),
                                                 sizeof(drm_color_ctm));
   if (!ctm_blob) {
     ALOGE("Failed to create CTM blob");
@@ -466,19 +459,27 @@ bool DrmAtomicStateManager::SetCompositionIfNeeded(const AtomicCommitArgs &args,
       display_rect_info.i_rect = {0, 0, raw_mode.hdisplay, raw_mode.vdisplay};
     }
 
-    DrmModeUserPropertyBlobUnique ctm_3x4_blob;
-    if (args.color_matrix_3x4) {
-      ctm_3x4_blob = pipe_->device
-                         ->RegisterUserPropertyBlob(args.color_matrix_3x4.get(),
-                                                    sizeof(drm_color_ctm_3x4));
-    }
     if (plane->AtomicSetState(*request.property_set, layer, joining.z_pos,
-                              crtc->GetId(), display_rect_info, damage_blob,
-                              ctm_3x4_blob) != 0) {
+                              crtc->GetId(), display_rect_info,
+                              damage_blob) != 0) {
       return false;
     }
     request.used_kms_objects.blobs.emplace_back(std::move(damage_blob));
-    if (args.color_matrix_3x4) {
+
+    if (pipe_->device->GetResMan().UseColorPipeline()) {
+      std::shared_ptr<drm_color_ctm_3x4> drm_color_matrix = ColorUtil::
+          GamutAdjustIfNeeded(layer.colorspace,
+                              args.colorspace.value_or(Colorspace::kDefault),
+                              args.color_matrix, color_transform_map_);
+      DrmModeUserPropertyBlobUnique
+          ctm_3x4_blob = pipe_->device
+                             ->RegisterUserPropertyBlob(drm_color_matrix.get(),
+                                                        sizeof(
+                                                            drm_color_ctm_3x4));
+      if (plane->AtomicSetColorPipeline(*request.property_set, ctm_3x4_blob) !=
+          0) {
+        return false;
+      }
       request.used_kms_objects.blobs.emplace_back(std::move(ctm_3x4_blob));
     }
   }
@@ -563,8 +564,15 @@ DrmAtomicStateManager::GetAtomicModeReqForArgs(AtomicCommitArgs &args) {
   return atomic_request;
 }
 
+void DrmAtomicStateManager::StopThread() {
+  {
+    const std::lock_guard lock(mutex_);
+    exit_thread_ = true;
+  }
+  cv_.notify_all();
+}
+
 void DrmAtomicStateManager::ThreadFn() {
-#if HAS_LIBSYNC
   int tracking_at_the_moment = -1;
 
   for (;;) {
@@ -611,7 +619,6 @@ void DrmAtomicStateManager::ThreadFn() {
   }
 
   ALOGI("DrmAtomicStateManager thread exit");
-#endif  // HAS_LIBSYNC
 }
 
 void DrmAtomicStateManager::CleanupPriorFrameResources() {
@@ -626,28 +633,26 @@ void DrmAtomicStateManager::CleanupPriorFrameResources() {
   last_present_fence_ = {};
 }
 
-bool DrmAtomicStateManager::ExecuteAtomicCommit(AtomicCommitArgs &args) {
-  if (CommitFrame(args)) {
-    return true;
-  }
+bool DrmAtomicStateManager::TestAtomicCommit(AtomicCommitArgs &args) {
+  auto result = CommitFrame(args, /* test_only */ true);
+  return result.has_value();
+}
 
-  if (args.test_only) {
-    return false;
+std::optional<AtomicCommitResult> DrmAtomicStateManager::ExecuteAtomicCommit(
+    AtomicCommitArgs &args) {
+  auto result = CommitFrame(args, /* test_only */ false);
+  if (result) {
+    return result;
   }
 
   ALOGE("Composite failed for pipeline %s",
         pipe_->connector->Get()->GetName().c_str());
   CleanFailedCommit();
-  return false;
+  return std::nullopt;
 }
 
-auto DrmAtomicStateManager::ActivateDisplayUsingDPMS() -> int {
-  return drmModeConnectorSetProperty(*pipe_->device->GetFd(),
-                                     pipe_->connector->Get()->GetId(),
-                                     pipe_->connector->Get()
-                                         ->GetDpmsProperty()
-                                         .GetId(),
-                                     DRM_MODE_DPMS_ON);
+bool DrmAtomicStateManager::IsActive() const {
+  return committed_frame_state_.crtc_active_state;
 }
 
 }  // namespace android::drm_hwcomposer

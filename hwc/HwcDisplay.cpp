@@ -30,6 +30,7 @@
 #include "compositor/CompositionPlanner.h"
 #include "compositor/DisplayInfo.h"
 #include "compositor/FlatteningController.h"
+#include "compositor/HdcpController.h"
 #include "compositor/LayerToPlaneJoiningPlan.h"
 #include "drm/DrmAtomicStateManager.h"
 #include "drm/DrmConnector.h"
@@ -43,6 +44,7 @@
 #include "stats/DisplayConfigurationResultReporter.h"
 #include "stats/DisplayHotplugConnectModeDetectedAtomReporter.h"
 #include "stats/Stats.h"
+#include "utils/ColorUtil.h"
 #include "utils/EdidWrapper.h"
 #include "utils/log.h"
 #include "utils/properties.h"
@@ -56,19 +58,11 @@ using FlattenReason = CompositionPlanner::FlattenReason;
 namespace {
 
 constexpr auto kFlatteningTimeout = 1s;
+constexpr auto kHdcpRetryTimeout = 1s;
 
 bool float_equals(float a, float b) {
   const float epsilon = 0.001F;
   return std::abs(a - b) < epsilon;
-}
-
-uint64_t To3132FixPt(float in) {
-  constexpr uint64_t kSignMask = (1ULL << 63);
-  constexpr uint64_t kValueMask = ~(1ULL << 63);
-  constexpr auto kValueScale = static_cast<float>(1ULL << 32);
-  if (in < 0)
-    return (static_cast<uint64_t>(-in * kValueScale) & kValueMask) | kSignMask;
-  return static_cast<uint64_t>(in * kValueScale) & kValueMask;
 }
 
 bool TransformHasOffsetValue(const float *matrix) {
@@ -78,66 +72,6 @@ bool TransformHasOffsetValue(const float *matrix) {
     }
   }
   return false;
-}
-
-template <typename T>
-std::shared_ptr<T> ToColorTransform(
-    const std::array<float, 16> &color_transform_matrix,
-    const bool output_is_3x4_matrix) {
-  /* HAL provides a transposed 4x4 float type matrix:
-   * | 0  1  2  3|
-   * | 4  5  6  7|
-   * | 8  9 10 11|
-   * |12 13 14 15|
-   *
-   * R_out = R*0 + G*4 + B*8 + 12
-   * G_out = R*1 + G*5 + B*9 + 13
-   * B_out = R*2 + G*6 + B*10 + 14
-   *
-   * drm_color_ctm_3x4 expects a 3x4 s31.32 fixed point matrix:
-   * out   matrix          in
-   * |R|   |0  1  2  3 |   | R |
-   * |G| = |4  5  6  7 | x | G |
-   * |B|   |8  9  10 11|   | B |
-   *                       |1.0|
-   *
-   * R_out = R*0 + G*1 + B*2 + 3
-   * G_out = R*4 + G*5 + B*6 + 7
-   * B_out = R*8 + G*9 + B*10 + 11
-   *
-   * drm_color_ctm expects a 3x3 s31.32 fixed point matrix:
-   * out   matrix    in
-   * |R|   |0 1 2|   |R|
-   * |G| = |3 4 5| x |G|
-   * |B|   |6 7 8|   |B|
-   *
-   * R_out = R*0 + G*1 + B*2
-   * G_out = R*3 + G*4 + B*5
-   * B_out = R*6 + G*7 + B*8
-   */
-  std::shared_ptr<T> color_matrix = std::make_shared<T>();
-  const int rows = output_is_3x4_matrix ? 4 : 3;
-  constexpr int cols = 3;
-  constexpr int halRows = 4;
-  for (int i = 0; i < cols; i++) {
-    for (int j = 0; j < rows; j++) {
-      color_matrix->matrix[(i * rows) + j] = To3132FixPt(
-          color_transform_matrix[(j * halRows) + i]);
-    }
-  }
-  return color_matrix;
-}
-
-std::shared_ptr<drm_color_ctm> ToColorTransform(
-    const std::array<float, 16> &color_transform_matrix) {
-  return ToColorTransform<drm_color_ctm>(color_transform_matrix,
-                                         /*output_is_3x4_matrix=*/false);
-}
-
-std::shared_ptr<drm_color_ctm_3x4> ToColorTransform3x4(
-    const std::array<float, 16> &color_transform_matrix) {
-  return ToColorTransform<drm_color_ctm_3x4>(color_transform_matrix,
-                                             /*output_is_3x4_matrix=*/true);
 }
 
 }  // namespace
@@ -171,8 +105,8 @@ HwcDisplay::HwcDisplay(DisplayHandle handle, bool is_virtual, DrmHwc *hwc)
   // operations
   writeback_layer_ = std::make_unique<HwcLayer>(this);
 
-  identity_color_matrix_ = ToColorTransform(kIdentityMatrix);
-  identity_color_matrix_3x4_ = ToColorTransform3x4(kIdentityMatrix);
+  identity_color_matrix_ = std::make_shared<HalColorTransforMatrix>(
+      kIdentityMatrix);
 
   display_mode_reporter_ = DisplayHotplugConnectModeDetectedAtomReporter::
       Create();
@@ -196,16 +130,13 @@ void HwcDisplay::SetColorTransformMatrix(
   }
 
   ctm_has_offset_ = TransformHasOffsetValue(color_transform_matrix.data());
-  if (!ctm_has_offset_) {
-    color_matrix_ = ToColorTransform(color_transform_matrix);
-  }
-  color_matrix_3x4_ = ToColorTransform3x4(color_transform_matrix);
+  color_matrix_ = std::make_shared<HalColorTransforMatrix>(
+      color_transform_matrix);
 }
 
 void HwcDisplay::SetColorMatrixToIdentity() {
   ctm_has_offset_ = false;
   color_matrix_ = identity_color_matrix_;
-  color_matrix_3x4_ = identity_color_matrix_3x4_;
   color_transform_is_identity_ = true;
 }
 
@@ -268,7 +199,7 @@ void HwcDisplay::SetOutputType(OutputType hdr_output_type) {
     case OutputType::kSdr:
       [[fallthrough]];
     default:
-      hdr_metadata_.reset();
+      hdr_metadata_ = std::make_shared<hdr_output_metadata>();
       min_bpc_ = 6;
       colorspace_ = Colorspace::kDefault;
   }
@@ -381,7 +312,7 @@ auto HwcDisplay::ValidateStagedComposition() -> std::vector<ChangedLayer> {
     flatcon_->NewFrame();
   }
 
-  validated_composition_.emplace(pipeline_->backend->ValidateDisplay(this));
+  validated_composition_.emplace(pipeline_->planner->ValidateDisplay(this));
 
   // Iterate through the layers to find which layers actually changed.
   std::vector<ChangedLayer> changed_layers;
@@ -448,7 +379,7 @@ auto HwcDisplay::PresentStagedComposition(
   // slower display. WaitLastFrame() should be called before
   // WaitForPresenttime(), otherwise  can lead to a situation where hwc sleeps
   // for up to 1.25 vsync period and blocks viable presents in SurfaceFlinger.
-  GetPipe().atomic_state_manager->WaitLastFrame();
+  GetPipe().atomic_commit_sink->WaitLastFrame();
 
   uint32_t vperiod_ns = GetCurrentVsyncPeriodNs();
   if (desired_present_time && vperiod_ns != 0) {
@@ -630,39 +561,36 @@ bool HwcDisplay::SetDisplayEnabled(bool enabled) {
   if (IsInHeadlessMode()) {
     return true;
   }
-
+  // If the request is to enable the display, the CRTC is not active, and an
+  // active config is set, try to reconfigure the pipeline with SetConfig.
   if (enabled) {
-    if (GetPipe().atomic_state_manager->IsCrtcActive()) {
+    if (GetPipe().atomic_commit_sink->IsActive()) {
       return true;
     }
 
-    if (GetConfig(configs_.active_config_id)) {
-      if (SetConfig(configs_.active_config_id) != ConfigError::kNone) {
+    const HwcDisplayConfig *last_requested_config = GetLastRequestedConfig();
+    if (last_requested_config) {
+      if (SetConfig(last_requested_config->id) != ConfigError::kNone) {
         ALOGE("Failed to set config to re-enable display after teardown.");
         return false;
       }
-    } else {
-      /*
-       * Setting the display to active before we have a composition
-       * can break some drivers, so skip setting a_args.active to
-       * true, as the next composition frame will implicitly activate
-       * the display
-       */
-      if (GetPipe().atomic_state_manager->ActivateDisplayUsingDPMS() != 0) {
-        return false;
-      }
     }
-    return true;
-  };
+  }
 
-  // Disable the display.
+  // Set the display active state.
   AtomicCommitArgs a_args{};
-  a_args.active = false;
-  a_args.teardown = true;
+  a_args.blocking = true;
+  a_args.active = enabled;
+  if (!enabled) {
+    a_args.teardown = true;
+  }
 
-  const bool commit_success = ExecuteAtomicCommit(a_args);
-  ALOGE_IF(!commit_success, "Failed to apply the dpms composition.");
-  return commit_success;
+  const bool commit_success = ExecuteAtomicCommit(a_args).has_value();
+  ALOGE_IF(!commit_success, "Failed to set display active: %s.",
+           enabled ? "enabled" : "disabled");
+  // If setting to |enabled|, log the error and return true. The next frame
+  // update will try to set it to active again.
+  return enabled || commit_success;
 }
 
 bool HwcDisplay::GetDisplayEnabled() const {
@@ -670,7 +598,7 @@ bool HwcDisplay::GetDisplayEnabled() const {
     return true;
   }
 
-  return GetPipe().atomic_state_manager->IsCrtcActive();
+  return GetPipe().atomic_commit_sink->IsActive();
 }
 
 void HwcDisplay::SetPipeline(std::shared_ptr<DrmDisplayPipeline> pipeline) {
@@ -702,6 +630,7 @@ void HwcDisplay::Deinit() {
 
     validated_composition_.reset();
     flatcon_.reset();
+    hdcpcon_.reset();
   }
 
   if (vsync_worker_) {
@@ -725,13 +654,27 @@ bool HwcDisplay::Init() {
     flatcon_ = std::make_unique<FlatteningController>(handle_, flatcbk,
                                                       kFlatteningTimeout);
 
+    if (IsHdcpPropertyPresent()) {
+      ALOGI("HDCP properties found on display %d", int(handle_));
+      auto hdcpconcbks = (struct HdcpConCallbacks){
+          .notify_hdcp_status =
+              [this](std::optional<HdcpContentType> level) {
+                hwc_->SendHdcpLevelsChangedEventToClient(handle_, level);
+              },
+          .trigger_retry_frame =
+              [this]() { hwc_->SendRefreshEventToClient(handle_); }};
+      hdcpcon_ = std::make_unique<HdcpController>(&GetPipe(), hdcpconcbks,
+                                                  kHdcpRetryTimeout);
+    }
+
 #if HAS_LIBDISPLAY_INFO
     auto edid = LibdisplayEdidWrapper::Create(
         pipeline_->connector->Get()->GetEdidBlob());
     if (edid) {
       edid_wrapper_ = std::move(edid);
+    } else {
+      ALOGW("Failed to create a LibdisplayInfo parser.");
     }
-    ALOGW_IF(!edid, "Failed to create a LibdisplayInfo parser.");
 #endif
   }
 
@@ -794,42 +737,34 @@ auto HwcDisplay::DestroyLayer(ILayerId layer_id) -> bool {
 }
 
 auto HwcDisplay::GetColorModes() -> std::vector<ColorMode> {
-  // disable non-native color modes until tone-mapping is supported
-  return {ColorMode::kNative};
+  if (IsInHeadlessMode() || !hwc_->GetResMan().UseColorPipeline()) {
+    return {ColorMode::kNative};
+  }
+
+  std::vector<ColorMode> modes;
+  GetEdid()->GetColorModes(modes);
+
+  // disable non-P3 color modes until HDR tone-mapping is supported
+  modes.erase(std::remove_if(modes.begin(), modes.end(),
+                             [](ColorMode m) {
+                               switch (m) {
+                                 case ColorMode::kDciP3:
+                                 case ColorMode::kDisplayP3:
+                                   return false;
+                                 default:
+                                   return true;
+                               }
+                             }),
+              modes.end());
+
+  if (modes.empty()) {
+    modes.emplace_back(ColorMode::kNative);
+  }
+  return modes;
 }
 
 void HwcDisplay::SetColorMode(ColorMode mode) {
-  /* Maps to the Colorspace DRM connector property:
-   * https://elixir.bootlin.com/linux/v6.11/source/include/drm/drm_connector.h#L538
-   */
-  switch (mode) {
-    case ColorMode::kNative:
-      colorspace_ = Colorspace::kDefault;
-      break;
-    case ColorMode::kBt601_625:
-    case ColorMode::kBt601_625Unadjusted:
-    case ColorMode::kBt601_525:
-    case ColorMode::kBt601_525Unadjusted:
-      // The DP spec does not say whether this is the 525 or the 625 line version.
-      colorspace_ = Colorspace::kBt601Ycc;
-      break;
-    case ColorMode::kBt709:
-    case ColorMode::kSrgb:
-      colorspace_ = Colorspace::kBt709Ycc;
-      break;
-    case ColorMode::kDciP3:
-    case ColorMode::kDisplayP3:
-      colorspace_ = Colorspace::kDciP3RgbD65;
-      break;
-    case ColorMode::kDisplayBt2020:
-    case ColorMode::kAdobeRgb:
-    case ColorMode::kBt2020:
-    case ColorMode::kBt2100Pq:
-    case ColorMode::kBt2100Hlg:
-      // HDR color modes should be requested during modeset
-      ALOGW("HDR color modes are not supported with this API.");
-      return;
-  }
+  colorspace_ = ColorUtil::ToColorspace(mode);
 }
 
 void HwcDisplay::GetHdrCapabilities(std::vector<ui::Hdr> *types,
@@ -861,9 +796,9 @@ auto HwcDisplay::IsHdcpPropertyPresent() -> bool {
   return true;
 }
 
-auto HwcDisplay::StartHdcp(bool start) -> bool {
+auto HwcDisplay::StartHdcp() -> bool {
   /*
-   * Client can request to start Hdcp or Terminate Hdcp based on the bool start
+   * Client can request to start Hdcp
    * If Client requests to start Hdcp, internal state is set to kDesired
    * else the state stays as Undesired
    * Since the HDCP Content and Content Protection prop are optional
@@ -871,15 +806,38 @@ auto HwcDisplay::StartHdcp(bool start) -> bool {
    * return a false to indicate that the request to start/stop
    * HDCP cannot be completed.
    */
-  if (!IsHdcpPropertyPresent()) {
+  if (hdcpcon_ == nullptr) {
     ALOGE(
         "Client requested HDCP, but HDCP properties not available on that "
         "display");
     return false;
   }
-  if (start) {
-    ALOGI("Client requested to start HDCP");
-    hdcp_state_ = HwcDisplay::HdcpState::kDesired;
+  ALOGI("Client requested to start HDCP");
+  hdcpcon_->Start();
+  return true;
+}
+
+auto HwcDisplay::StopHdcp() -> bool {
+  /*
+   * Client or Kernel can Terminate Hdcp
+   * If Client or kernel requests to terminate hdcp, internal state is set to
+   * Undesired Since the HDCP Content and Content Protection prop are optional
+   * We need to make sure the connector has these properties else
+   * return a false to indicate that the request to start/stop
+   * HDCP cannot be completed.
+   */
+  if (hdcpcon_ == nullptr) {
+    ALOGE(
+        "Client requested HDCP, but HDCP properties not available on that "
+        "display");
+    return false;
+  }
+  // Client or Kernel requested HDCP termination. Only act if HDCP is currently
+  // enabled.
+  if (hdcpcon_ &&
+      hdcpcon_->GetHdcpState() == HdcpController::HdcpState::kEnabled) {
+    ALOGI(" Client or Kernel requested to terminate HDCP");
+    hdcpcon_->Terminate();
   }
   return true;
 }
@@ -889,11 +847,7 @@ AtomicCommitArgs HwcDisplay::CreateModesetCommit(
     const std::optional<LayerData> &modeset_layer) {
   AtomicCommitArgs args{};
 
-  if (hwc_->GetResMan().UseColorPipeline()) {
-    args.color_matrix_3x4 = color_matrix_3x4_;
-  } else {
-    args.color_matrix = color_matrix_;
-  }
+  args.color_matrix = color_matrix_;
   args.content_type = content_type_;
   args.colorspace = colorspace_;
   args.hdr_metadata = hdr_metadata_;
@@ -917,15 +871,15 @@ AtomicCommitArgs HwcDisplay::CreateModesetCommit(
   return args;
 }
 
-bool HwcDisplay::ExecuteAtomicCommit(AtomicCommitArgs &a_args) const {
-  const bool commit_result = GetPipe()
-                                 .atomic_state_manager->ExecuteAtomicCommit(
-                                     a_args);
+std::optional<AtomicCommitResult> HwcDisplay::ExecuteAtomicCommit(
+    AtomicCommitArgs &a_args) const {
+  auto commit_result = GetPipe().atomic_commit_sink->ExecuteAtomicCommit(
+      a_args);
 
   // Log successful modesets (seamless and full), including teardowns.
-  if (!a_args.test_only && (a_args.display_mode || a_args.teardown)) {
+  if (a_args.display_mode || a_args.teardown) {
     const bool blocking = a_args.blocking || a_args.active || a_args.teardown;
-    LogConfigResult(blocking, commit_result);
+    LogConfigResult(blocking, commit_result.has_value());
   }
 
   return commit_result;
@@ -999,8 +953,7 @@ bool HwcDisplay::TestComposition(
   if (!a_args) {
     return false;
   }
-  a_args->test_only = true;
-  if (ExecuteAtomicCommit(*a_args)) {
+  if (GetPipe().atomic_commit_sink->TestAtomicCommit(*a_args)) {
     // Put the composition plan into the newly-validated composition. Its owner
     // is responsible for keeping it alive until commit.
     composition.composition_plan = a_args->composition;
@@ -1009,7 +962,6 @@ bool HwcDisplay::TestComposition(
   return false;
 }
 
-// NOLINTNEXTLINE(readability-function-cognitive-complexity)
 std::optional<AtomicCommitArgs> HwcDisplay::CreateFrameUpdateCommit(
     const CompositionPlanner::ValidatedComposition &composition) const {
   if (IsInHeadlessMode()) {
@@ -1018,11 +970,7 @@ std::optional<AtomicCommitArgs> HwcDisplay::CreateFrameUpdateCommit(
   }
 
   AtomicCommitArgs a_args;
-  if (hwc_->GetResMan().UseColorPipeline()) {
-    a_args.color_matrix_3x4 = color_matrix_3x4_;
-  } else {
-    a_args.color_matrix = color_matrix_;
-  }
+  a_args.color_matrix = color_matrix_;
   a_args.content_type = content_type_;
   a_args.colorspace = colorspace_;
   a_args.hdr_metadata = hdr_metadata_;
@@ -1039,26 +987,74 @@ std::optional<AtomicCommitArgs> HwcDisplay::CreateFrameUpdateCommit(
     a_args.seamless = true;
   }
 
-  if (hdcp_state_ == HwcDisplay::HdcpState::kDesired) {
+  auto hdcp_state = hdcpcon_ ? hdcpcon_->GetHdcpState()
+                             : HdcpController::HdcpState::kUndesired;
+  if (hdcp_state == HdcpController::HdcpState::kDesired) {
     ALOGI("Requesting HDCP to be enabled with Content Type 1");
     a_args.content_protection = ContentProtection::kDesired;
     a_args.hdcp_content_type = HdcpContentType::kType1;
   }
-  if (hdcp_state_ == HwcDisplay::HdcpState::kRetry) {
+  if (hdcp_state == HdcpController::HdcpState::kRetry) {
     ALOGI("Retrying HDCP to be enabled with Content Type 0");
     a_args.content_protection = ContentProtection::kDesired;
     a_args.hdcp_content_type = HdcpContentType::kType0;
   }
 
-  // order the layers by z-order
-  size_t client_layer_count = 0;
-  bool use_client_layer = false;
-  uint32_t client_z_order = UINT32_MAX;
+  // Use the cached plan, and update the client target buffer if needed.
+  if (composition.composition_plan != nullptr) {
+    const auto &client_z_order = composition.composition_plan->client_z_order;
+    // Client target buffer may be updated since the composition was validated,
+    // so get the latest LayerData.
+    if (client_z_order.has_value()) {
+      composition.composition_plan->plan[client_z_order.value()]
+          .layer = client_layer_.GetLayerData();
+    }
+    a_args.composition = composition.composition_plan;
+  } else {
+    // Construct a new composition plan.
+    a_args.composition = CreateLayerToPlaneJoiningPlan(
+        composition.composition_types);
+  }
+
+  if (!a_args.composition) {
+    return std::nullopt;
+  }
+
+  // CTM will be applied by the client, don't apply DRM CTM
+  const bool all_client_layers = a_args.composition->client_z_order
+                                     .has_value() &&
+                                 a_args.composition->plan.size() == 1;
+  if (all_client_layers &&
+      hwc_->GetResMan().GetCtmHandling() == CtmHandling::kDrmOrGpu) {
+    a_args.color_matrix = identity_color_matrix_;
+  }
+
+  // CTM with offset cannot be processed by CTM prop
+  if (ctm_has_offset_ && !hwc_->GetResMan().UseColorPipeline()) {
+    a_args.color_matrix = identity_color_matrix_;
+  }
+
+  if (pipeline_->writeback_connector) {
+    if (!writeback_layer_->IsLayerUsableAsDevice()) {
+      ALOGE("Writeback layer not usable by DRM/KMS - no valid buffer set");
+      return std::nullopt;
+    }
+    a_args.writeback_fb = writeback_layer_->GetLayerData().fb;
+    a_args.writeback_release_fence = writeback_layer_->GetLayerData()
+                                         .acquire_fence;
+  }
+  return a_args;
+}
+
+std::unique_ptr<LayerToPlaneJoiningPlan>
+HwcDisplay::CreateLayerToPlaneJoiningPlan(
+    const CompositionPlanner::CompositionTypeMap &composition_types) const {
+  std::optional<uint32_t> client_z_order;
   std::map<uint32_t, const HwcLayer *> z_map;
   std::optional<LayerData> cursor_layer = std::nullopt;
   for (const auto &[_, layer] : layers_) {
-    auto it = composition.composition_types.find(&layer);
-    CompositionType type = it != composition.composition_types.end()
+    auto it = composition_types.find(&layer);
+    CompositionType type = it != composition_types.end()
                                ? it->second
                                : CompositionType::kInvalid;
     switch (type) {
@@ -1075,9 +1071,8 @@ std::optional<AtomicCommitArgs> HwcDisplay::CreateFrameUpdateCommit(
         break;
       case CompositionType::kClient:
         // Place it at the z_order of the lowest client layer
-        use_client_layer = true;
-        client_layer_count++;
-        client_z_order = std::min(client_z_order, layer.GetZOrder());
+        client_z_order = std::min(client_z_order.value_or(UINT32_MAX),
+                                  layer.GetZOrder());
         break;
       case CompositionType::kSolidColor:
       case CompositionType::kInvalid:
@@ -1086,18 +1081,9 @@ std::optional<AtomicCommitArgs> HwcDisplay::CreateFrameUpdateCommit(
     }
   }
 
-  // CTM will be applied by the client, don't apply DRM CTM
-  if (client_layer_count == layers_.size() &&
-      hwc_->GetResMan().GetCtmHandling() == CtmHandling::kDrmOrGpu) {
-    a_args.color_matrix = identity_color_matrix_;
-    a_args.color_matrix_3x4 = identity_color_matrix_3x4_;
-  }
-
-  if (use_client_layer) {
-    z_map.emplace(client_z_order, &client_layer_);
+  if (client_z_order.has_value()) {
+    z_map.emplace(client_z_order.value(), &client_layer_);
     if (!client_layer_.IsLayerUsableAsDevice()) {
-      ALOGE_IF(!a_args.test_only,
-               "Client layer must be always usable by DRM/KMS");
       /* This may be normally triggered on validation of the first frame
        * containing CLIENT layer. At this moment client buffer is not yet
        * provided by the CLIENT.
@@ -1105,7 +1091,7 @@ std::optional<AtomicCommitArgs> HwcDisplay::CreateFrameUpdateCommit(
        * imported. For example when non-contiguous buffer is imported into
        * contiguous-only DRM/KMS driver.
        */
-      return std::nullopt;
+      return nullptr;
     }
   }
 
@@ -1116,53 +1102,17 @@ std::optional<AtomicCommitArgs> HwcDisplay::CreateFrameUpdateCommit(
   // now that they're ordered by z, add them to the composition
   for (const auto &[_, layer] : z_map) {
     if (!layer->IsLayerUsableAsDevice()) {
-      return std::nullopt;
+      return nullptr;
     }
     composition_layers.emplace_back(layer->GetLayerData());
   }
-
-  // Use the provided validated composition plan if it exists, otherwise create
-  // it now.
-  if (composition.composition_plan != nullptr) {
-    if (composition.composition_plan->plan.size() !=
-        composition_layers.size() + cursor_layer.has_value()) {
-      ALOGE(
-          "Cached LayerToPlaneJoiningPlan size=%zu does not match composition "
-          "size=%zu (+cursor=%u)",
-          composition.composition_plan->plan.size(), composition_layers.size(),
-          cursor_layer.has_value());
-      // New plan will be created instead.
-    } else {
-      // Update client layer because it may become stale between validate and
-      // present.
-      if (use_client_layer) {
-        composition.composition_plan->plan[client_z_order]
-            .layer = client_layer_.GetLayerData();
-      }
-      a_args.composition = composition.composition_plan;
-    }
+  auto composition = LayerToPlaneJoiningPlan::
+      CreateLayerToPlaneJoiningPlan(GetPipe(), std::move(composition_layers),
+                                    cursor_layer);
+  if (composition) {
+    composition->client_z_order = client_z_order;
   }
-
-  if (!a_args.composition) {
-    a_args.composition = LayerToPlaneJoiningPlan::
-        CreateLayerToPlaneJoiningPlan(GetPipe(), std::move(composition_layers),
-                                      cursor_layer);
-    if (!a_args.composition) {
-      ALOGE_IF(!a_args.test_only, "Failed to create LayerToPlaneJoiningPlan");
-      return std::nullopt;
-    }
-  }
-
-  if (pipeline_->writeback_connector) {
-    if (!writeback_layer_->IsLayerUsableAsDevice()) {
-      ALOGE("Writeback layer not usable by DRM/KMS - no valid buffer set");
-      return std::nullopt;
-    }
-    a_args.writeback_fb = writeback_layer_->GetLayerData().fb;
-    a_args.writeback_release_fence = writeback_layer_->GetLayerData()
-                                         .acquire_fence;
-  }
-  return a_args;
+  return composition;
 }
 
 bool HwcDisplay::CommitStagedComposition(SharedFd &out_present_fence) {
@@ -1189,18 +1139,19 @@ bool HwcDisplay::CommitStagedComposition(SharedFd &out_present_fence) {
     return false;
   }
 
-  if (!ExecuteAtomicCommit(*a_args)) {
+  auto result = ExecuteAtomicCommit(*a_args);
+  if (!result) {
     ALOGE("Failed to commit the frame composition.");
     return false;
   }
-  out_present_fence = a_args->out_fence;
-  ApplyCommitChanges(*a_args);
+  out_present_fence = result->present_fence;
+  ApplyCommitChanges(*a_args, *result);
   return true;
 }
 
-void HwcDisplay::ApplyCommitChanges(const AtomicCommitArgs &a_args) {
-  ALOGE_IF(a_args.test_only, "Applying commit changes for test_only args.");
-  writeback_complete_fence_ = a_args.out_writeback_complete_fence;
+void HwcDisplay::ApplyCommitChanges(const AtomicCommitArgs &a_args,
+                                    const AtomicCommitResult &result) {
+  writeback_complete_fence_ = result.writeback_complete_fence;
   if (a_args.display_mode) {
     // Get the vsync period before updating active_config_id.
     uint32_t prev_vperiod_ns = GetCurrentVsyncPeriodNs();
@@ -1225,7 +1176,7 @@ void HwcDisplay::ApplyCommitChanges(const AtomicCommitArgs &a_args) {
 
   if (a_args.hdcp_content_type.has_value() ||
       a_args.content_protection.has_value()) {
-    hdcp_state_ = HdcpState::kPending;
+    hdcpcon_->Requested();
   }
 }
 
@@ -1387,9 +1338,9 @@ std::optional<LayerData> HwcDisplay::GetModesetLayerData(
   const HwcDisplayConfig *active_config = GetCurrentConfig();
   if (client_layer_.IsLayerUsableAsDevice() && active_config &&
       // Reuse the client layer only when the CRTC is already active. After a
-      // teardown (power-off), the cached buffer may contain stale content that we
-      // do not want to rescan on modeset.
-      GetPipe().atomic_state_manager->IsCrtcActive() &&
+      // teardown (power-off), the cached buffer may contain stale content that
+      // we do not want to rescan on modeset.
+      GetPipe().atomic_commit_sink->IsActive() &&
       active_config->mode.GetRawMode().hdisplay == new_width &&
       active_config->mode.GetRawMode().vdisplay == new_height) {
     ALOGV("Use existing client_layer for config.");
@@ -1429,9 +1380,8 @@ void HwcDisplay::SetConfigGroupsForActiveConfig() {
   for (auto &[_, config] : configs_.hwc_configs) {
     AtomicCommitArgs commit_args = CreateModesetCommit(&config,
                                                        modeset_layer_data);
-    commit_args.test_only = true;
     commit_args.seamless = true;
-    if (ExecuteAtomicCommit(commit_args)) {
+    if (pipeline_->atomic_commit_sink->TestAtomicCommit(commit_args)) {
       config.group_id = active_config->group_id;
     }
   }
