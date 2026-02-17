@@ -170,8 +170,17 @@ GenericLayerMapperCompositionPlanner::ValidateDisplay(
 
   layers = layer_caching_mapper_.AssignLayers(layers, validator);
 
-  // TODO: Underlay mapper 
+  // TODO: Fullscreen mapper
 
+  {
+    auto new_layers = underlay_mapper_.AssignLayers(layers, validator);
+
+    ValidatedComposition test_composition = CreateValidatedComposition(
+        new_layers);
+    if (display->TestComposition(test_composition)) {
+      layers = new_layers;
+    }
+  }
 
   // Convert all unmapped layers into client composited layers.
   ValidatedComposition validated_composition = CreateValidatedComposition(

@@ -21,6 +21,7 @@
 #include "compositor/mapper/CursorLayerMapper.h"
 #include "compositor/mapper/ForceClientCompositionLayerMapper.h"
 #include "compositor/mapper/LayerCachingMapper.h"
+#include "compositor/mapper/UnderlayMapper.h"
 
 namespace android::drm_hwcomposer {
 
@@ -54,6 +55,7 @@ class GenericLayerMapperCompositionPlanner : public CompositionPlanner {
   CursorLayerMapper device_cursor_mapper_;
   ForceClientCompositionLayerMapper force_client_composition_mapper_;
   LayerCachingMapper layer_caching_mapper_;
+  UnderlayMapper underlay_mapper_;
 };
 
 }  // namespace android::drm_hwcomposer

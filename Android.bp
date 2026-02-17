@@ -86,6 +86,7 @@ filegroup {
         "compositor/mapper/CursorLayerMapper.cpp",
         "compositor/mapper/ForceClientCompositionLayerMapper.cpp",
         "compositor/mapper/LayerCachingMapper.cpp",
+        "compositor/mapper/UnderlayMapper.cpp",
 
         "drm/DrmAtomicStateManager.cpp",
         "drm/DrmColorOp.cpp",
