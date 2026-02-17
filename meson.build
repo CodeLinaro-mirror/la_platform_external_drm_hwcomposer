@@ -20,6 +20,7 @@ src_common = files(
     'compositor/GenericLayerMapperCompositionPlanner.cpp',
     'compositor/HdcpController.cpp',
     'compositor/LayerToPlaneJoiningPlan.cpp',
+    'compositor/mapper/CursorLayerMapper.cpp',
     'compositor/mapper/ForceClientCompositionLayerMapper.cpp',
     'hwc/HwcDisplayConfigs.cpp',
     'hwc/HwcDisplay.cpp',

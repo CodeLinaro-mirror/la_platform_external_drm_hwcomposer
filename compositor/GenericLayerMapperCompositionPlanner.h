@@ -18,6 +18,7 @@
 
 #include "compositor/CompositionPlanner.h"
 
+#include "compositor/mapper/CursorLayerMapper.h"
 #include "compositor/mapper/ForceClientCompositionLayerMapper.h"
 
 namespace android::drm_hwcomposer {
@@ -29,6 +30,7 @@ class HwcLayer;
 // Implementation of CompositionPlanner built on top of upstream drm uAPI and series of LayerMappers.
 class GenericLayerMapperCompositionPlanner : public CompositionPlanner {
  public:
+  GenericLayerMapperCompositionPlanner();
   ~GenericLayerMapperCompositionPlanner() override = default;
 
   ValidatedComposition ValidateDisplay(const HwcDisplay* display) override;
@@ -45,6 +47,10 @@ class GenericLayerMapperCompositionPlanner : public CompositionPlanner {
   bool ShouldUseCursorPlane(const HwcDisplay* display,
                             const std::vector<LayerMapping>& layers) const;
 
+  // Maps cursor layer to kCursor composition type.
+  CursorLayerMapper cursor_mapper_;
+  // Maps cursor layer to kDevice composition type as a fallback.
+  CursorLayerMapper device_cursor_mapper_;
   ForceClientCompositionLayerMapper force_client_composition_mapper_;
 };
 

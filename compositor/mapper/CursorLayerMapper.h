@@ -13,19 +13,29 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include "compositor/mapper/ForceClientCompositionLayerMapper.h"
+#pragma once
 
-#include "compositor/LayerData.h"
+#include <memory>
+#include <vector>
+
+#include "compositor/mapper/LayerMapper.h"
+#include "drm/DrmDisplayPipeline.h"
 
 namespace android::drm_hwcomposer {
-std::vector<LayerMapping> ForceClientCompositionLayerMapper::AssignLayers(
-    const std::vector<LayerMapping>& layers,
-    const MappingValidator& /*validator*/) const {
-  std::vector<LayerMapping> new_layers = layers;
-  for (auto& layer : new_layers) {
-    layer.composition_type = CompositionType::kClient;
+
+// Assign top layer as cursor or device if present.
+class CursorLayerMapper : public LayerMapper {
+ public:
+  // |cursor_plane_type| should be either kDevice or kCursor.
+  explicit CursorLayerMapper(CompositionType cursor_plane_type)
+      : cursor_plane_type_(cursor_plane_type) {
   }
 
-  return new_layers;
-}
-};  // namespace android::drm_hwcomposer
+  std::vector<LayerMapping> AssignLayers(
+      const std::vector<LayerMapping>& layers,
+      const MappingValidator& validator) const override;
+
+ private:
+  const CompositionType cursor_plane_type_;
+};
+}  // namespace android::drm_hwcomposer

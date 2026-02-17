@@ -31,8 +31,12 @@ class LayerMapper {
  public:
   virtual ~LayerMapper() = default;
 
+  using MappingValidator = std::function<bool(
+      const std::vector<LayerMapping>&)>;
+
   virtual std::vector<LayerMapping> AssignLayers(
-      const std::vector<LayerMapping>& layers) const = 0;
+      const std::vector<LayerMapping>& layers,
+      const MappingValidator& validator) const = 0;
 
   // TOOD: dumpsys interface
   // TODO: metrics interface

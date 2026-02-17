@@ -55,6 +55,21 @@ CompositionPlanner::CompositionTypeMap ToCompositionTypes(
   return composition_types;
 }
 
+// Requires z-ordered, non-empty |layers|.
+const HwcLayer* GetCursorLayer(const std::vector<LayerMapping>& layers) {
+  // If a cursor layer is present, it has the highest Z-order.
+  const auto& cursor_candidate = layers.back();
+  return cursor_candidate.layer->GetSfType() == CompositionType::kCursor
+             ? cursor_candidate.layer
+             : nullptr;
+}
+
+bool IsCursorPlaneUsed(const std::vector<LayerMapping>& layers) {
+  // |layers| is sorted from lowest to highest Z. If a cursor is present, then
+  // it must have the highest Z and therefore can only exist at the back.
+  return layers.back().composition_type == CompositionType::kCursor;
+}
+
 // Convert all undetermined layers into client layers.
 std::vector<LayerMapping> InvalidToClientLayers(
     const std::vector<LayerMapping>& layers) {
@@ -74,7 +89,43 @@ CompositionPlanner::ValidatedComposition CreateValidatedComposition(
       .composition_types = ToCompositionTypes(InvalidToClientLayers(layers))};
   return validated_composition;
 }
+
+// If >= 0, then the mapping described by |layers| is valid.
+// If < 0, then |layers| is invalid as it uses more planes than available.
+int CountRemainingPlanes(const HwcDisplay* display,
+                         const std::vector<LayerMapping>& layers) {
+  int num_available_planes = static_cast<int>(
+      display->GetPipe().GetUsablePlanes().first.size());
+
+  bool has_client_layers = false;
+  for (const auto& [_, composition_type] : layers) {
+    if (composition_type == CompositionType::kDevice) {
+      // TODO: account for platform-specific layer costing.
+      num_available_planes--;
+    } else if (composition_type == CompositionType::kClient ||
+               // Invalid layers should be treated as client composited to be
+               // conservative.
+               composition_type == CompositionType::kInvalid) {
+      has_client_layers = true;
+    }
+  }
+
+  if (has_client_layers) {
+    num_available_planes--;
+  }
+
+  return num_available_planes;
+}
+
+bool NoOpValidator(const std::vector<LayerMapping>& /*unused*/) {
+  return true;
+}
 }  // namespace
+
+GenericLayerMapperCompositionPlanner::GenericLayerMapperCompositionPlanner()
+    : cursor_mapper_(CompositionType::kCursor),
+      device_cursor_mapper_(CompositionType::kDevice) {
+}
 
 CompositionPlanner::ValidatedComposition
 GenericLayerMapperCompositionPlanner::ValidateDisplay(
@@ -104,7 +155,18 @@ GenericLayerMapperCompositionPlanner::ValidateDisplay(
 
   layers = MapAllClientCompositionRequiredLayers(display, layers);
 
-  // TODO: cursor mapper
+  LayerMapper::MappingValidator validator =
+      [display](const std::vector<LayerMapping>& layers) {
+        return CountRemainingPlanes(display, layers) >= 0;
+      };
+
+  const bool use_cursor_plane = ShouldUseCursorPlane(display, layers);
+  if (use_cursor_plane) {
+    layers = cursor_mapper_.AssignLayers(layers, validator);
+  } else {
+    layers = device_cursor_mapper_.AssignLayers(layers, validator);
+  }
+
   // TODO: Layer caching mapper
   // TODO: Underlay mapper
 
@@ -114,9 +176,35 @@ GenericLayerMapperCompositionPlanner::ValidateDisplay(
   bool success = display->TestComposition(validated_composition);
   validated_composition.composition_plan.reset();
 
-  // TODO: Fallbacks
+  // Cursor fallback: convert all non-cursor layers to client composition and
+  // reattempt.
+  // The cursor layer is preserved as _either_ cursor _or_ device composited.
+  if (!success && GetCursorLayer(layers) != nullptr) {
+    if (IsCursorPlaneUsed(layers)) {
+      layers = force_client_composition_mapper_.AssignLayers(layers, validator);
 
-  validated_composition.cursor_plane_validated = false;
+      if (use_cursor_plane) {
+        layers = cursor_mapper_.AssignLayers(layers, validator);
+      } else {
+        layers = device_cursor_mapper_.AssignLayers(layers, validator);
+      }
+
+      validated_composition.composition_types = ToCompositionTypes(layers);
+      success = display->TestComposition(validated_composition);
+      validated_composition.composition_plan.reset();
+    }
+  }
+
+  // Final fallback: convert all layers to client composition.
+  if (!success) {
+    validated_composition = CreateFlattenedComposition(layers,
+                                                       FlattenReason::
+                                                           kValidateFailed);
+  }
+
+  if (use_cursor_plane) {
+    validated_composition.cursor_plane_validated = success;
+  }
 
   return validated_composition;
 }
@@ -142,10 +230,31 @@ GenericLayerMapperCompositionPlanner::CreateFlattenedComposition(
     const std::vector<LayerMapping>& layers,
     FlattenReason flatten_reason) const {
   return ValidatedComposition{.composition_types = ToCompositionTypes(
-                                  force_client_composition_mapper_.AssignLayers(
-                                      layers)),
+                                  force_client_composition_mapper_
+                                      .AssignLayers(layers, NoOpValidator)),
                               .composition_plan = nullptr,
                               .flatten_reason = flatten_reason};
+}
+
+bool GenericLayerMapperCompositionPlanner::ShouldUseCursorPlane(
+    const HwcDisplay* display, const std::vector<LayerMapping>& layers) const {
+  const auto* cursor_layer = GetCursorLayer(layers);
+  const auto cursor_plane = display->GetPipe().GetUsablePlanes().second;
+  if (cursor_layer != nullptr && cursor_plane != nullptr &&
+      !MustBeClientComposited(display, cursor_layer) &&
+      cursor_plane->Get()->IsValidForLayer(&cursor_layer->GetLayerData())) {
+    // Create and test a composition using only cursor plane and all other
+    // layers client-composited to infer whether the cursor plane can be used.
+    ValidatedComposition cursor_composition{
+        .composition_types = ToCompositionTypes(
+            cursor_mapper_.AssignLayers(force_client_composition_mapper_
+                                            .AssignLayers(layers,
+                                                          NoOpValidator),
+                                        NoOpValidator))};
+    return display->TestComposition(cursor_composition);
+  }
+
+  return false;
 }
 
 std::vector<LayerMapping>

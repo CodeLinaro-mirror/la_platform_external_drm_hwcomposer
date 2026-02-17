@@ -26,6 +26,7 @@ namespace android::drm_hwcomposer {
 class ForceClientCompositionLayerMapper : public LayerMapper {
  public:
   std::vector<LayerMapping> AssignLayers(
-      const std::vector<LayerMapping>& layers) const override;
+      const std::vector<LayerMapping>& layers,
+      const MappingValidator& validator) const override;
 };
 }  // namespace android::drm_hwcomposer

@@ -83,6 +83,7 @@ filegroup {
         "compositor/GenericLayerMapperCompositionPlanner.cpp",
         "compositor/HdcpController.cpp",
         "compositor/LayerToPlaneJoiningPlan.cpp",
+        "compositor/mapper/CursorLayerMapper.cpp",
         "compositor/mapper/ForceClientCompositionLayerMapper.cpp",
 
         "drm/DrmAtomicStateManager.cpp",
