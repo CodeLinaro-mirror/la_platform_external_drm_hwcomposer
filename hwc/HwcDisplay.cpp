@@ -437,6 +437,10 @@ auto HwcDisplay::PresentStagedComposition(
       case CompositionType::kInvalid:
         ALOGE("Invalid layer type: %d",
               static_cast<int>(layer.GetValidatedType()));
+        break;
+      // Occlusion is achieved by dropping the layer.
+      case CompositionType::kDeviceOccluded:
+        break;
     }
   }
 
@@ -1087,6 +1091,11 @@ HwcDisplay::CreateLayerToPlaneJoiningPlan(
         // Place it at the z_order of the lowest client layer
         client_z_order = std::min(client_z_order.value_or(UINT32_MAX),
                                   layer.GetZOrder());
+        break;
+      case CompositionType::kDeviceOccluded:
+        // Occluded layers are neither client nor device composited. Since they
+        // are not visible, their absence should not have an impact on the
+        // correctness of the displayed frame.
         break;
       case CompositionType::kSolidColor:
       case CompositionType::kInvalid:

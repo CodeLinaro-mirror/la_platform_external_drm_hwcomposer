@@ -99,6 +99,7 @@ int CountRemainingPlanes(const HwcDisplay* display,
 
   bool has_client_layers = false;
   for (const auto& [_, composition_type] : layers) {
+    // Specifically exclude kDeviceOccluded as they don't use up planes.
     if (composition_type == CompositionType::kDevice) {
       // TODO: account for platform-specific layer costing.
       num_available_planes--;
@@ -222,7 +223,8 @@ bool GenericLayerMapperCompositionPlanner::MustBeClientComposited(
 bool GenericLayerMapperCompositionPlanner::HardwareSupportsLayerType(
     CompositionType comp_type) {
   return comp_type == CompositionType::kDevice ||
-         comp_type == CompositionType::kCursor;
+         comp_type == CompositionType::kCursor ||
+         comp_type == CompositionType::kDeviceOccluded;
 }
 
 CompositionPlanner::ValidatedComposition

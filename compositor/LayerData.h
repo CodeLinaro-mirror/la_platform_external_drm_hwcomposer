@@ -32,7 +32,14 @@ class DrmFbIdHandle;
 
 using ILayerId = int64_t;
 
-enum class CompositionType { kInvalid, kClient, kDevice, kSolidColor, kCursor };
+enum class CompositionType {
+  kInvalid,
+  kClient,
+  kDevice,
+  kSolidColor,
+  kCursor,
+  kDeviceOccluded
+};
 
 /* Rotation is defined in the clockwise direction */
 /* The flip is done before rotation */
