@@ -22,6 +22,7 @@ src_common = files(
     'compositor/LayerToPlaneJoiningPlan.cpp',
     'compositor/mapper/CursorLayerMapper.cpp',
     'compositor/mapper/ForceClientCompositionLayerMapper.cpp',
+    'compositor/mapper/LayerCachingMapper.cpp',
     'hwc/HwcDisplayConfigs.cpp',
     'hwc/HwcDisplay.cpp',
     'hwc/HwcLayer.cpp',

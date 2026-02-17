@@ -85,6 +85,7 @@ filegroup {
         "compositor/LayerToPlaneJoiningPlan.cpp",
         "compositor/mapper/CursorLayerMapper.cpp",
         "compositor/mapper/ForceClientCompositionLayerMapper.cpp",
+        "compositor/mapper/LayerCachingMapper.cpp",
 
         "drm/DrmAtomicStateManager.cpp",
         "drm/DrmColorOp.cpp",

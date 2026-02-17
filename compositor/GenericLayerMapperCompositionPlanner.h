@@ -20,6 +20,7 @@
 
 #include "compositor/mapper/CursorLayerMapper.h"
 #include "compositor/mapper/ForceClientCompositionLayerMapper.h"
+#include "compositor/mapper/LayerCachingMapper.h"
 
 namespace android::drm_hwcomposer {
 
@@ -52,6 +53,7 @@ class GenericLayerMapperCompositionPlanner : public CompositionPlanner {
   // Maps cursor layer to kDevice composition type as a fallback.
   CursorLayerMapper device_cursor_mapper_;
   ForceClientCompositionLayerMapper force_client_composition_mapper_;
+  LayerCachingMapper layer_caching_mapper_;
 };
 
 }  // namespace android::drm_hwcomposer

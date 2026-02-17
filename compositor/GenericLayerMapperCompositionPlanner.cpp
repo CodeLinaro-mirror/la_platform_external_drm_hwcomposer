@@ -168,8 +168,10 @@ GenericLayerMapperCompositionPlanner::ValidateDisplay(
     layers = device_cursor_mapper_.AssignLayers(layers, validator);
   }
 
-  // TODO: Layer caching mapper
-  // TODO: Underlay mapper
+  layers = layer_caching_mapper_.AssignLayers(layers, validator);
+
+  // TODO: Underlay mapper 
+
 
   // Convert all unmapped layers into client composited layers.
   ValidatedComposition validated_composition = CreateValidatedComposition(
