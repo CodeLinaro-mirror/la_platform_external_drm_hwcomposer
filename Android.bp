@@ -80,8 +80,10 @@ filegroup {
         "compositor/CompositionPlanner.cpp",
         "compositor/FlatteningController.cpp",
         "compositor/GenericCompositionPlanner.cpp",
+        "compositor/GenericLayerMapperCompositionPlanner.cpp",
         "compositor/HdcpController.cpp",
         "compositor/LayerToPlaneJoiningPlan.cpp",
+        "compositor/mapper/ForceClientCompositionLayerMapper.cpp",
 
         "drm/DrmAtomicStateManager.cpp",
         "drm/DrmColorOp.cpp",
