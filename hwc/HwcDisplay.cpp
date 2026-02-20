@@ -223,11 +223,8 @@ HwcDisplay::ConfigError HwcDisplay::SetConfig(ConfigId config) {
   }
 
   ALOGV("Create modeset commit.");
-  // Allow HDR only on external displays
-  if (hwc_->GetResMan().UseColorPipeline() &&
-      GetPipe().connector->Get()->IsExternal()) {
+  if (hwc_->GetResMan().UseColorPipeline())
     SetOutputType(new_config->output_type);
-  }
 
   // Create atomic commit args for a blocking modeset. There's no need to do a
   // separate test commit, since the commit does a test anyways.
@@ -275,10 +272,8 @@ auto HwcDisplay::QueueConfig(ConfigId config, int64_t desired_time,
   staged_mode_change_time_ = out_timing->refresh_time_ns;
   staged_mode_config_id_ = config;
 
-  // Allow HDR only on external displays
   if (current_config && !IsInHeadlessMode() &&
-      hwc_->GetResMan().UseColorPipeline() &&
-      GetPipe().connector->Get()->IsExternal()) {
+      hwc_->GetResMan().UseColorPipeline()) {
     SetOutputType(current_config->output_type);
   }
 
@@ -804,9 +799,7 @@ auto HwcDisplay::DestroyLayer(ILayerId layer_id) -> bool {
 }
 
 auto HwcDisplay::GetColorModes() -> std::vector<ColorMode> {
-  // Allow HDR only on external displays
-  if (IsInHeadlessMode() || !hwc_->GetResMan().UseColorPipeline() ||
-      !GetPipe().connector->Get()->IsExternal()) {
+  if (IsInHeadlessMode() || !hwc_->GetResMan().UseColorPipeline()) {
     return {ColorMode::kNative};
   }
 
