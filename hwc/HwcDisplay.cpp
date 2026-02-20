@@ -292,7 +292,7 @@ auto HwcDisplay::ValidateStagedComposition() -> std::vector<ChangedLayer> {
   }
 
   if (layers_.empty()) {
-    ALOGI("No layers to validate.");
+    ALOGV("No layers to validate.");
     return {};
   }
 
@@ -365,7 +365,7 @@ auto HwcDisplay::PresentStagedComposition(
   }
 
   if (layers_.empty()) {
-    ALOGI("No layers to present.");
+    ALOGV("No layers to present.");
     return true;
   }
 
