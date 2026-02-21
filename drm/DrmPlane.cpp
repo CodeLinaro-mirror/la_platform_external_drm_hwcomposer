@@ -22,7 +22,6 @@
 #include <cstdint>
 
 #include "bufferinfo/BufferInfoGetter.h"
-#include "compositor/LayerData.h"
 #include "drm/DrmCrtc.h"
 #include "drm/DrmDevice.h"
 #include "drm/DrmFbImporter.h"
@@ -40,22 +39,64 @@ void ClipSourceCrop(FRect &src, const BufferInfo &buffer_info) {
   src.bottom = std::min(src.bottom, static_cast<float>(buffer_info.height));
 }
 
+/*
+ * Checks that the available color pipeline has gamma, degamma and ctm color
+ * operations.
+ */
 bool VerifyColorPipeline(
-    std::vector<std::unique_ptr<DrmColorOp>> &color_pipeline,
+    DrmColorPipeline &color_pipeline,
     std::map<uint64_t, ColorOpType> &color_op_type_enum_map) {
-  if (color_pipeline.empty() || color_op_type_enum_map.empty()) {
+  if (color_pipeline.color_ops.empty() || color_op_type_enum_map.empty()) {
     return false;
   }
 
-  for (const auto &color_op : color_pipeline) {
-    // Verify 3x4 CTM operation is present
+  ColorOpType type = ColorOpType::kMatrix3x4;
+  auto is_type = [&color_op_type_enum_map, &type](const auto &c) {
+    return color_op_type_enum_map.at(
+               c->GetTypeProperty().GetValue().value_or(0)) == type;
+  };
+
+  // Verify one 3x4 CTM operation is present
+  if (std::count_if(color_pipeline.color_ops.begin(),
+                    color_pipeline.color_ops.end(), is_type) != 1) {
+    return false;
+  };
+
+  // Verify two 1D LUT operations are present
+  type = ColorOpType::k1DLut;
+  if (std::count_if(color_pipeline.color_ops.begin(),
+                    color_pipeline.color_ops.end(), is_type) != 2) {
+    return false;
+  };
+
+  // The first 1D LUT we encounter should be degamma, second is gamma
+  bool is_degamma = true;
+  for (const auto &color_op : color_pipeline.color_ops) {
     const auto type = color_op->GetTypeProperty().GetValue().value_or(0);
-    if (color_op_type_enum_map.at(type) == ColorOpType::kMatrix3x4) {
-      return true;
+    if (color_op_type_enum_map.at(type) == ColorOpType::k1DLut) {
+      // Extract LUT size information
+      if (!color_op->GetSizeProperty() ||
+          !color_op->GetSizeProperty().IsRange() ||
+          !color_op->GetSizeProperty().GetValue().has_value()) {
+        ALOGE("Failed to get SIZE property on %s",
+              color_op->DumpState().c_str());
+        return false;
+      }
+
+      if (is_degamma) {
+        color_pipeline.degamma_lut_size = color_op->GetSizeProperty()
+                                              .GetValue()
+                                              .value_or(0);
+      } else {
+        color_pipeline.gamma_lut_size = color_op->GetSizeProperty()
+                                            .GetValue()
+                                            .value_or(0);
+      }
+      is_degamma = !is_degamma;
     }
   }
 
-  return false;
+  return true;
 }
 }  // namespace
 
@@ -180,12 +221,12 @@ int DrmPlane::Init() {
           break;
         }
         color_op_id = color_op->GetNextProperty().GetValue().value_or(0);
-        color_pipeline_.push_back(std::move(color_op));
+        color_pipeline_.color_ops.push_back(std::move(color_op));
       }
 
       // Populate color op types mapping
-      if (!color_pipeline_.empty()) {
-        const auto &color_op = color_pipeline_.front();
+      if (!color_pipeline_.color_ops.empty()) {
+        const auto &color_op = color_pipeline_.color_ops.front();
         color_op->GetTypeProperty()
             .AddEnumToMapReverse("3x4 Matrix", ColorOpType::kMatrix3x4,
                                  color_op_type_enum_map_);
@@ -200,7 +241,7 @@ int DrmPlane::Init() {
 
       // Verify all necessary color ops are present
       if (!VerifyColorPipeline(color_pipeline_, color_op_type_enum_map_)) {
-        color_pipeline_.clear();
+        color_pipeline_.color_ops.clear();
       } else {
         break;
       }
@@ -490,18 +531,18 @@ auto DrmPlane::AtomicSetColorPipeline(
     return 0;
   }
 
-  if (color_pipeline_.empty()) {
+  if (color_pipeline_.color_ops.empty()) {
     ALOGW("color_pipeline_ is empty");
     return 0;
   }
 
-  uint64_t color_op_id = color_pipeline_.front()->GetId();
+  uint64_t color_op_id = color_pipeline_.color_ops.front()->GetId();
   if (!color_pipeline_property_.AtomicSet(pset, color_op_id)) {
     ALOGE("Failed to set COLOR_PIPELINE to %" PRIu64, color_op_id);
     return -EINVAL;
   }
 
-  for (const auto &color_op : color_pipeline_) {
+  for (const auto &color_op : color_pipeline_.color_ops) {
     switch (color_op_type_enum_map_.at(
         (color_op->GetTypeProperty().GetValue().value_or(0)))) {
       case ColorOpType::kMatrix3x4:
