@@ -118,7 +118,7 @@ std::optional<Colorspace> AidlToColorspace(const common::Dataspace& dataspace) {
     case static_cast<int32_t>(common::Dataspace::STANDARD_BT601_525):
     case static_cast<int32_t>(common::Dataspace::STANDARD_BT601_525_UNADJUSTED):
       return Colorspace::kBt601Ycc;
-    case static_cast<int32_t>(common::Dataspace::DCI_P3):
+    case static_cast<int32_t>(common::Dataspace::STANDARD_DCI_P3):
       return Colorspace::kDciP3RgbD65;
     case static_cast<int32_t>(common::Dataspace::STANDARD_BT2020):
     case static_cast<int32_t>(
