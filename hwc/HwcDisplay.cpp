@@ -624,7 +624,7 @@ HwcDisplay::Error HwcDisplay::SetPowerMode(PowerMode mode) {
   // Set the display active state.
   AtomicCommitArgs a_args{};
   a_args.blocking = true;
-  a_args.active = enabled;
+  a_args.power_mode = mode;
   if (!enabled) {
     a_args.teardown = true;
   }
@@ -671,7 +671,7 @@ void HwcDisplay::Deinit() {
     a_args.composition = std::make_shared<LayerToPlaneJoiningPlan>();
     ExecuteAtomicCommit(a_args);
     a_args.composition = {};
-    a_args.active = false;
+    a_args.power_mode = PowerMode::kOff;
     a_args.teardown = true;
     ExecuteAtomicCommit(a_args);
 
@@ -924,7 +924,7 @@ AtomicCommitArgs HwcDisplay::CreateModesetCommit(
   }
 
   args.display_mode = config->mode;
-  args.active = true;
+  args.power_mode = PowerMode::kOn;
   args.composition = LayerToPlaneJoiningPlan::
       CreateLayerToPlaneJoiningPlan(GetPipe(), std::move(composition_layers));
   ALOGW_IF(!args.composition, "No composition for blocking modeset");
@@ -937,9 +937,10 @@ std::optional<AtomicCommitResult> HwcDisplay::ExecuteAtomicCommit(
   auto commit_result = GetPipe().atomic_commit_sink->ExecuteAtomicCommit(
       a_args);
 
-  // Log successful modesets (seamless and full), including teardowns.
-  if (a_args.display_mode || a_args.teardown) {
-    const bool blocking = a_args.blocking || a_args.active || a_args.teardown;
+  // Log successful modesets (seamless and full), including doze, and teardowns.
+  if (a_args.display_mode || a_args.power_mode || a_args.teardown) {
+    const bool blocking = a_args.blocking || a_args.power_mode.has_value() ||
+                          a_args.teardown;
     LogConfigResult(blocking, commit_result.has_value());
   }
 
