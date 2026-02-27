@@ -345,9 +345,26 @@ soong_config_module_type {
     ],
 }
 
+soong_config_module_type {
+    name: "drm_hwcomposer_backend_defaults",
+    module_type: "cc_defaults",
+    config_namespace: "DRMHWC",
+    variables: ["backend"],
+    properties: [
+        "srcs",
+        "shared_libs",
+        "header_libs",
+    ],
+}
+
 soong_config_string_variable {
     name: "atom_reporter",
     values: ["desktop"],
+}
+
+soong_config_string_variable {
+    name: "backend",
+    values: ["sdm"],
 }
 
 drm_hwcomposer_atom_reporter_library {
