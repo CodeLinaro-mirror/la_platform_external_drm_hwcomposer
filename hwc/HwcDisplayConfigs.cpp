@@ -110,10 +110,13 @@ bool HwcDisplayConfigs::Init(DrmConnector &connector) {
   mm_height = connector.GetMmHeight();
 
   // Order determines preferred output type
-  const OutputType hwc_supported_output_types[] = {
-      OutputType::kSystem,
-      OutputType::kSdr,
-  };
+  const std::vector<OutputType>
+      hwc_supported_output_types = Properties::UseColorPipeline()
+                                       ? std::vector<
+                                             OutputType>{OutputType::kSystem,
+                                                         OutputType::kSdr}
+                                       : std::vector<OutputType>{
+                                             OutputType::kSdr};
 
   ConfigId first_config_id = next_config_id;
   uint32_t next_group_id = 1;
