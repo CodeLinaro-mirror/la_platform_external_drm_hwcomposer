@@ -22,6 +22,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <vector>
 
 #include "drm/DrmConnector.h"
 #include "drm/DrmMode.h"
@@ -109,9 +110,12 @@ bool HwcDisplayConfigs::Init(DrmConnector &connector) {
   mm_width = connector.GetMmWidth();
   mm_height = connector.GetMmHeight();
 
+  bool enable_hdr = Properties::UseColorPipeline() &&
+                    (connector.IsExternal() ||
+                     Properties::PersistentHdrEnabled());
   // Order determines preferred output type
   const std::vector<OutputType>
-      hwc_supported_output_types = Properties::UseColorPipeline()
+      hwc_supported_output_types = enable_hdr
                                        ? std::vector<
                                              OutputType>{OutputType::kSystem,
                                                          OutputType::kSdr}
