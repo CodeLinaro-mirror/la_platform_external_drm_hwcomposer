@@ -562,22 +562,22 @@ void HwcDisplay::SetVsyncCallbacksEnabled(bool enabled) {
   vsync_worker_->SetTimestampCallback(std::move(callback));
 }
 
-bool HwcDisplay::SetDisplayEnabled(bool enabled) {
+HwcDisplay::Error HwcDisplay::SetDisplayEnabled(bool enabled) {
   if (IsInHeadlessMode()) {
-    return true;
+    return HwcDisplay::Error::kNone;
   }
   // If the request is to enable the display, the CRTC is not active, and an
   // active config is set, try to reconfigure the pipeline with SetConfig.
   if (enabled) {
     if (GetPipe().atomic_commit_sink->IsActive()) {
-      return true;
+      return HwcDisplay::Error::kNone;
     }
 
     const HwcDisplayConfig *last_requested_config = GetLastRequestedConfig();
     if (last_requested_config) {
       if (SetConfig(last_requested_config->id) != ConfigError::kNone) {
         ALOGE("Failed to set config to re-enable display after teardown.");
-        return false;
+        return HwcDisplay::Error::kBadParameter;
       }
     }
   }
@@ -595,7 +595,10 @@ bool HwcDisplay::SetDisplayEnabled(bool enabled) {
            enabled ? "enabled" : "disabled");
   // If setting to |enabled|, log the error and return true. The next frame
   // update will try to set it to active again.
-  return enabled || commit_success;
+  if (!commit_success && !enabled) {
+    return HwcDisplay::Error::kBadParameter;
+  }
+  return HwcDisplay::Error::kNone;
 }
 
 bool HwcDisplay::GetDisplayEnabled() const {

@@ -65,6 +65,12 @@ inline constexpr uint32_t kPrimaryDisplay = 0;
 // NOLINTNEXTLINE
 class HwcDisplay : public ICompositorDisplay {
  public:
+  enum class Error {
+    kNone,
+    kBadParameter,
+    kUnsupported,
+  };
+
   enum ConfigError {
     kNone,
     kBadConfig,
@@ -167,7 +173,7 @@ class HwcDisplay : public ICompositorDisplay {
   void SetVsyncCallbacksEnabled(bool enabled);
 
   // Enable or disable the display.
-  bool SetDisplayEnabled(bool enabled);
+  HwcDisplay::Error SetDisplayEnabled(bool enabled);
 
   bool GetDisplayEnabled() const;
 
