@@ -771,8 +771,9 @@ void HwcDisplay::GetHdrCapabilities(std::vector<ui::Hdr> *types,
                                     float *max_luminance,
                                     float *max_average_luminance,
                                     float *min_luminance) {
-  if (IsInHeadlessMode())
+  if (IsInHeadlessMode() || !hwc_->GetResMan().UseColorPipeline()) {
     return;
+  }
 
   // Return HDR caps only when we have the ability to set HDR
   DrmDisplayPipeline &pipeline = GetPipe();
