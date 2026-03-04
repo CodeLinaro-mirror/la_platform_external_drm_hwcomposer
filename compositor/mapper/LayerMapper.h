@@ -31,6 +31,11 @@ class LayerMapper {
  public:
   virtual ~LayerMapper() = default;
 
+  // MappingValidator allows the caller of AssignLayers() to assess the proposed
+  // layer mappings before LayerMapper returns so that the LayerMapper could
+  // adjust its mapping if it is not going to be acceptable.
+  // For example, a MappingValidator can return false if the proposed mapping
+  // exceeds the number of overlays available on a device.
   using MappingValidator = std::function<bool(
       const std::vector<LayerMapping>&)>;
 

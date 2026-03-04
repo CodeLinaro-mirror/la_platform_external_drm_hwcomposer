@@ -26,7 +26,7 @@
 
 namespace android::drm_hwcomposer {
 
-class HwcDisplay;
+class ICompositorDisplay;
 
 class FrontendLayerBase {
  public:
@@ -37,7 +37,7 @@ class HwcLayer {
  public:
   struct Buffer {
     BufferInfo bi;
-    std::shared_ptr<DrmFbIdHandle> fb;
+    std::shared_ptr<IDrmFbIdHandle> fb;
     SharedFd fence;
   };
   // A set of properties to be validated.
@@ -56,7 +56,7 @@ class HwcLayer {
     std::optional<DamageInfo> damage;
   };
 
-  explicit HwcLayer(HwcDisplay *parent_display);
+  explicit HwcLayer(ICompositorDisplay *parent_display);
   CompositionType GetSfType() const {
     return sf_type_;
   }
@@ -135,7 +135,7 @@ class HwcLayer {
 
   bool prior_buffer_scanout_flag_{};
 
-  HwcDisplay *const parent_;
+  ICompositorDisplay *const parent_;
 
   std::shared_ptr<FrontendLayerBase> frontend_private_data_;
 

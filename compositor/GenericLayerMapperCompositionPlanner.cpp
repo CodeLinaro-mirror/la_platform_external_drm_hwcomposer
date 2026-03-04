@@ -20,7 +20,6 @@
 #include "compositor/FlatteningController.h"
 #include "compositor/LayerData.h"
 #include "drm/DrmPlane.h"
-#include "hwc/HwcDisplay.h"
 #include "hwc/HwcLayer.h"
 #include "utils/log.h"
 
@@ -92,10 +91,9 @@ CompositionPlanner::ValidatedComposition CreateValidatedComposition(
 
 // If >= 0, then the mapping described by |layers| is valid.
 // If < 0, then |layers| is invalid as it uses more planes than available.
-int CountRemainingPlanes(const HwcDisplay* display,
+int CountRemainingPlanes(const ICompositorDisplay* display,
                          const std::vector<LayerMapping>& layers) {
-  int num_available_planes = static_cast<int>(
-      display->GetPipe().GetUsablePlanes().first.size());
+  int num_available_planes = static_cast<int>(display->GetNumAvailablePlanes());
 
   bool has_client_layers = false;
   for (const auto& [_, composition_type] : layers) {
@@ -130,7 +128,7 @@ GenericLayerMapperCompositionPlanner::GenericLayerMapperCompositionPlanner()
 
 CompositionPlanner::ValidatedComposition
 GenericLayerMapperCompositionPlanner::ValidateDisplay(
-    const HwcDisplay* display) {
+    const ICompositorDisplay* display) {
   // An element with higher stack order is always in front of an element with a
   // lower stack order.
   std::vector<LayerMapping> layers = CreateZOrderedLayerMapping(
@@ -170,8 +168,6 @@ GenericLayerMapperCompositionPlanner::ValidateDisplay(
 
   layers = layer_caching_mapper_.AssignLayers(layers, validator);
 
-  // TODO: Fullscreen mapper
-
   {
     auto new_layers = underlay_mapper_.AssignLayers(layers, validator);
 
@@ -194,7 +190,7 @@ GenericLayerMapperCompositionPlanner::ValidateDisplay(
   if (!success && GetCursorLayer(layers) != nullptr) {
     if (IsCursorPlaneUsed(layers)) {
       layers = force_client_composition_mapper_.AssignLayers(layers, validator);
-
+      layers.back().composition_type = CompositionType::kInvalid;
       if (use_cursor_plane) {
         layers = cursor_mapper_.AssignLayers(layers, validator);
       } else {
@@ -222,7 +218,7 @@ GenericLayerMapperCompositionPlanner::ValidateDisplay(
 }
 
 bool GenericLayerMapperCompositionPlanner::MustBeClientComposited(
-    const HwcDisplay* display, const HwcLayer* layer) {
+    const ICompositorDisplay* display, const HwcLayer* layer) {
   // As per Composition.aidl, if Composition is CLIENT, HWC is not allowed to
   // request a change.
   return !HardwareSupportsLayerType(layer->GetSfType()) ||
@@ -250,20 +246,21 @@ GenericLayerMapperCompositionPlanner::CreateFlattenedComposition(
 }
 
 bool GenericLayerMapperCompositionPlanner::ShouldUseCursorPlane(
-    const HwcDisplay* display, const std::vector<LayerMapping>& layers) const {
+    const ICompositorDisplay* display,
+    const std::vector<LayerMapping>& layers) const {
   const auto* cursor_layer = GetCursorLayer(layers);
-  const auto cursor_plane = display->GetPipe().GetUsablePlanes().second;
+  const auto cursor_plane = display->GetCursorPlane();
   if (cursor_layer != nullptr && cursor_plane != nullptr &&
       !MustBeClientComposited(display, cursor_layer) &&
       cursor_plane->Get()->IsValidForLayer(&cursor_layer->GetLayerData())) {
     // Create and test a composition using only cursor plane and all other
     // layers client-composited to infer whether the cursor plane can be used.
+    auto test_mappings = force_client_composition_mapper_
+                             .AssignLayers(layers, NoOpValidator);
+    test_mappings.back().composition_type = CompositionType::kCursor;
+
     ValidatedComposition cursor_composition{
-        .composition_types = ToCompositionTypes(
-            cursor_mapper_.AssignLayers(force_client_composition_mapper_
-                                            .AssignLayers(layers,
-                                                          NoOpValidator),
-                                        NoOpValidator))};
+        .composition_types = ToCompositionTypes(test_mappings)};
     return display->TestComposition(cursor_composition);
   }
 
@@ -272,7 +269,8 @@ bool GenericLayerMapperCompositionPlanner::ShouldUseCursorPlane(
 
 std::vector<LayerMapping>
 GenericLayerMapperCompositionPlanner::MapAllClientCompositionRequiredLayers(
-    const HwcDisplay* display, const std::vector<LayerMapping>& layers) {
+    const ICompositorDisplay* display,
+    const std::vector<LayerMapping>& layers) {
   std::vector<LayerMapping> new_layers = layers;
   for (auto& [layer, composition_type] : new_layers) {
     if (MustBeClientComposited(display, layer)) {

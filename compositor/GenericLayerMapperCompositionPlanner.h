@@ -26,27 +26,32 @@
 namespace android::drm_hwcomposer {
 
 enum class CompositionType;
-class HwcDisplay;
+class ICompositorDisplay;
 class HwcLayer;
 
-// Implementation of CompositionPlanner built on top of upstream drm uAPI and series of LayerMappers.
+// Implementation of CompositionPlanner built on top of upstream drm uAPI and
+// series of LayerMappers.
 class GenericLayerMapperCompositionPlanner : public CompositionPlanner {
  public:
   GenericLayerMapperCompositionPlanner();
   ~GenericLayerMapperCompositionPlanner() override = default;
 
-  ValidatedComposition ValidateDisplay(const HwcDisplay* display) override;
+  ValidatedComposition ValidateDisplay(
+      const ICompositorDisplay* display) override;
 
  private:
-  static bool MustBeClientComposited(const HwcDisplay* display, const HwcLayer* layer);
+  static bool MustBeClientComposited(const ICompositorDisplay* display,
+                                     const HwcLayer* layer);
   static std::vector<LayerMapping> MapAllClientCompositionRequiredLayers(
-      const HwcDisplay* display, const std::vector<LayerMapping>& layers);
+      const ICompositorDisplay* display,
+      const std::vector<LayerMapping>& layers);
   static bool HardwareSupportsLayerType(CompositionType comp_type);
 
   ValidatedComposition CreateFlattenedComposition(
-    const std::vector<LayerMapping>& layers, FlattenReason flatten_reason) const;
+      const std::vector<LayerMapping>& layers,
+      FlattenReason flatten_reason) const;
 
-  bool ShouldUseCursorPlane(const HwcDisplay* display,
+  bool ShouldUseCursorPlane(const ICompositorDisplay* display,
                             const std::vector<LayerMapping>& layers) const;
 
   // Maps cursor layer to kCursor composition type.

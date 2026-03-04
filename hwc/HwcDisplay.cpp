@@ -1203,6 +1203,14 @@ void HwcDisplay::ApplyCommitChanges(const AtomicCommitArgs &a_args,
   }
 }
 
+size_t HwcDisplay::GetNumAvailablePlanes() const {
+  return pipeline_->GetUsablePlanes().first.size();
+}
+
+std::shared_ptr<BindingOwner<DrmPlane>> HwcDisplay::GetCursorPlane() const {
+  return pipeline_->GetUsablePlanes().second;
+}
+
 bool HwcDisplay::CtmByGpu() const {
   if (color_transform_is_identity_)
     return false;
