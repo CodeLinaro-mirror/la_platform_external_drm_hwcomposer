@@ -152,4 +152,8 @@ auto Properties::GetDevicePath() -> std::string {
   return {path_pattern};
 }
 
+auto Properties::DropDrmMasterAfterInit() -> bool {
+  return (property_get_bool("ro.vendor.hwc.drop_drm_master", 0) != 0);
+}
+
 }  // namespace android::drm_hwcomposer
