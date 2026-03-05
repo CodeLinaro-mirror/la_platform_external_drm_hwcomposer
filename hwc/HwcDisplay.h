@@ -288,6 +288,10 @@ class HwcDisplay : public ICompositorDisplay {
   HwcDisplay::Error SetPowerMode(PowerMode mode);
 
  private:
+  bool IsDozeSupported() const;
+  bool IsDozeSuspendSupported() const;
+  bool IsSuspendSupported() const;
+
   // Create AtomicCommitArgs to commit at the next vsync. Returns nullopt if
   // such AtomicCommitArgs cannot be created due to lack of drm resources or
   // invalid HwcDisplay or HwcLayer state.

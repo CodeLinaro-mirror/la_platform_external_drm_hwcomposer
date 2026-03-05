@@ -26,6 +26,7 @@
 #include <ui/GraphicTypes.h>
 #include <utils/Trace.h>
 
+#include "backend/BackendManager.h"
 #include "compositor/CompositionPlanner.h"
 #include "compositor/DisplayInfo.h"
 #include "compositor/FlatteningController.h"
@@ -562,11 +563,46 @@ void HwcDisplay::SetVsyncCallbacksEnabled(bool enabled) {
   vsync_worker_->SetTimestampCallback(std::move(callback));
 }
 
+bool HwcDisplay::IsDozeSupported() const {
+  if (IsInHeadlessMode()) {
+    return false;
+  }
+  return BackendManager::GetInstance().IsDozeSupported(
+      GetPipe().device->GetName());
+}
+
+bool HwcDisplay::IsDozeSuspendSupported() const {
+  if (IsInHeadlessMode()) {
+    return false;
+  }
+  return BackendManager::GetInstance().IsDozeSuspendSupported(
+      GetPipe().device->GetName());
+}
+
+bool HwcDisplay::IsSuspendSupported() const {
+  if (IsInHeadlessMode()) {
+    return false;
+  }
+  return BackendManager::GetInstance().IsSuspendSupported(
+      GetPipe().device->GetName());
+}
+
 HwcDisplay::Error HwcDisplay::SetPowerMode(PowerMode mode) {
+  // Check support before headless because VTS expects headless mode to not
+  // support these.
+  if (mode == PowerMode::kDoze && !IsDozeSupported()) {
+    return HwcDisplay::Error::kUnsupported;
+  }
+  if (mode == PowerMode::kDozeSuspend && !IsDozeSuspendSupported()) {
+    return HwcDisplay::Error::kUnsupported;
+  }
+  if (mode == PowerMode::kSuspend && !IsSuspendSupported()) {
+    return HwcDisplay::Error::kUnsupported;
+  }
+
   if (IsInHeadlessMode()) {
     return HwcDisplay::Error::kNone;
   }
-
   bool enabled = mode != PowerMode::kOff;
 
   // If the request is to enable the display, the CRTC is not active, and an
