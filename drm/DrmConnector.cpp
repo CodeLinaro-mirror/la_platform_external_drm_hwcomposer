@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "drmhwc"
-
 #include "DrmConnector.h"
 
 #include <drm/drm_mode.h>
@@ -301,11 +299,9 @@ bool DrmConnector::IsLinkStatusGood() {
   return true;
 }
 
-void DrmConnector::UpdateContentProtection() {
-  if (!GetOptionalConnectorProperty("Content Protection",
-                                    &content_protection_property_)) {
-    ALOGW("No Content protection Property available");
-  }
+bool DrmConnector::UpdateContentProtection() {
+  return GetOptionalConnectorProperty("Content Protection",
+                                      &content_protection_property_);
 }
 
 bool DrmConnector::IsContentProtectionEnabled() const {

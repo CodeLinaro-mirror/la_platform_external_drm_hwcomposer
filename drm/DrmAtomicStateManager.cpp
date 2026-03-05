@@ -17,7 +17,6 @@
 #undef NDEBUG /* Required for assert to work */
 
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
-#define LOG_TAG "drmhwc"
 
 #include "DrmAtomicStateManager.h"
 
@@ -134,7 +133,7 @@ std::optional<AtomicCommitResult> DrmAtomicStateManager::CommitFrame(
                                    atomic_request->property_set.get(),
                                    flags | DRM_MODE_ATOMIC_TEST_ONLY, drm);
 
-    ALOGW_IF(err != 0, "Test-only seamless=%d ret=%d errno=%d strerror=%s\n",
+    ALOGV_IF(err != 0, "Test-only seamless=%d ret=%d errno=%d strerror=%s\n",
              args.seamless, err, errno,
              strerror_r(errno, err_buf, error_buf_max_size));
     return err == 0 ? std::make_optional<AtomicCommitResult>() : std::nullopt;
@@ -471,11 +470,13 @@ bool DrmAtomicStateManager::SetCompositionIfNeeded(const AtomicCommitArgs &args,
           GamutAdjustIfNeeded(layer.colorspace,
                               args.colorspace.value_or(Colorspace::kDefault),
                               args.color_matrix, color_transform_map_);
-      DrmModeUserPropertyBlobUnique
-          ctm_3x4_blob = pipe_->device
-                             ->RegisterUserPropertyBlob(drm_color_matrix.get(),
-                                                        sizeof(
-                                                            drm_color_ctm_3x4));
+      DrmModeUserPropertyBlobUnique ctm_3x4_blob;
+      if (drm_color_matrix) {
+        ctm_3x4_blob = pipe_->device
+                           ->RegisterUserPropertyBlob(drm_color_matrix.get(),
+                                                      sizeof(
+                                                          drm_color_ctm_3x4));
+      }
       if (plane->AtomicSetColorPipeline(*request.property_set, ctm_3x4_blob) !=
           0) {
         return false;
