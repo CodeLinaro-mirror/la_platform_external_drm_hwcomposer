@@ -39,6 +39,7 @@
 #include "drm/drm.h"
 #include "utils/fd.h"
 #include "utils/log.h"
+#include "utils/properties.h"
 
 namespace android::drm_hwcomposer {
 
@@ -175,6 +176,11 @@ auto DrmDevice::Init(const char *path) -> int {
     if (plane) {
       planes_.emplace_back(std::move(plane));
     }
+  }
+
+  if (Properties::DropDrmMasterAfterInit()) {
+    ALOGI("Dropping drm master.");
+    drmDropMaster(*GetFd());
   }
 
   return 0;
