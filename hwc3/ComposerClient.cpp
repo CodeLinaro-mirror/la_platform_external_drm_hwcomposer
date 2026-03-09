@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "drmhwc"
 #define ATRACE_TAG (ATRACE_TAG_GRAPHICS | ATRACE_TAG_HAL)
 
 #include "ComposerClient.h"
@@ -63,6 +62,7 @@
 #include "utils/properties.h"
 
 using ::android::drm_hwcomposer::BufferBlendMode;
+using ::android::drm_hwcomposer::BufferColorEncoding;
 using ::android::drm_hwcomposer::BufferSampleRange;
 using ::android::drm_hwcomposer::Colorspace;
 using ::android::drm_hwcomposer::CompositionType;
@@ -121,7 +121,7 @@ std::optional<Colorspace> AidlToColorspace(const common::Dataspace& dataspace) {
     case static_cast<int32_t>(common::Dataspace::STANDARD_BT601_525):
     case static_cast<int32_t>(common::Dataspace::STANDARD_BT601_525_UNADJUSTED):
       return Colorspace::kBt601Ycc;
-    case static_cast<int32_t>(common::Dataspace::DCI_P3):
+    case static_cast<int32_t>(common::Dataspace::STANDARD_DCI_P3):
       return Colorspace::kDciP3RgbD65;
     case static_cast<int32_t>(common::Dataspace::STANDARD_BT2020):
     case static_cast<int32_t>(
@@ -141,6 +141,39 @@ std::optional<Colorspace> AidlToColorspace(
     return std::nullopt;
   }
   return AidlToColorspace(dataspace->dataspace);
+}
+
+std::optional<BufferColorEncoding> AidlToColorEncoding(
+    const common::Dataspace& dataspace) {
+  int32_t standard = static_cast<int32_t>(dataspace) &
+                     static_cast<int32_t>(common::Dataspace::STANDARD_MASK);
+  switch (standard) {
+    case static_cast<int32_t>(common::Dataspace::STANDARD_BT709):
+      return BufferColorEncoding::kItuRec709;
+    case static_cast<int32_t>(common::Dataspace::STANDARD_BT601_625):
+    case static_cast<int32_t>(common::Dataspace::STANDARD_BT601_625_UNADJUSTED):
+    case static_cast<int32_t>(common::Dataspace::STANDARD_BT601_525):
+    case static_cast<int32_t>(common::Dataspace::STANDARD_BT601_525_UNADJUSTED):
+      return BufferColorEncoding::kItuRec601;
+    case static_cast<int32_t>(common::Dataspace::STANDARD_BT2020):
+    case static_cast<int32_t>(
+        common::Dataspace::STANDARD_BT2020_CONSTANT_LUMINANCE):
+      return BufferColorEncoding::kItuRec2020;
+    case static_cast<int32_t>(common::Dataspace::STANDARD_DCI_P3):
+    case static_cast<int32_t>(common::Dataspace::UNKNOWN):
+      return BufferColorEncoding::kUndefined;
+    default:
+      ALOGE("Unsupported standard: %d", standard);
+      return std::nullopt;
+  }
+}
+
+std::optional<BufferColorEncoding> AidlToColorEncoding(
+    const std::optional<ParcelableDataspace>& dataspace) {
+  if (!dataspace) {
+    return std::nullopt;
+  }
+  return AidlToColorEncoding(dataspace->dataspace);
 }
 
 std::optional<BufferSampleRange> AidlToSampleRange(
@@ -608,6 +641,7 @@ void ComposerClient::DispatchLayerCommand(int64_t display_handle,
 
   properties.blend_mode = AidlToBlendMode(command.blendMode);
   properties.colorspace = AidlToColorspace(command.dataspace);
+  properties.color_encoding = AidlToColorEncoding(command.dataspace);
   properties.sample_range = AidlToSampleRange(command.dataspace);
   properties.composition_type = AidlToCompositionType(command.composition);
   properties.display_frame = AidlToDstRect(command.displayFrame);
@@ -683,12 +717,6 @@ void ComposerClient::ExecuteDisplayCommand(const DisplayCommand& command) {
     }
   }
 
-  if (command.brightness) {
-    // TODO: Implement support for display brightness.
-    cmd_result_writer_->AddError(hwc3::Error::kUnsupported);
-    return;
-  }
-
   hwc3::Error error = ValidateColorTransformMatrix(
       command.colorTransformMatrix);
   if (error != hwc3::Error::kNone) {
@@ -703,6 +731,10 @@ void ComposerClient::ExecuteDisplayCommand(const DisplayCommand& command) {
 
   if (cmd_result_writer_->HasError()) {
     return;
+  }
+
+  if (command.brightness) {
+    ExecuteSetDisplayBrightness(command.display, *command.brightness);
   }
 
   if (command.clientTarget) {
@@ -903,7 +935,8 @@ ndk::ScopedAStatus ComposerClient::getDisplayCapabilities(
     int64_t display_handle, std::vector<DisplayCapability>* caps) {
   DEBUG_FUNC();
   const std::unique_lock lock(hwc_->GetResMan().GetMainLock());
-  if (GetDisplay(display_handle) == nullptr) {
+  HwcDisplay* display = GetDisplay(display_handle);
+  if (display == nullptr) {
     return ToBinderStatus(hwc3::Error::kBadDisplay);
   }
 
@@ -911,6 +944,9 @@ ndk::ScopedAStatus ComposerClient::getDisplayCapabilities(
   if (hwc_->GetResMan().GetCtmHandling() ==
       ::android::drm_hwcomposer::CtmHandling::kDrmOrIgnore) {
     caps->emplace_back(DisplayCapability::SKIP_CLIENT_COLOR_TRANSFORM);
+  }
+  if (display->HasBacklight()) {
+    caps->emplace_back(DisplayCapability::BRIGHTNESS);
   }
   return ndk::ScopedAStatus::ok();
 }
@@ -1577,6 +1613,24 @@ std::string ComposerClient::Dump() {
   return binder;
 }
 
+void ComposerClient::ExecuteSetDisplayBrightness(
+    int64_t display_handle, const DisplayBrightness& brightness) {
+  auto* display = GetDisplay(display_handle);
+  if (display == nullptr) {
+    cmd_result_writer_->AddError(hwc3::Error::kBadDisplay);
+    return;
+  }
+
+  if (!display->HasBacklight()) {
+    cmd_result_writer_->AddError(hwc3::Error::kUnsupported);
+    return;
+  }
+
+  if (!display->SetBrightness(brightness.brightness)) {
+    cmd_result_writer_->AddError(hwc3::Error::kBadParameter);
+  }
+}
+
 void ComposerClient::ExecuteSetDisplayClientTarget(
     int64_t display_handle, const ClientTarget& command) {
   auto* display = GetDisplay(display_handle);
@@ -1613,6 +1667,7 @@ void ComposerClient::ExecuteSetDisplayClientTarget(
   }
   HwcLayer::LayerProperties properties = {
       .buffer = buffer,
+      .color_encoding = AidlToColorEncoding(command.dataspace),
       .sample_range = AidlToSampleRange(command.dataspace),
       .colorspace = AidlToColorspace(command.dataspace),
   };

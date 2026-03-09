@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 The Android Open Source Project
+ * Copyright (C) 2026 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,16 +14,20 @@
  * limitations under the License.
  */
 
-#include "CompositionStatsAtomReporter.h"
+#pragma once
 
-#include "utils/log.h"
+#include <string>
 
 namespace android::drm_hwcomposer {
 
-std::unique_ptr<CompositionStatsAtomReporter>
-CompositionStatsAtomReporter::Create() {
-  ALOGI("Atom reporting is not enabled.");
-  return {};
-}
+class BacklightFileInterface {
+ public:
+  virtual ~BacklightFileInterface() = default;
+
+  virtual bool ReadFileToString(const std::string &path,
+                                std::string *content) = 0;
+  virtual bool WriteStringToFile(const std::string &content,
+                                 const std::string &path) = 0;
+};
 
 }  // namespace android::drm_hwcomposer
