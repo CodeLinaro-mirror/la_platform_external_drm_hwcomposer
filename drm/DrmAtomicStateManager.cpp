@@ -493,12 +493,12 @@ bool DrmAtomicStateManager::SetCompositionIfNeeded(const AtomicCommitArgs &args,
       if (!degamma_lut.empty()) {
         degamma_lut_blob = drm->RegisterUserPropertyBlob(
             degamma_lut.data(),
-            sizeof(drm_color_lut_32) * plane->GetDegamma1DLutSize());
+            sizeof(drm_color_lut32) * plane->GetDegamma1DLutSize());
       }
       if (!gamma_lut.empty()) {
         gamma_lut_blob = drm->RegisterUserPropertyBlob(
             gamma_lut.data(),
-            sizeof(drm_color_lut_32) * plane->GetGamma1DLutSize());
+            sizeof(drm_color_lut32) * plane->GetGamma1DLutSize());
       }
       if (plane->AtomicSetColorPipeline(*request.property_set, ctm_3x4_blob,
                                         degamma_lut_blob,

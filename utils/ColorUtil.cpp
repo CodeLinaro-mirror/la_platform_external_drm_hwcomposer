@@ -192,7 +192,7 @@ uint32_t SignalToInt(float signal) {
 }
 
 Lut1D CreateLut(TransferFunction tf, uint32_t lut_size, bool is_degamma) {
-  std::vector<drm_color_lut_32> lut(lut_size);
+  std::vector<drm_color_lut32> lut(lut_size);
   for (size_t i = 0; i < lut_size; ++i) {
     float signal = static_cast<float>(i) / (static_cast<float>(lut_size) - 1.F);
     switch (tf) {

@@ -28,7 +28,7 @@
 
 namespace android::drm_hwcomposer {
 
-using Lut1D = std::vector<drm_color_lut_32>;
+using Lut1D = std::vector<drm_color_lut32>;
 
 inline const Lut1D kEmptyLut = {};
 
