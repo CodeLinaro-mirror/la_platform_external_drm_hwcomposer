@@ -1389,8 +1389,7 @@ std::optional<LayerData> HwcDisplay::GetModesetLayerData(
   modeset_layer->SetLayerProperties({
       .buffer = std::optional<HwcLayer::Buffer>({
           .bi = modeset_buffer.value(),
-          .fb = GetPipe().device->GetDrmFbImporter().GetOrCreateFbId(
-              &modeset_buffer.value()),
+          .fb = GetPipe().importer->GetOrCreateFbId(&modeset_buffer.value()),
           .fence = {},
       }),
       .blend_mode = BufferBlendMode::kNone,
