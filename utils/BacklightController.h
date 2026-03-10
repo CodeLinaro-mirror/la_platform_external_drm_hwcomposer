@@ -14,16 +14,21 @@
  * limitations under the License.
  */
 
-#include "CompositionStatsAtomReporter.h"
+#pragma once
 
-#include "utils/log.h"
+#include <optional>
 
 namespace android::drm_hwcomposer {
 
-std::unique_ptr<CompositionStatsAtomReporter>
-CompositionStatsAtomReporter::Create() {
-  ALOGI("Atom reporting is not enabled.");
-  return {};
-}
+class BacklightController {
+ public:
+  static auto HlgOetf(float linear) -> float;
+  virtual bool SetBrightness(std::optional<float> brightness) = 0;
+  virtual auto GetName() const -> std::string = 0;
+  virtual ~BacklightController() = default;
+
+  static const float kMin;
+  static const float kMax;
+};
 
 }  // namespace android::drm_hwcomposer

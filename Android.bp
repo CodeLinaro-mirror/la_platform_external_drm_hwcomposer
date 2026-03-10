@@ -73,6 +73,7 @@ cc_defaults {
 
     cppflags: [
         "-DHAS_LIBDISPLAY_INFO",
+        "-DLOG_TAG=\"drmhwc\"",
     ],
 
     cpp_std: "gnu++17",
@@ -128,8 +129,10 @@ filegroup {
         "stats/Stats.cpp",
         "stats/StatsPoller.cpp",
 
+        "utils/BacklightController.cpp",
         "utils/ColorUtil.cpp",
         "utils/LibdisplayEdidWrapper.cpp",
+        "utils/SysfsBacklightController.cpp",
         "utils/fd.cpp",
         "utils/properties.cpp",
     ],
@@ -315,6 +318,10 @@ cc_test_host {
         "stats/Stats.cpp",
         "stats/StatsTest.cpp",
         "tests/host_test_stubs.cpp",
+        "utils/BacklightController.cpp",
+        "utils/BacklightControllerTest.cpp",
+        "utils/SysfsBacklightController.cpp",
+        "utils/SysfsBacklightControllerTest.cpp",
         "utils/fd.cpp",
         "utils/properties.cpp",
     ],
