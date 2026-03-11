@@ -100,6 +100,7 @@ SKIP_FILES := \
     compositor/mapper/CursorLayerMapperTest.cpp \
     compositor/mapper/ForceClientCompositionLayerMapperTest.cpp \
     compositor/mapper/LayerCachingMapperTest.cpp \
+    compositor/mapper/LeftoverLayerMapperTest.cpp \
     compositor/mapper/UnderlayMapperTest.cpp \
     compositor/CompositorTestUtils.h \
     compositor/CompositorTestUtils.cpp \
