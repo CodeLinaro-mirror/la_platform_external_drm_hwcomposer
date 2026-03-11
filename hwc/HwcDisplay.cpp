@@ -562,10 +562,13 @@ void HwcDisplay::SetVsyncCallbacksEnabled(bool enabled) {
   vsync_worker_->SetTimestampCallback(std::move(callback));
 }
 
-HwcDisplay::Error HwcDisplay::SetDisplayEnabled(bool enabled) {
+HwcDisplay::Error HwcDisplay::SetPowerMode(PowerMode mode) {
   if (IsInHeadlessMode()) {
     return HwcDisplay::Error::kNone;
   }
+
+  bool enabled = mode != PowerMode::kOff;
+
   // If the request is to enable the display, the CRTC is not active, and an
   // active config is set, try to reconfigure the pipeline with SetConfig.
   if (enabled) {

@@ -81,6 +81,14 @@ class HwcDisplay : public ICompositorDisplay {
 
   enum DisplayType { kInternal, kExternal, kVirtual };
 
+  enum class PowerMode {
+    kOff,
+    kDoze,
+    kDozeSuspend,
+    kSuspend,
+    kOn,
+  };
+
   HwcDisplay(DisplayHandle handle, bool is_virtual, DrmHwc *hwc);
   HwcDisplay(const HwcDisplay &) = delete;
   ~HwcDisplay() override;
@@ -171,9 +179,6 @@ class HwcDisplay : public ICompositorDisplay {
 
   // Enable or disable vsync callbacks.
   void SetVsyncCallbacksEnabled(bool enabled);
-
-  // Enable or disable the display.
-  HwcDisplay::Error SetDisplayEnabled(bool enabled);
 
   bool GetDisplayEnabled() const;
 
@@ -278,6 +283,9 @@ class HwcDisplay : public ICompositorDisplay {
   bool NeedsClientLayerUpdate() const;
 
   std::pair<uint32_t, uint32_t> GetSize() const override;
+
+  // Enable or disable the display.
+  HwcDisplay::Error SetPowerMode(PowerMode mode);
 
  private:
   // Create AtomicCommitArgs to commit at the next vsync. Returns nullopt if
