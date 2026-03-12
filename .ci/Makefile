@@ -41,6 +41,7 @@ TIDY_CHECKS_FINE := *                                   \
     -google-readability-todo                            \
     -hicpp-vararg                                       \
     -hicpp-signed-bitwise                               \
+    -hicpp-special-member-functions                     \
     -misc-const-correctness                             \
     -readability-identifier-length                      \
     -misc-include-cleaner                               \
