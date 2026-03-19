@@ -61,7 +61,7 @@ auto DrmDevice::CreateInstance(std::string const &path,
 
 DrmDevice::DrmDevice(ResourceManager *res_man, uint32_t index)
     : index_in_dev_array_(index), res_man_(res_man) {
-  drm_fb_importer_ = std::make_unique<DrmFbImporter>(*this);
+  drm_fb_importer_ = std::make_unique<DrmFbCachedImporter>(*this);
 }
 
 // NOLINTBEGIN(readability-function-cognitive-complexity)
@@ -185,7 +185,7 @@ auto DrmDevice::Init(const char *path) -> int {
 }
 // NOLINTEND(readability-function-cognitive-complexity)
 
-auto DrmDevice::RegisterUserPropertyBlob(void *data, size_t length) const
+auto DrmDevice::RegisterUserPropertyBlob(const void *data, size_t length) const
     -> DrmModeUserPropertyBlobUnique {
   struct drm_mode_create_blob create_blob {};
   create_blob.length = length;
