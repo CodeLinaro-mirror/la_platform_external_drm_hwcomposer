@@ -77,7 +77,7 @@ class DrmDevice {
 
   std::string GetName() const;
 
-  auto RegisterUserPropertyBlob(void *data, size_t length) const
+  auto RegisterUserPropertyBlob(const void *data, size_t length) const
       -> DrmModeUserPropertyBlobUnique;
 
   auto HasAddFb2ModifiersSupport() const {
@@ -87,7 +87,7 @@ class DrmDevice {
   auto CreateBufferForModeset(uint32_t width, uint32_t height)
       -> std::optional<BufferInfo>;
 
-  auto &GetDrmFbImporter() {
+  auto &GetDefaultFbImporter() {
     return *drm_fb_importer_;
   }
 
