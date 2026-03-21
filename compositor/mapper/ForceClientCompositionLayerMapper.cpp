@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 The Android Open Source Project
+ * Copyright (C) 2026 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,23 +13,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#include "compositor/mapper/ForceClientCompositionLayerMapper.h"
 
-#pragma once
-
-#include <optional>
-#include <string>
+#include "compositor/LayerData.h"
 
 namespace android::drm_hwcomposer {
+std::vector<LayerMapping> ForceClientCompositionLayerMapper::AssignLayers(
+    const std::vector<LayerMapping>& layers,
+    const MappingValidator& /*validator*/) const {
+  std::vector<LayerMapping> new_layers = layers;
+  for (auto& layer : new_layers) {
+    layer.composition_type = CompositionType::kClient;
+  }
 
-class BacklightController {
- public:
-  static auto HlgOetf(float linear) -> float;
-  virtual bool SetBrightness(std::optional<float> brightness) = 0;
-  virtual auto GetName() const -> std::string = 0;
-  virtual ~BacklightController() = default;
-
-  static const float kMin;
-  static const float kMax;
-};
-
-}  // namespace android::drm_hwcomposer
+  return new_layers;
+}
+};  // namespace android::drm_hwcomposer

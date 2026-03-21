@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 The Android Open Source Project
+ * Copyright (C) 2026 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,23 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 #pragma once
 
-#include <optional>
-#include <string>
+#include <vector>
+
+#include "compositor/mapper/LayerMapper.h"
 
 namespace android::drm_hwcomposer {
 
-class BacklightController {
+// Forcefully convert all Layers' composition types to kClient, regardless of
+// the current mapping.
+class ForceClientCompositionLayerMapper : public LayerMapper {
  public:
-  static auto HlgOetf(float linear) -> float;
-  virtual bool SetBrightness(std::optional<float> brightness) = 0;
-  virtual auto GetName() const -> std::string = 0;
-  virtual ~BacklightController() = default;
-
-  static const float kMin;
-  static const float kMax;
+  std::vector<LayerMapping> AssignLayers(
+      const std::vector<LayerMapping>& layers,
+      const MappingValidator& validator) const override;
 };
-
 }  // namespace android::drm_hwcomposer
