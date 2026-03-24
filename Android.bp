@@ -73,6 +73,7 @@ cc_defaults {
 
     cppflags: [
         "-DHAS_LIBDISPLAY_INFO",
+        "-DLOG_TAG=\"drmhwc\"",
     ],
 
     cpp_std: "gnu++17",
@@ -128,8 +129,10 @@ filegroup {
         "stats/Stats.cpp",
         "stats/StatsPoller.cpp",
 
+        "utils/BacklightController.cpp",
         "utils/ColorUtil.cpp",
         "utils/LibdisplayEdidWrapper.cpp",
+        "utils/SysfsBacklightController.cpp",
         "utils/fd.cpp",
         "utils/properties.cpp",
     ],
@@ -198,6 +201,7 @@ cc_binary {
 
     defaults: [
         "android.hardware.composer.hwc3-service.drm.defaults",
+        "sdm_backend",
     ],
 
     srcs: ["bufferinfo/legacy/BufferInfoLibdrm.cpp"],
@@ -314,6 +318,10 @@ cc_test_host {
         "stats/Stats.cpp",
         "stats/StatsTest.cpp",
         "tests/host_test_stubs.cpp",
+        "utils/BacklightController.cpp",
+        "utils/BacklightControllerTest.cpp",
+        "utils/SysfsBacklightController.cpp",
+        "utils/SysfsBacklightControllerTest.cpp",
         "utils/fd.cpp",
         "utils/properties.cpp",
     ],
@@ -344,9 +352,26 @@ soong_config_module_type {
     ],
 }
 
+soong_config_module_type {
+    name: "drm_hwcomposer_backend_defaults",
+    module_type: "cc_defaults",
+    config_namespace: "DRMHWC",
+    variables: ["backend"],
+    properties: [
+        "srcs",
+        "shared_libs",
+        "header_libs",
+    ],
+}
+
 soong_config_string_variable {
     name: "atom_reporter",
     values: ["desktop"],
+}
+
+soong_config_string_variable {
+    name: "backend",
+    values: ["sdm"],
 }
 
 drm_hwcomposer_atom_reporter_library {
