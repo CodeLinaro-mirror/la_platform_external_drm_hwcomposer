@@ -26,7 +26,6 @@
 #include <ui/GraphicTypes.h>
 #include <utils/Trace.h>
 
-#include "backend/BackendManager.h"
 #include "compositor/CompositionPlanner.h"
 #include "compositor/DisplayInfo.h"
 #include "compositor/FlatteningController.h"
@@ -182,7 +181,6 @@ void HwcDisplay::SetOutputType(OutputType hdr_output_type) {
       SetHdrOutputMetadata(ui::Hdr::HDR10);
       min_bpc_ = 8;
       colorspace_ = Colorspace::kBt2020Rgb;
-      transfer_func_ = TransferFunction::kPq;
       break;
     }
     case OutputType::kSystem: {
@@ -192,7 +190,6 @@ void HwcDisplay::SetOutputType(OutputType hdr_output_type) {
         SetHdrOutputMetadata(hdr_types.front());
         min_bpc_ = 8;
         colorspace_ = Colorspace::kBt2020Rgb;
-        transfer_func_ = TransferFunction::kPq;
         break;
       }
       [[fallthrough]];
@@ -205,7 +202,6 @@ void HwcDisplay::SetOutputType(OutputType hdr_output_type) {
       hdr_metadata_ = std::make_shared<hdr_output_metadata>();
       min_bpc_ = 6;
       colorspace_ = Colorspace::kDefault;
-      transfer_func_ = TransferFunction::kUnknown;
   }
 }
 
@@ -223,11 +219,9 @@ HwcDisplay::ConfigError HwcDisplay::SetConfig(ConfigId config) {
   }
 
   ALOGV("Create modeset commit.");
-  // Allow HDR only on external displays
-  if (hwc_->GetResMan().UseColorPipeline() &&
-      GetPipe().connector->Get()->IsExternal()) {
+  // Disable HDR for internal panels due to b/404620167
+  if (GetPipe().connector->Get()->IsExternal())
     SetOutputType(new_config->output_type);
-  }
 
   // Create atomic commit args for a blocking modeset. There's no need to do a
   // separate test commit, since the commit does a test anyways.
@@ -277,7 +271,6 @@ auto HwcDisplay::QueueConfig(ConfigId config, int64_t desired_time,
 
   // Allow HDR only on external displays
   if (current_config && !IsInHeadlessMode() &&
-      hwc_->GetResMan().UseColorPipeline() &&
       GetPipe().connector->Get()->IsExternal()) {
     SetOutputType(current_config->output_type);
   }
@@ -441,7 +434,6 @@ auto HwcDisplay::PresentStagedComposition(
         ++stats.used_plane_count;
         break;
       case CompositionType::kSolidColor:
-        break;
       case CompositionType::kInvalid:
         ALOGE("Invalid layer type: %d",
               static_cast<int>(layer.GetValidatedType()));
@@ -569,60 +561,22 @@ void HwcDisplay::SetVsyncCallbacksEnabled(bool enabled) {
   vsync_worker_->SetTimestampCallback(std::move(callback));
 }
 
-bool HwcDisplay::IsDozeSupported() const {
+bool HwcDisplay::SetDisplayEnabled(bool enabled) {
   if (IsInHeadlessMode()) {
-    return false;
+    return true;
   }
-  return BackendManager::GetInstance().IsDozeSupported(
-      GetPipe().device->GetName());
-}
-
-bool HwcDisplay::IsDozeSuspendSupported() const {
-  if (IsInHeadlessMode()) {
-    return false;
-  }
-  return BackendManager::GetInstance().IsDozeSuspendSupported(
-      GetPipe().device->GetName());
-}
-
-bool HwcDisplay::IsSuspendSupported() const {
-  if (IsInHeadlessMode()) {
-    return false;
-  }
-  return BackendManager::GetInstance().IsSuspendSupported(
-      GetPipe().device->GetName());
-}
-
-HwcDisplay::Error HwcDisplay::SetPowerMode(PowerMode mode) {
-  // Check support before headless because VTS expects headless mode to not
-  // support these.
-  if (mode == PowerMode::kDoze && !IsDozeSupported()) {
-    return HwcDisplay::Error::kUnsupported;
-  }
-  if (mode == PowerMode::kDozeSuspend && !IsDozeSuspendSupported()) {
-    return HwcDisplay::Error::kUnsupported;
-  }
-  if (mode == PowerMode::kSuspend && !IsSuspendSupported()) {
-    return HwcDisplay::Error::kUnsupported;
-  }
-
-  if (IsInHeadlessMode()) {
-    return HwcDisplay::Error::kNone;
-  }
-  bool enabled = mode != PowerMode::kOff;
-
   // If the request is to enable the display, the CRTC is not active, and an
   // active config is set, try to reconfigure the pipeline with SetConfig.
   if (enabled) {
     if (GetPipe().atomic_commit_sink->IsActive()) {
-      return HwcDisplay::Error::kNone;
+      return true;
     }
 
     const HwcDisplayConfig *last_requested_config = GetLastRequestedConfig();
     if (last_requested_config) {
       if (SetConfig(last_requested_config->id) != ConfigError::kNone) {
         ALOGE("Failed to set config to re-enable display after teardown.");
-        return HwcDisplay::Error::kBadParameter;
+        return false;
       }
     }
   }
@@ -630,7 +584,7 @@ HwcDisplay::Error HwcDisplay::SetPowerMode(PowerMode mode) {
   // Set the display active state.
   AtomicCommitArgs a_args{};
   a_args.blocking = true;
-  a_args.power_mode = mode;
+  a_args.active = enabled;
   if (!enabled) {
     a_args.teardown = true;
   }
@@ -640,10 +594,7 @@ HwcDisplay::Error HwcDisplay::SetPowerMode(PowerMode mode) {
            enabled ? "enabled" : "disabled");
   // If setting to |enabled|, log the error and return true. The next frame
   // update will try to set it to active again.
-  if (!commit_success && !enabled) {
-    return HwcDisplay::Error::kBadParameter;
-  }
-  return HwcDisplay::Error::kNone;
+  return enabled || commit_success;
 }
 
 bool HwcDisplay::GetDisplayEnabled() const {
@@ -677,7 +628,7 @@ void HwcDisplay::Deinit() {
     a_args.composition = std::make_shared<LayerToPlaneJoiningPlan>();
     ExecuteAtomicCommit(a_args);
     a_args.composition = {};
-    a_args.power_mode = PowerMode::kOff;
+    a_args.active = false;
     a_args.teardown = true;
     ExecuteAtomicCommit(a_args);
 
@@ -804,30 +755,25 @@ auto HwcDisplay::DestroyLayer(ILayerId layer_id) -> bool {
 }
 
 auto HwcDisplay::GetColorModes() -> std::vector<ColorMode> {
-  // Allow HDR only on external displays
-  if (IsInHeadlessMode() || !hwc_->GetResMan().UseColorPipeline() ||
-      !GetPipe().connector->Get()->IsExternal()) {
+  if (IsInHeadlessMode() || !hwc_->GetResMan().UseColorPipeline()) {
     return {ColorMode::kNative};
   }
 
   std::vector<ColorMode> modes;
   GetEdid()->GetColorModes(modes);
 
-  // TODO(b/448564475): Remove once eDP correctly advertises DCI-P3 via EDID
-  if (GetPipe().connector->Get()->IsInternal() &&
-      hwc_->GetResMan().ForceP3Support()) {
-    const bool already_has_p3 = std::find_if(modes.begin(), modes.end(),
-                                             [](ColorMode m) {
-                                               return m == ColorMode::kDciP3 ||
-                                                      m ==
-                                                          ColorMode::kDisplayP3;
-                                             }) != modes.end();
-
-    if (!already_has_p3) {
-      modes.emplace_back(ColorMode::kDciP3);
-      modes.emplace_back(ColorMode::kDisplayP3);
-    }
-  }
+  // disable non-P3 color modes until HDR tone-mapping is supported
+  modes.erase(std::remove_if(modes.begin(), modes.end(),
+                             [](ColorMode m) {
+                               switch (m) {
+                                 case ColorMode::kDciP3:
+                                 case ColorMode::kDisplayP3:
+                                   return false;
+                                 default:
+                                   return true;
+                               }
+                             }),
+              modes.end());
 
   if (modes.empty()) {
     modes.emplace_back(ColorMode::kNative);
@@ -881,11 +827,11 @@ auto HwcDisplay::StartHdcp() -> bool {
    */
   if (hdcpcon_ == nullptr) {
     ALOGE(
-        "HDCP requested, but HDCP properties not available on that "
+        "Client requested HDCP, but HDCP properties not available on that "
         "display");
     return false;
   }
-  ALOGI("HDCP requested to start");
+  ALOGI("Client requested to start HDCP");
   hdcpcon_->Start();
   return true;
 }
@@ -923,7 +869,6 @@ AtomicCommitArgs HwcDisplay::CreateModesetCommit(
   args.color_matrix = color_matrix_;
   args.content_type = content_type_;
   args.colorspace = colorspace_;
-  args.transfer_func = transfer_func_;
   args.hdr_metadata = hdr_metadata_;
   args.min_bpc = min_bpc_;
 
@@ -937,7 +882,7 @@ AtomicCommitArgs HwcDisplay::CreateModesetCommit(
   }
 
   args.display_mode = config->mode;
-  args.power_mode = PowerMode::kOn;
+  args.active = true;
   args.composition = LayerToPlaneJoiningPlan::
       CreateLayerToPlaneJoiningPlan(GetPipe(), std::move(composition_layers));
   ALOGW_IF(!args.composition, "No composition for blocking modeset");
@@ -950,10 +895,9 @@ std::optional<AtomicCommitResult> HwcDisplay::ExecuteAtomicCommit(
   auto commit_result = GetPipe().atomic_commit_sink->ExecuteAtomicCommit(
       a_args);
 
-  // Log successful modesets (seamless and full), including doze, and teardowns.
-  if (a_args.display_mode || a_args.power_mode || a_args.teardown) {
-    const bool blocking = a_args.blocking || a_args.power_mode.has_value() ||
-                          a_args.teardown;
+  // Log successful modesets (seamless and full), including teardowns.
+  if (a_args.display_mode || a_args.teardown) {
+    const bool blocking = a_args.blocking || a_args.active || a_args.teardown;
     LogConfigResult(blocking, commit_result.has_value());
   }
 
@@ -1048,7 +992,6 @@ std::optional<AtomicCommitArgs> HwcDisplay::CreateFrameUpdateCommit(
   a_args.color_matrix = color_matrix_;
   a_args.content_type = content_type_;
   a_args.colorspace = colorspace_;
-  a_args.transfer_func = transfer_func_;
   a_args.hdr_metadata = hdr_metadata_;
   a_args.min_bpc = min_bpc_;
 
@@ -1156,8 +1099,6 @@ HwcDisplay::CreateLayerToPlaneJoiningPlan(
         // correctness of the displayed frame.
         break;
       case CompositionType::kSolidColor:
-        // Skip solid color layers
-        continue;
       case CompositionType::kInvalid:
         ALOGE("Invalid layer type: %d", static_cast<int>(type));
         continue;
@@ -1275,10 +1216,8 @@ bool HwcDisplay::CtmByGpu() const {
   if (color_transform_is_identity_)
     return false;
 
-  if (hwc_->GetResMan().UseColorPipeline())
-    return false;
-
-  if (GetPipe().crtc->Get()->GetCtmProperty() && !ctm_has_offset_)
+  if (!hwc_->GetResMan().UseColorPipeline() &&
+      GetPipe().crtc->Get()->GetCtmProperty() && !ctm_has_offset_)
     return false;
 
   if (hwc_->GetResMan().GetCtmHandling() == CtmHandling::kDrmOrIgnore)
@@ -1451,7 +1390,8 @@ std::optional<LayerData> HwcDisplay::GetModesetLayerData(
   modeset_layer->SetLayerProperties({
       .buffer = std::optional<HwcLayer::Buffer>({
           .bi = modeset_buffer.value(),
-          .fb = GetPipe().importer->GetOrCreateFbId(&modeset_buffer.value()),
+          .fb = GetPipe().device->GetDrmFbImporter().GetOrCreateFbId(
+              &modeset_buffer.value()),
           .fence = {},
       }),
       .blend_mode = BufferBlendMode::kNone,

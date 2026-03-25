@@ -47,7 +47,6 @@ class HwcLayer {
     std::optional<BufferColorEncoding> color_encoding;
     std::optional<BufferSampleRange> sample_range;
     std::optional<Colorspace> colorspace;
-    std::optional<TransferFunction> transfer_func;
     std::optional<CompositionType> composition_type;
     std::optional<DstRectInfo> display_frame;
     std::optional<float> alpha;
@@ -133,7 +132,6 @@ class HwcLayer {
   BufferSampleRange sample_range_{};
   BufferBlendMode blend_mode_{};
   Colorspace colorspace_{};
-  TransferFunction transfer_func_{};
 
   bool prior_buffer_scanout_flag_{};
 

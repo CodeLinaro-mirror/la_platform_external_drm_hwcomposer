@@ -17,7 +17,6 @@
 #include "DrmDisplayPipeline.h"
 
 #include "compositor/CompositionPlanner.h"
-#include "drm/DrmAtomicCommitSink.h"
 #include "drm/DrmConnector.h"
 #include "drm/DrmCrtc.h"
 #include "drm/DrmDevice.h"
@@ -35,7 +34,6 @@ static auto TryCreatePipeline(DrmDevice &dev, DrmConnector &connector,
 
   auto pipe = std::make_unique<DrmDisplayPipeline>();
   pipe->device = &dev;
-  pipe->importer = &dev.GetDefaultFbImporter();
 
   pipe->connector = connector.BindPipeline(pipe.get());
   pipe->encoder = enc.BindPipeline(pipe.get());

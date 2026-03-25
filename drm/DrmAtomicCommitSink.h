@@ -22,10 +22,8 @@
 #include <vector>
 
 #include "compositor/DisplayInfo.h"
-#include "compositor/LayerData.h"
 #include "drm/DrmMode.h"
 #include "drm/drm_mode.h"
-#include "hwc/HwcDisplay.h"
 #include "utils/fd.h"
 
 namespace android::drm_hwcomposer {
@@ -34,7 +32,6 @@ class IDrmFbIdHandle;
 struct LayerToPlaneJoiningPlan;
 
 enum class Colorspace;
-enum class TransferFunction;
 enum class ContentProtection;
 enum class ContentType;
 enum class HdcpContentType;
@@ -46,11 +43,10 @@ struct AtomicCommitArgs {
   bool teardown = false;
   bool seamless = false;
   std::optional<DrmMode> display_mode;
-  std::optional<HwcDisplay::PowerMode> power_mode;
+  std::optional<bool> active;
   std::shared_ptr<LayerToPlaneJoiningPlan> composition;
   std::shared_ptr<HalColorTransforMatrix> color_matrix;
   std::optional<Colorspace> colorspace;
-  std::optional<TransferFunction> transfer_func;
   std::optional<ContentType> content_type;
   std::shared_ptr<hdr_output_metadata> hdr_metadata;
   std::optional<HdcpContentType> hdcp_content_type;
@@ -62,7 +58,7 @@ struct AtomicCommitArgs {
 
   /* helpers */
   auto HasInputs() const -> bool {
-    return display_mode || power_mode || composition;
+    return display_mode || active || composition;
   }
 };
 

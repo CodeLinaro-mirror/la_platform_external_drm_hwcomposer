@@ -69,10 +69,6 @@ class DrmColorOp : public PipelineBindable<DrmColorOp> {
     return data_;
   }
 
-  auto &GetSizeProperty() const {
-    return size_;
-  }
-
   // Convenience method for setting the BYPASS property
   bool SetBypassValue(drmModeAtomicReq &pset, bool bypass) {
     int err = 0;
@@ -101,10 +97,9 @@ class DrmColorOp : public PipelineBindable<DrmColorOp> {
   DrmProperty type_;
   DrmProperty next_;
   DrmProperty bypass_;
-  DrmProperty data_;
 
   // Optional property
-  DrmProperty size_;
+  DrmProperty data_;
 };
 
 }  // namespace android::drm_hwcomposer

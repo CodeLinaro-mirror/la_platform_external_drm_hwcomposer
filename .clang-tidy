@@ -3,8 +3,6 @@
 FormatStyle: google
 
 CheckOptions:
-  - key:             cppcoreguidelines-special-member-functions.AllowSoleDefaultDtor
-    value:           true
   - key:             readability-identifier-naming.ClassCase
     value:           CamelCase
   - key:             readability-identifier-naming.ClassMemberCase

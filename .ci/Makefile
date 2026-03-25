@@ -41,7 +41,6 @@ TIDY_CHECKS_FINE := *                                   \
     -google-readability-todo                            \
     -hicpp-vararg                                       \
     -hicpp-signed-bitwise                               \
-    -hicpp-special-member-functions                     \
     -misc-const-correctness                             \
     -readability-identifier-length                      \
     -misc-include-cleaner                               \
@@ -101,7 +100,6 @@ SKIP_FILES := \
     compositor/mapper/CursorLayerMapperTest.cpp \
     compositor/mapper/ForceClientCompositionLayerMapperTest.cpp \
     compositor/mapper/LayerCachingMapperTest.cpp \
-    compositor/mapper/LeftoverLayerMapperTest.cpp \
     compositor/mapper/UnderlayMapperTest.cpp \
     compositor/CompositorTestUtils.h \
     compositor/CompositorTestUtils.cpp \

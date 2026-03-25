@@ -65,12 +65,6 @@ inline constexpr uint32_t kPrimaryDisplay = 0;
 // NOLINTNEXTLINE
 class HwcDisplay : public ICompositorDisplay {
  public:
-  enum class Error {
-    kNone,
-    kBadParameter,
-    kUnsupported,
-  };
-
   enum ConfigError {
     kNone,
     kBadConfig,
@@ -80,14 +74,6 @@ class HwcDisplay : public ICompositorDisplay {
   };
 
   enum DisplayType { kInternal, kExternal, kVirtual };
-
-  enum class PowerMode {
-    kOff,
-    kDoze,
-    kDozeSuspend,
-    kSuspend,
-    kOn,
-  };
 
   HwcDisplay(DisplayHandle handle, bool is_virtual, DrmHwc *hwc);
   HwcDisplay(const HwcDisplay &) = delete;
@@ -180,6 +166,9 @@ class HwcDisplay : public ICompositorDisplay {
   // Enable or disable vsync callbacks.
   void SetVsyncCallbacksEnabled(bool enabled);
 
+  // Enable or disable the display.
+  bool SetDisplayEnabled(bool enabled);
+
   bool GetDisplayEnabled() const;
 
   auto GetFrontendPrivateData() -> std::shared_ptr<FrontendDisplayBase> {
@@ -265,10 +254,6 @@ class HwcDisplay : public ICompositorDisplay {
     return client_layer_;
   }
 
-  auto GetClientLayer() const -> const HwcLayer & {
-    return client_layer_;
-  }
-
   auto &GetWritebackLayer() {
     return writeback_layer_;
   }
@@ -284,14 +269,7 @@ class HwcDisplay : public ICompositorDisplay {
 
   std::pair<uint32_t, uint32_t> GetSize() const override;
 
-  // Enable or disable the display.
-  HwcDisplay::Error SetPowerMode(PowerMode mode);
-
  private:
-  bool IsDozeSupported() const;
-  bool IsDozeSuspendSupported() const;
-  bool IsSuspendSupported() const;
-
   // Create AtomicCommitArgs to commit at the next vsync. Returns nullopt if
   // such AtomicCommitArgs cannot be created due to lack of drm resources or
   // invalid HwcDisplay or HwcLayer state.
@@ -378,7 +356,6 @@ class HwcDisplay : public ICompositorDisplay {
   bool ctm_has_offset_ = false;
   ContentType content_type_ = ContentType::kNoData;
   Colorspace colorspace_{};
-  TransferFunction transfer_func_{};
   int32_t min_bpc_{};
   std::shared_ptr<hdr_output_metadata> hdr_metadata_;
   // Most recent result of ValidateStagedComposition. Must be kept alive until
