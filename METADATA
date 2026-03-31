@@ -8,12 +8,12 @@ third_party {
   license_type: NOTICE
   last_upgrade_date {
     year: 2026
-    month: 1
-    day: 30
+    month: 3
+    day: 4
   }
   identifier {
     type: "Git"
     value: "https://gitlab.freedesktop.org/drm-hwcomposer/drm-hwcomposer"
-    version: "de767a04a34ab8d80b0b4bf24be420377bcda5c5"
+    version: "ef791b96b422fd7ced9964b55943eee1c85f7ec3"
   }
 }

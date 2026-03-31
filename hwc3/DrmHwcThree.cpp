@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "drmhwc"
-
 #include "DrmHwcThree.h"
 
 #include <cinttypes>
@@ -124,6 +122,15 @@ void DrmHwcThree::SendHdcpLevelsChangedEventToClient(
   }
   composer_callback_->onHdcpLevelsChanged(static_cast<int64_t>(display_handle),
                                           hdcplevel);
+}
+
+void DrmHwcThree::NotifyHdcpErrorToClient(
+    ::android::drm_hwcomposer::DisplayHandle display_handle) {
+  constexpr drm::HdcpLevels kErrorHdcp = {
+      .connectedLevel = drm::HdcpLevel::HDCP_UNKNOWN,
+      .maxLevel = drm::HdcpLevel::HDCP_UNKNOWN};
+  composer_callback_->onHdcpLevelsChanged(static_cast<int64_t>(display_handle),
+                                          kErrorHdcp);
 }
 
 auto DrmHwcThree::GetMustValidateDisplay(
