@@ -88,6 +88,7 @@ filegroup {
         "compositor/mapper/ForceClientCompositionLayerMapper.cpp",
         "compositor/mapper/LayerCachingMapper.cpp",
         "compositor/mapper/LeftoverLayerMapper.cpp",
+        "compositor/mapper/MapperUtils.cpp",
         "compositor/mapper/UnderlayMapper.cpp",
 
         "drm/DrmAtomicCommitSink.cpp",
@@ -305,6 +306,7 @@ cc_test_host {
         "compositor/mapper/LayerCachingMapperTest.cpp",
         "compositor/mapper/LeftoverLayerMapper.cpp",
         "compositor/mapper/LeftoverLayerMapperTest.cpp",
+        "compositor/mapper/MapperUtils.cpp",
         "compositor/mapper/UnderlayMapper.cpp",
         "compositor/mapper/UnderlayMapperTest.cpp",
         "drm/DrmColorOp.cpp",

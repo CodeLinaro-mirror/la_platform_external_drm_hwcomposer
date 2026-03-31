@@ -25,6 +25,7 @@ src_common = files(
     'compositor/mapper/ForceClientCompositionLayerMapper.cpp',
     'compositor/mapper/LayerCachingMapper.cpp',
     'compositor/mapper/LeftoverLayerMapper.cpp',
+    'compositor/mapper/MapperUtils.cpp',
     'compositor/mapper/UnderlayMapper.cpp',
     'hwc/HwcDisplayConfigs.cpp',
     'hwc/HwcDisplay.cpp',
