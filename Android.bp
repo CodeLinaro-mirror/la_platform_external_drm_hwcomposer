@@ -79,6 +79,7 @@ filegroup {
 
         "compositor/CompositionPlanner.cpp",
         "compositor/FlatteningController.cpp",
+        "compositor/FrameTimeHistory.cpp",
         "compositor/GenericCompositionPlanner.cpp",
         "compositor/GenericLayerMapperCompositionPlanner.cpp",
         "compositor/HdcpController.cpp",
@@ -292,6 +293,8 @@ cc_test_host {
         "compositor/FlatteningController.cpp",
         "compositor/FlatteningControllerTests.cpp",
         "compositor/FlatteningEventAtomReporter.cpp",
+        "compositor/FrameTimeHistory.cpp",
+        "compositor/FrameTimeHistoryTest.cpp",
         "compositor/GenericLayerMapperCompositionPlanner.cpp",
         "compositor/GenericLayerMapperCompositionPlannerTest.cpp",
         "compositor/mapper/CursorLayerMapper.cpp",

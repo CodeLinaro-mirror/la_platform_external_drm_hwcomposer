@@ -16,6 +16,7 @@ src_common = files(
     'compositor/CompositionPlanner.cpp',
     'compositor/FlatteningController.cpp',
     'compositor/FlatteningEventAtomReporter.cpp',
+    'compositor/FrameTimeHistory.cpp',
     'compositor/GenericCompositionPlanner.cpp',
     'compositor/GenericLayerMapperCompositionPlanner.cpp',
     'compositor/HdcpController.cpp',
