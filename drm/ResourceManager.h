@@ -21,6 +21,7 @@
 #include <memory>
 #include <mutex>
 #include <set>
+#include <vector>
 
 namespace android::drm_hwcomposer {
 
@@ -68,6 +69,9 @@ class ResourceManager {
     return color_pipeline_enabled_;
   }
 
+  bool ForceP3Support() const {
+    return force_p3_support_;
+  }
   auto &GetMainLock() {
     return main_lock_;
   }
@@ -81,6 +85,8 @@ class ResourceManager {
  private:
   auto GetOrderedConnectors() -> std::vector<DrmConnector *>;
   void UpdateFrontendDisplays();
+  void DetachStalePipelines(
+      const std::vector<std::unique_ptr<DrmConnector>> &stale_connectors);
   void DetachAllFrontendDisplays();
 
   std::vector<std::unique_ptr<DrmDevice>> drms_;
@@ -90,6 +96,7 @@ class ResourceManager {
   bool scale_with_gpu_{};
   CtmHandling ctm_handling_{};
   bool color_pipeline_enabled_{};
+  bool force_p3_support_{};
 
   std::shared_ptr<UEventListener> uevent_listener_;
 

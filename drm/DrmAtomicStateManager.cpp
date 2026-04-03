@@ -102,7 +102,7 @@ std::optional<AtomicCommitResult> DrmAtomicStateManager::CommitFrame(
   // NOLINTNEXTLINE(misc-const-correctness)
   ATRACE_CALL();
 
-  // Clear args.active if it's a no-op.
+  // Clear args.power_mode if it's a no-op.
   CheckDoubleSettingState(args);
 
   if (!args.HasInputs()) {
@@ -111,9 +111,9 @@ std::optional<AtomicCommitResult> DrmAtomicStateManager::CommitFrame(
   }
 
   if (!committed_frame_state_.crtc_active_state) {
-    // Force args.active if the display is not active and there are other
+    // Force args.power_mode if the display is not active and there are other
     // things to commit.
-    args.active = true;
+    args.power_mode = HwcDisplay::PowerMode::kOn;
   }
 
   auto atomic_request = GetAtomicModeReqForArgs(args);
@@ -141,7 +141,7 @@ std::optional<AtomicCommitResult> DrmAtomicStateManager::CommitFrame(
 
   WaitLastFrame();
 
-  bool nonblock = !args.blocking && !args.active;
+  bool nonblock = !args.blocking && !args.power_mode;
 
   flags |= nonblock ? DRM_MODE_ATOMIC_NONBLOCK : 0U;
   int err = 0;
@@ -205,9 +205,12 @@ std::optional<AtomicCommitResult> DrmAtomicStateManager::CommitFrame(
 
 void DrmAtomicStateManager::CheckDoubleSettingState(
     AtomicCommitArgs &args) const {
-  if (args.active && *args.active == committed_frame_state_.crtc_active_state) {
-    /* Don't set the same state twice */
-    args.active.reset();
+  if (args.power_mode) {
+    bool is_active = *args.power_mode != HwcDisplay::PowerMode::kOff;
+    if (is_active == committed_frame_state_.crtc_active_state) {
+      /* Don't set the same state twice */
+      args.power_mode.reset();
+    }
   }
 }
 
@@ -260,19 +263,20 @@ bool DrmAtomicStateManager::SetOutputFence(AtomicRequest &request) {
 
 bool DrmAtomicStateManager::SetActiveIfNeeded(const AtomicCommitArgs &args,
                                               AtomicRequest &request) {
-  if (!args.active) {
+  if (!args.power_mode) {
     return true;
   }
   auto *crtc = pipe_->crtc->Get();
   auto *connector = pipe_->connector->Get();
-  request.new_frame_state.crtc_active_state = *args.active;
+  bool active = *args.power_mode != HwcDisplay::PowerMode::kOff;
+  request.new_frame_state.crtc_active_state = active;
   if (!crtc->GetActiveProperty().AtomicSet(*request.property_set,
-                                           *args.active ? 1 : 0) ||
+                                           active ? 1 : 0) ||
       !connector->GetCrtcIdProperty().AtomicSet(*request.property_set,
                                                 crtc->GetId())) {
     return false;
   }
-  if (!*args.active && args.teardown) {
+  if (!active && args.teardown) {
     if (!connector->GetCrtcIdProperty().AtomicSet(*request.property_set, 0) ||
         !crtc->GetModeProperty().AtomicSet(*request.property_set, 0)) {
       return false;
@@ -465,23 +469,45 @@ bool DrmAtomicStateManager::SetCompositionIfNeeded(const AtomicCommitArgs &args,
     }
     request.used_kms_objects.blobs.emplace_back(std::move(damage_blob));
 
-    if (pipe_->device->GetResMan().UseColorPipeline()) {
+    auto *drm = pipe_->device;
+    if (drm->GetResMan().UseColorPipeline() && plane->HasColorPipeline()) {
       std::shared_ptr<drm_color_ctm_3x4> drm_color_matrix = ColorUtil::
           GamutAdjustIfNeeded(layer.colorspace,
                               args.colorspace.value_or(Colorspace::kDefault),
                               args.color_matrix, color_transform_map_);
       DrmModeUserPropertyBlobUnique ctm_3x4_blob;
       if (drm_color_matrix) {
-        ctm_3x4_blob = pipe_->device
-                           ->RegisterUserPropertyBlob(drm_color_matrix.get(),
-                                                      sizeof(
-                                                          drm_color_ctm_3x4));
+        ctm_3x4_blob = drm->RegisterUserPropertyBlob(drm_color_matrix.get(),
+                                                     sizeof(drm_color_ctm_3x4));
       }
-      if (plane->AtomicSetColorPipeline(*request.property_set, ctm_3x4_blob) !=
-          0) {
+
+      const auto &[degamma_lut, gamma_lut] = ColorUtil::
+          Get1DLutsIfNeeded(layer.transfer_func,
+                            args.transfer_func.value_or(
+                                TransferFunction::kUnknown),
+                            plane->GetDegamma1DLutSize(),
+                            plane->GetGamma1DLutSize(), degamma_lut_1d_map_,
+                            gamma_lut_1d_map_);
+      DrmModeUserPropertyBlobUnique degamma_lut_blob;
+      DrmModeUserPropertyBlobUnique gamma_lut_blob;
+      if (!degamma_lut.empty()) {
+        degamma_lut_blob = drm->RegisterUserPropertyBlob(
+            degamma_lut.data(),
+            sizeof(drm_color_lut32) * plane->GetDegamma1DLutSize());
+      }
+      if (!gamma_lut.empty()) {
+        gamma_lut_blob = drm->RegisterUserPropertyBlob(
+            gamma_lut.data(),
+            sizeof(drm_color_lut32) * plane->GetGamma1DLutSize());
+      }
+      if (plane->AtomicSetColorPipeline(*request.property_set, ctm_3x4_blob,
+                                        degamma_lut_blob,
+                                        gamma_lut_blob) != 0) {
         return false;
       }
       request.used_kms_objects.blobs.emplace_back(std::move(ctm_3x4_blob));
+      request.used_kms_objects.blobs.emplace_back(std::move(gamma_lut_blob));
+      request.used_kms_objects.blobs.emplace_back(std::move(degamma_lut_blob));
     }
   }
 
