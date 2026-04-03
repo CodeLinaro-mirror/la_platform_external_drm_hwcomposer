@@ -3,8 +3,8 @@
 # Gerrit hook that runs on repo upload. Checks to ensure that the pre-upload hook
 # has been installed.
 
-cmd=$(git config hookcmd.check-non-public-commits.command)
-if [ -z "$cmd" ]; then
+cmd=$(git config hook.pre-push.command)
+if [[ "$cmd" != *"check-non-public-commits"* ]]; then
   echo "Please install hooks by running: hooks/install-hooks.sh"
   exit 1
 fi
