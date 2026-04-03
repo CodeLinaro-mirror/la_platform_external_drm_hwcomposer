@@ -35,6 +35,7 @@ namespace {
 // TODO: use layer data and display luminance to set this value
 constexpr double kHdrHeadroom = 1000.0 / 10000.0;
 const double kSignalMin = 0.0;
+const double kSignalMax = 1.0;
 
 uint64_t To3132FixPt(double in) {
   constexpr uint64_t kSignMask = (1ULL << 63);
@@ -133,17 +134,17 @@ const PqConstants kPq = {.n = 0.1593017578125,
 // NOLINTBEGIN(readability-magic-numbers)
 double EvaluatePqOetf(double l) {
   l *= kHdrHeadroom;
-  if (l <= 0.0)
-    return 0.0;
+  if (l <= kSignalMin)
+    return kSignalMin;
   double l1 = pow(l, kPq.n);
   double base = (kPq.c1 + (kPq.c2 * l1)) / (1.0 + (kPq.c3 * l1));
   return pow(base, kPq.m);
 }
 double EvaluatePqEotf(double e) {
-  if (e <= 0.0)
-    return 0.0;
+  if (e <= kSignalMin)
+    return kSignalMin;
   double em = pow(e, 1.0 / kPq.m);
-  double base = (std::max(em - kPq.c1, 0.0)) / (kPq.c2 - (kPq.c3 * em));
+  double base = (std::max(em - kPq.c1, kSignalMin)) / (kPq.c2 - (kPq.c3 * em));
   return pow(base, 1.0 / kPq.n) / kHdrHeadroom;
 }
 
@@ -198,7 +199,7 @@ double EvaluateGamma(double e, const TfConstants fn) {
 }
 TfConstants GetInverse(const TfConstants fn) noexcept {
   TfConstants inv{};
-  if (fn.a > 0.0 && fn.g > 0.0) {
+  if (fn.a > kSignalMin && fn.g > kSignalMin) {
     double a_to_the_g = pow(fn.a, fn.g);
     inv.a = 1.0 / a_to_the_g;
     inv.b = -fn.e / a_to_the_g;
@@ -222,7 +223,7 @@ const TfConstants kSrgb = {.g = 2.4,
 const TfConstants kInverseSrgb = GetInverse(kSrgb);
 
 uint32_t SignalToInt(double signal) {
-  signal = std::clamp(signal, 0.0, 1.0);
+  signal = std::clamp(signal, kSignalMin, kSignalMax);
   signal = std::round(signal * static_cast<double>(UINT32_MAX));
   return static_cast<uint32_t>(signal);
 }
@@ -256,10 +257,8 @@ Lut1D CreateLut(TransferFunction tf, uint32_t lut_size, bool is_degamma) {
 }
 // NOLINTEND(readability-magic-numbers)
 
-const Lut1D &Get1DLut(
-    TransferFunction tf, const size_t lut_size,
-    std::map<std::tuple<TransferFunction, size_t>, Lut1D> &lut_1d_map,
-    bool is_degamma) {
+const Lut1D &Get1DLut(TransferFunction tf, const size_t lut_size,
+                      Lut1DCache &lut_1d_map, bool is_degamma) {
   if (lut_size < 2) {
     ALOGE("Bad LUT size requested: %zu", lut_size);
     return kEmptyLut;
@@ -312,8 +311,7 @@ std::shared_ptr<drm_color_ctm_3x4> ColorUtil::ToColorTransform3x4(
 std::shared_ptr<drm_color_ctm_3x4> ColorUtil::GamutAdjustIfNeeded(
     Colorspace src_colorspace, Colorspace dest_colorspace,
     const std::shared_ptr<HalColorTransforMatrix> &color_transform_matrix,
-    std::map<std::tuple<Colorspace, Colorspace>, const mat3d>
-        &color_transform_cache) {
+    CscCache &color_transform_cache) {
   if (src_colorspace == dest_colorspace) {
     return ColorUtil::ToColorTransform3x4(color_transform_matrix);
   }
@@ -360,8 +358,7 @@ std::shared_ptr<drm_color_ctm_3x4> ColorUtil::GamutAdjustIfNeeded(
 std::tuple<const Lut1D &, const Lut1D &> ColorUtil::Get1DLutsIfNeeded(
     TransferFunction src_tf, TransferFunction dest_tf,
     const size_t degamma_lut_size, const size_t gamma_lut_size,
-    std::map<std::tuple<TransferFunction, size_t>, Lut1D> &degamma_lut_map,
-    std::map<std::tuple<TransferFunction, size_t>, Lut1D> &gamma_lut_map) {
+    Lut1DCache &degamma_lut_map, Lut1DCache &gamma_lut_map) {
   if (src_tf == dest_tf) {
     return std::tie(kEmptyLut, kEmptyLut);
   }
