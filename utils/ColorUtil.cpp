@@ -16,6 +16,7 @@
 
 #include "ColorUtil.h"
 
+#include <cmath>
 #include <memory>
 #include <tuple>
 
@@ -33,6 +34,7 @@ namespace {
 
 // TODO: use layer data and display luminance to set this value
 constexpr double kHdrHeadroom = 1000.0 / 10000.0;
+const double kSignalMin = 0.0;
 
 uint64_t To3132FixPt(double in) {
   constexpr uint64_t kSignMask = (1ULL << 63);
@@ -92,6 +94,8 @@ ColorGamut ToColorGamut(Colorspace colorspace) {
 bool NeedsTonemapping(TransferFunction tf) {
   switch (tf) {
     case TransferFunction::kPq:
+      [[fallthrough]];
+    case TransferFunction::kHlg:
       return true;
     case TransferFunction::kSrgb:
       [[fallthrough]];
@@ -141,6 +145,37 @@ double EvaluatePqEotf(double e) {
   double em = pow(e, 1.0 / kPq.m);
   double base = (std::max(em - kPq.c1, 0.0)) / (kPq.c2 - (kPq.c3 * em));
   return pow(base, 1.0 / kPq.n) / kHdrHeadroom;
+}
+
+/**
+ * Keep in sync with the Dataspace.aidl ARIB STD-B67 Hybrid Log Gamma (HLG)
+ * definition
+ *
+ * Transfer characteristic curve:
+ *  E = r * L^0.5                 for 0 <= L <= 1
+ *    = a * ln(L - b) + c         for 1 < L
+ *  a = 0.17883277
+ *  b = 0.28466892
+ *  c = 0.55991073
+ *  r = 0.5
+ *      L - luminance of image 0 <= L for HDR colorimetry. L = 1 corresponds
+ *          to reference white level of 100 cd/m2
+ *      E - corresponding electrical signal
+ * https://cs.android.com/android/platform/superproject/main/+/main:hardware/interfaces/graphics/common/aidl/android/hardware/graphics/common/Dataspace.aidl;l=348;drc=dbf753b896a75f3e712bc362a01763d731e49f57
+ */
+struct HlgConstants {
+  double a, b, c, r;
+};
+const HlgConstants kHlg = {.a = 0.17883277,
+                           .b = 0.28466892,
+                           .c = 0.55991073,
+                           .r = 0.5};
+double EvaluateHlgEotf(double e) {
+  if (e < kSignalMin)
+    return kSignalMin;
+  if (e <= kHlg.r)
+    return pow(e / kHlg.r, 2.0);
+  return exp((e - kHlg.c) / kHlg.a) + kHlg.b;
 }
 
 /**
@@ -201,6 +236,10 @@ Lut1D CreateLut(TransferFunction tf, uint32_t lut_size, bool is_degamma) {
       case TransferFunction::kPq:
         signal = is_degamma ? EvaluatePqEotf(signal) : EvaluatePqOetf(signal);
         break;
+      case TransferFunction::kHlg:
+        signal = is_degamma ? EvaluateHlgEotf(signal)
+                            : ColorUtil::EvaluateHlgOetf(signal);
+        break;
       case TransferFunction::kSrgb:
         signal = is_degamma ? EvaluateGamma(signal, kSrgb)
                             : EvaluateGamma(signal, kInverseSrgb);
@@ -234,6 +273,15 @@ const Lut1D &Get1DLut(
 }
 
 }  // namespace
+
+double ColorUtil::EvaluateHlgOetf(double l) {
+  const double gamma_threshold = 1.0;
+  if (l < kSignalMin)
+    return kSignalMin;
+  if (l <= gamma_threshold)
+    return kHlg.r * sqrt(l);
+  return (kHlg.a * log(l - kHlg.b)) + kHlg.c;
+}
 
 std::shared_ptr<drm_color_ctm> ColorUtil::ToColorTransform3x3(
     const std::shared_ptr<HalColorTransforMatrix> &color_transform_matrix) {

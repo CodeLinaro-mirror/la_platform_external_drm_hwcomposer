@@ -34,6 +34,13 @@ inline const Lut1D kEmptyLut = {};
 
 class ColorUtil {
  public:
+  /**
+   * Keep in sync with the Dataspace.aidl ARIB STD-B67 Hybrid Log Gamma (HLG)
+   * definition
+   * https://cs.android.com/android/platform/superproject/main/+/main:hardware/interfaces/graphics/common/aidl/android/hardware/graphics/common/Dataspace.aidl;l=348;drc=dbf753b896a75f3e712bc362a01763d731e49f57
+   */
+  static double EvaluateHlgOetf(double l);
+
   /* HAL provides a transposed 4x4 float type matrix:
    * | 0  1  2  3|
    * | 4  5  6  7|

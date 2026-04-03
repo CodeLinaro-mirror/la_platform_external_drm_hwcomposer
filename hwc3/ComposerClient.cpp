@@ -209,6 +209,8 @@ std::optional<TransferFunction> AidlToTransferFunc(
   switch (transfer_func) {
     case static_cast<int32_t>(common::Dataspace::TRANSFER_ST2084):
       return TransferFunction::kPq;
+    case static_cast<int32_t>(common::Dataspace::TRANSFER_HLG):
+      return TransferFunction::kHlg;
     case static_cast<int32_t>(common::Dataspace::TRANSFER_SRGB):
       return TransferFunction::kSrgb;
     case static_cast<int32_t>(common::Dataspace::UNKNOWN):
