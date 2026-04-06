@@ -965,6 +965,7 @@ AtomicCommitArgs HwcDisplay::CreateModesetCommit(
     const std::optional<LayerData> &modeset_layer) {
   AtomicCommitArgs args{};
 
+  args.brightness = brightness_;
   args.color_matrix = color_matrix_;
   args.content_type = content_type_;
   args.colorspace = colorspace_;
@@ -1099,6 +1100,7 @@ std::optional<AtomicCommitArgs> HwcDisplay::CreateFrameUpdateCommit(
   }
 
   AtomicCommitArgs a_args;
+  a_args.brightness = brightness_;
   a_args.color_matrix = color_matrix_;
   a_args.content_type = content_type_;
   a_args.colorspace = colorspace_;
@@ -1553,8 +1555,15 @@ auto HwcDisplay::SetBrightness(float brightness) -> bool {
   if (!HasBacklight()) {
     return false;
   }
-  return backlight_controller_->SetBrightness(
-      brightness >= 0.0F ? std::optional<float>(brightness) : std::nullopt);
+
+  if (brightness >= 0.0F && GetPipe().connector->Get()->IsInternal()) {
+    brightness_ = brightness;
+    return backlight_controller_->SetBrightness(
+        std::optional<float>(brightness));
+  }
+
+  brightness_ = -1.F;
+  return backlight_controller_->SetBrightness(std::nullopt);
 }
 
 void HwcDisplay::LogModesOnHotplug() {
