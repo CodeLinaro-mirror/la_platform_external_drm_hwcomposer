@@ -98,6 +98,8 @@ bool NeedsTonemapping(TransferFunction tf) {
       [[fallthrough]];
     case TransferFunction::kHlg:
       return true;
+    case TransferFunction::kSmpte170M:
+      [[fallthrough]];
     case TransferFunction::kSrgb:
       [[fallthrough]];
     case TransferFunction::kUnknown:
@@ -179,49 +181,6 @@ double EvaluateHlgEotf(double e) {
   return exp((e - kHlg.c) / kHlg.a) + kHlg.b;
 }
 
-/**
- * Keep in sync with the Dataspace.aidl SRGB definition
- * Transfer characteristic curve:
- *
- * E = 1.055 * L^(1/2.4) - 0.055  for 0.0031308 <= L <= 1
- *   = 12.92 * L                  for 0 <= L < 0.0031308
- *     L - luminance of image 0 <= L <= 1 for conventional colorimetry
- *     E - corresponding electrical signal
- * https://cs.android.com/android/platform/superproject/main/+/main:hardware/interfaces/graphics/common/aidl/android/hardware/graphics/common/Dataspace.aidl;l=275;drc=dbf753b896a75f3e712bc362a01763d731e49f57
- */
-struct TfConstants {
-  double g, a, b, c, d, e, f;
-};
-double EvaluateGamma(double e, const TfConstants fn) {
-  if (e < fn.d)
-    return (e * fn.c) + fn.f;
-  return pow((e + fn.b) * fn.a, fn.g) + fn.e;
-}
-TfConstants GetInverse(const TfConstants fn) noexcept {
-  TfConstants inv{};
-  if (fn.a > kSignalMin && fn.g > kSignalMin) {
-    double a_to_the_g = pow(fn.a, fn.g);
-    inv.a = 1.0 / a_to_the_g;
-    inv.b = -fn.e / a_to_the_g;
-    inv.g = 1.0 / fn.g;
-  }
-  inv.d = fn.c * fn.d + fn.f;
-  inv.e = -fn.b / fn.a;
-  if (fn.c != 0.0) {
-    inv.c = 1.0 / fn.c;
-    inv.f = -fn.f / fn.c;
-  }
-  return inv;
-}
-const TfConstants kSrgb = {.g = 2.4,
-                           .a = (1.0 / 1.055),
-                           .b = (0.055 / 1.055),
-                           .c = (1.0 / 12.92),
-                           .d = (12.92 * 0.0031308),
-                           .e = 0.0,
-                           .f = 0.0};
-const TfConstants kInverseSrgb = GetInverse(kSrgb);
-
 uint32_t SignalToInt(double signal) {
   signal = std::clamp(signal, kSignalMin, kSignalMax);
   signal = std::round(signal * static_cast<double>(UINT32_MAX));
@@ -242,8 +201,13 @@ Lut1D CreateLut(TransferFunction tf, uint32_t lut_size, bool is_degamma) {
                             : ColorUtil::EvaluateHlgOetf(signal);
         break;
       case TransferFunction::kSrgb:
-        signal = is_degamma ? EvaluateGamma(signal, kSrgb)
-                            : EvaluateGamma(signal, kInverseSrgb);
+        signal = is_degamma ? ColorGamut::sRGB().toLinear(signal)[0]
+                            : ColorGamut::sRGB().fromLinear(signal)[0];
+        break;
+      case TransferFunction::kSmpte170M:
+        // ColorGamut::BT709 uses SMPTE 170M transfer parameters
+        signal = is_degamma ? ColorGamut::BT709().toLinear(signal)[0]
+                            : ColorGamut::BT709().fromLinear(signal)[0];
         break;
       default:
         break;
