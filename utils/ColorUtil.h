@@ -142,7 +142,7 @@ class ColorUtil {
       TransferFunction src_tf, TransferFunction dest_tf,
       size_t degamma_lut_size, size_t gamma_lut_size,
       Lut1DCache &degamma_lut_map, Lut1DCache &gamma_lut_map,
-      float display_brightness);
+      float display_brightness, float hdr_headroom);
 
  private:
   /* Converts a column-major 4x4 float type flat array matrix into

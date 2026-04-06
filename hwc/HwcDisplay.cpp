@@ -201,9 +201,24 @@ const HwcDisplayConfig *HwcDisplay::GetNextConfig() const {
   return GetCurrentConfig();
 }
 
+void HwcDisplay::SetHdrHeadroom() {
+  // Internal display HDR headrom is configured in HwcLayer
+  if (GetPipe().connector->Get()->IsInternal()) {
+    hdr_headroom_ = {};
+    return;
+  }
+
+  float hdr_luminance[3]{500.F, 500.F, 0.F};
+  GetEdid()->GetHdrLuminance(&hdr_luminance[0], &hdr_luminance[1],
+                             &hdr_luminance[2]);
+  hdr_headroom_ = 203.F / hdr_luminance[0];
+  hdr_headroom_ *= 0.2F;
+}
+
 void HwcDisplay::SetOutputType(OutputType hdr_output_type) {
   switch (hdr_output_type) {
     case OutputType::kHdr10: {
+      SetHdrHeadroom();
       SetHdrOutputMetadata(ui::Hdr::HDR10);
       min_bpc_ = 8;
       break;
@@ -212,6 +227,7 @@ void HwcDisplay::SetOutputType(OutputType hdr_output_type) {
       std::vector<ui::Hdr> hdr_types;
       GetEdid()->GetSupportedHdrTypes(hdr_types);
       if (!hdr_types.empty()) {
+        SetHdrHeadroom();
         SetHdrOutputMetadata(hdr_types.front());
         min_bpc_ = 8;
         break;
@@ -223,6 +239,7 @@ void HwcDisplay::SetOutputType(OutputType hdr_output_type) {
     case OutputType::kSdr:
       [[fallthrough]];
     default:
+      hdr_headroom_ = {};
       hdr_metadata_ = std::make_shared<hdr_output_metadata>();
       min_bpc_ = 6;
       transfer_func_ = TransferFunction::kUnknown;
@@ -972,6 +989,7 @@ AtomicCommitArgs HwcDisplay::CreateModesetCommit(
   args.transfer_func = transfer_func_;
   args.hdr_metadata = hdr_metadata_;
   args.min_bpc = min_bpc_;
+  args.hdr_headroom = hdr_headroom_;
 
   std::vector<LayerData> composition_layers;
   if (modeset_layer) {
@@ -1107,6 +1125,7 @@ std::optional<AtomicCommitArgs> HwcDisplay::CreateFrameUpdateCommit(
   a_args.transfer_func = transfer_func_;
   a_args.hdr_metadata = hdr_metadata_;
   a_args.min_bpc = min_bpc_;
+  a_args.hdr_headroom = hdr_headroom_;
 
   if (staged_mode_config_id_ &&
       staged_mode_change_time_ <= ResourceManager::GetTimeMonotonicNs()) {
