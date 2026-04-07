@@ -32,15 +32,16 @@ namespace android::drm_hwcomposer {
 namespace {
 
 // TODO: use layer data and display luminance to set this value
-constexpr float kHdrHeadroom = 1000.F / 10000.F;
+constexpr double kHdrHeadroom = 1000.0 / 10000.0;
 
-uint64_t To3132FixPt(float in) {
+uint64_t To3132FixPt(double in) {
   constexpr uint64_t kSignMask = (1ULL << 63);
   constexpr uint64_t kValueMask = ~(1ULL << 63);
-  constexpr auto kValueScale = static_cast<float>(1ULL << 32);
+  constexpr auto kValueScale = static_cast<double>(1ULL << 32);
+  const double in_scaled = in * kValueScale;
   if (in < 0)
-    return (static_cast<uint64_t>(-in * kValueScale) & kValueMask) | kSignMask;
-  return static_cast<uint64_t>(in * kValueScale) & kValueMask;
+    return (static_cast<uint64_t>(-in_scaled) & kValueMask) | kSignMask;
+  return static_cast<uint64_t>(in_scaled) & kValueMask;
 }
 
 template <typename T>
@@ -118,28 +119,28 @@ bool NeedsTonemapping(TransferFunction tf) {
  * https://cs.android.com/android/platform/superproject/main/+/main:hardware/interfaces/graphics/common/aidl/android/hardware/graphics/common/Dataspace.aidl;l=332;drc=dbf753b896a75f3e712bc362a01763d731e49f57
  */
 struct PqConstants {
-  float n, m, c1, c2, c3;
+  double n, m, c1, c2, c3;
 };
-const PqConstants kPq = {.n = 0.1593017578125F,
-                         .m = 78.84375F,
-                         .c1 = 0.8359375F,
-                         .c2 = 18.83203125F,
-                         .c3 = 18.68359375F};
+const PqConstants kPq = {.n = 0.1593017578125,
+                         .m = 78.84375,
+                         .c1 = 0.8359375,
+                         .c2 = 18.83203125,
+                         .c3 = 18.68359375};
 // NOLINTBEGIN(readability-magic-numbers)
-float EvaluatePqOetf(float l) {
+double EvaluatePqOetf(double l) {
   l *= kHdrHeadroom;
-  if (l <= 0.F)
-    return 0.F;
-  float l1 = powf(l, kPq.n);
-  float base = (kPq.c1 + (kPq.c2 * l1)) / (1.F + (kPq.c3 * l1));
-  return powf(base, kPq.m);
+  if (l <= 0.0)
+    return 0.0;
+  double l1 = pow(l, kPq.n);
+  double base = (kPq.c1 + (kPq.c2 * l1)) / (1.0 + (kPq.c3 * l1));
+  return pow(base, kPq.m);
 }
-float EvaluatePqEotf(float e) {
-  if (e <= 0.F)
-    return 0.F;
-  float em = powf(e, 1.F / kPq.m);
-  float base = (fmaxf(em - kPq.c1, 0.F)) / (kPq.c2 - (kPq.c3 * em));
-  return powf(base, 1.0F / kPq.n) / kHdrHeadroom;
+double EvaluatePqEotf(double e) {
+  if (e <= 0.0)
+    return 0.0;
+  double em = pow(e, 1.0 / kPq.m);
+  double base = (std::max(em - kPq.c1, 0.0)) / (kPq.c2 - (kPq.c3 * em));
+  return pow(base, 1.0 / kPq.n) / kHdrHeadroom;
 }
 
 /**
@@ -153,48 +154,49 @@ float EvaluatePqEotf(float e) {
  * https://cs.android.com/android/platform/superproject/main/+/main:hardware/interfaces/graphics/common/aidl/android/hardware/graphics/common/Dataspace.aidl;l=275;drc=dbf753b896a75f3e712bc362a01763d731e49f57
  */
 struct TfConstants {
-  float g, a, b, c, d, e, f;
+  double g, a, b, c, d, e, f;
 };
-float EvaluateGamma(float e, const TfConstants fn) {
+double EvaluateGamma(double e, const TfConstants fn) {
   if (e < fn.d)
     return (e * fn.c) + fn.f;
-  return powf((e + fn.b) * fn.a, fn.g) + fn.e;
+  return pow((e + fn.b) * fn.a, fn.g) + fn.e;
 }
 TfConstants GetInverse(const TfConstants fn) noexcept {
   TfConstants inv{};
-  if (fn.a > 0.F && fn.g > 0.F) {
-    float a_to_the_g = pow(fn.a, fn.g);
-    inv.a = 1.F / a_to_the_g;
+  if (fn.a > 0.0 && fn.g > 0.0) {
+    double a_to_the_g = pow(fn.a, fn.g);
+    inv.a = 1.0 / a_to_the_g;
     inv.b = -fn.e / a_to_the_g;
-    inv.g = 1.F / fn.g;
+    inv.g = 1.0 / fn.g;
   }
   inv.d = fn.c * fn.d + fn.f;
   inv.e = -fn.b / fn.a;
-  if (fn.c != 0.F) {
-    inv.c = 1.F / fn.c;
+  if (fn.c != 0.0) {
+    inv.c = 1.0 / fn.c;
     inv.f = -fn.f / fn.c;
   }
   return inv;
 }
-const TfConstants kSrgb = {.g = 2.4F,
-                           .a = (1.F / 1.055F),
-                           .b = (0.055F / 1.055F),
-                           .c = (1.F / 12.92F),
-                           .d = (12.92F * 0.0031308F),
-                           .e = 0.F,
-                           .f = 0.F};
+const TfConstants kSrgb = {.g = 2.4,
+                           .a = (1.0 / 1.055),
+                           .b = (0.055 / 1.055),
+                           .c = (1.0 / 12.92),
+                           .d = (12.92 * 0.0031308),
+                           .e = 0.0,
+                           .f = 0.0};
 const TfConstants kInverseSrgb = GetInverse(kSrgb);
 
-uint32_t SignalToInt(float signal) {
-  signal = std::clamp(signal, 0.F, 1.F);
-  signal = std::round(signal * static_cast<float>(UINT32_MAX));
+uint32_t SignalToInt(double signal) {
+  signal = std::clamp(signal, 0.0, 1.0);
+  signal = std::round(signal * static_cast<double>(UINT32_MAX));
   return static_cast<uint32_t>(signal);
 }
 
 Lut1D CreateLut(TransferFunction tf, uint32_t lut_size, bool is_degamma) {
   std::vector<drm_color_lut32> lut(lut_size);
   for (size_t i = 0; i < lut_size; ++i) {
-    float signal = static_cast<float>(i) / (static_cast<float>(lut_size) - 1.F);
+    double signal = static_cast<double>(i) /
+                    (static_cast<double>(lut_size) - 1.0);
     switch (tf) {
       case TransferFunction::kPq:
         signal = is_degamma ? EvaluatePqEotf(signal) : EvaluatePqOetf(signal);
@@ -246,7 +248,7 @@ std::shared_ptr<drm_color_ctm_3x4> ColorUtil::ToColorTransform3x4(
 }
 
 std::shared_ptr<drm_color_ctm_3x4> ColorUtil::ToColorTransform3x4(
-    const android::mat4 &color_transform_matrix) {
+    const android::mat4d &color_transform_matrix) {
   auto color_matrix = std::make_shared<drm_color_ctm_3x4>();
   constexpr int kRows = 4;
   constexpr int kCols = 3;
@@ -262,7 +264,7 @@ std::shared_ptr<drm_color_ctm_3x4> ColorUtil::ToColorTransform3x4(
 std::shared_ptr<drm_color_ctm_3x4> ColorUtil::GamutAdjustIfNeeded(
     Colorspace src_colorspace, Colorspace dest_colorspace,
     const std::shared_ptr<HalColorTransforMatrix> &color_transform_matrix,
-    std::map<std::tuple<Colorspace, Colorspace>, const mat3>
+    std::map<std::tuple<Colorspace, Colorspace>, const mat3d>
         &color_transform_cache) {
   if (src_colorspace == dest_colorspace) {
     return ColorUtil::ToColorTransform3x4(color_transform_matrix);
@@ -274,7 +276,7 @@ std::shared_ptr<drm_color_ctm_3x4> ColorUtil::GamutAdjustIfNeeded(
   // Extract the inner 3x3 matrix from the 4x4 CTM
   // NOLINTBEGIN(readability-magic-numbers)
   // clang-format off
-  mat3 ctm3(
+  mat3d ctm3(
     ctm_in[0], ctm_in[1], ctm_in[2],
     ctm_in[4], ctm_in[5], ctm_in[6],
     ctm_in[8], ctm_in[9], ctm_in[10]
@@ -295,7 +297,7 @@ std::shared_ptr<drm_color_ctm_3x4> ColorUtil::GamutAdjustIfNeeded(
   // Insert the new 3x3 matrix back into the 4x4 CTM
   // NOLINTBEGIN(readability-magic-numbers)
   // clang-format off
-  mat4 ctm4 = mat4(
+  mat4d ctm4 = mat4d(
     ctm3[0][0], ctm3[0][1], ctm3[0][2], ctm_in[3],
     ctm3[1][0], ctm3[1][1], ctm3[1][2], ctm_in[7],
     ctm3[2][0], ctm3[2][1], ctm3[2][2], ctm_in[11],

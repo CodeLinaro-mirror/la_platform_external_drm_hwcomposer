@@ -116,7 +116,7 @@ class ColorUtil {
   static std::shared_ptr<drm_color_ctm_3x4> GamutAdjustIfNeeded(
       Colorspace src_colorspace, Colorspace dest_colorspace,
       const std::shared_ptr<HalColorTransforMatrix> &color_transform_matrix,
-      std::map<std::tuple<Colorspace, Colorspace>, const mat3>
+      std::map<std::tuple<Colorspace, Colorspace>, const mat3d>
           &color_transform_cache);
 
   /* Creates 1D Gamma/Degamma LUTs using an appropriate EOTF for the given
@@ -141,7 +141,7 @@ class ColorUtil {
    * |12 13 14 15|
    */
   static std::shared_ptr<drm_color_ctm_3x4> ToColorTransform3x4(
-      const android::mat4 &color_transform_matrix);
+      const android::mat4d &color_transform_matrix);
 };
 
 }  // namespace android::drm_hwcomposer
