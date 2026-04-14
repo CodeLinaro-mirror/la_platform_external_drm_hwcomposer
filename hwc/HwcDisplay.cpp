@@ -1535,6 +1535,11 @@ void HwcDisplay::LogModesOnHotplug() {
     return;
   }
 
+  auto vendor = EdidWrapper::VendorProductInfo{};
+  if (edid_wrapper_ != nullptr) {
+    vendor = edid_wrapper_->GetVendorProductInfo();
+  }
+
   using ModeAtom = DisplayHotplugConnectModeDetectedAtomReporter::Atom;
   std::vector<ModeAtom> submitted_atoms;
   for (const auto &[id, hwc_mode] : configs_.hwc_configs) {
@@ -1569,7 +1574,10 @@ void HwcDisplay::LogModesOnHotplug() {
          .display_type = display_type == HwcDisplay::DisplayType::kInternal
                              ? AtomDisplayType::kInternal
                              : AtomDisplayType::kExternal,
-         .is_preferred = is_preferred};
+         .is_preferred = is_preferred,
+         .make = vendor.make,
+         .model = vendor.model,
+         .year = vendor.year};
 
     if (std::find(submitted_atoms.begin(), submitted_atoms.end(), atom) !=
         submitted_atoms.end()) {
