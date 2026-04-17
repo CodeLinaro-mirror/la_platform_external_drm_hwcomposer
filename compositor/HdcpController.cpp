@@ -14,14 +14,11 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "drmhwc"
-
 #include "HdcpController.h"
 
 #include "compositor/DisplayInfo.h"
 #include "drm/DrmConnector.h"
 #include "drm/DrmDisplayPipeline.h"
-#include "hwc/HwcDisplay.h"
 #include "utils/log.h"
 
 namespace android::drm_hwcomposer {

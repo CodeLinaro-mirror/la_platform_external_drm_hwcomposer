@@ -1,0 +1,47 @@
+soong_config_module_type_import {
+    from: "external/drm_hwcomposer/Android.bp",
+    module_types: ["drm_hwcomposer_backend_defaults"],
+}
+
+drm_hwcomposer_backend_defaults {
+    name: "sdm_backend",
+    soong_config_variables: {
+        backend: {
+            sdm: {
+                srcs: [
+                    "backend/SdmBackend.cpp",
+                    "backend/sdm/sdm_error.cpp",
+                    "backend/sdm/SdmAtomicCommitSink.cpp",
+                    "backend/sdm/SdmCompositionPlanner.cpp",
+                    "backend/sdm/SdmDebugCallback.cpp",
+                    "backend/sdm/SnapAllocHandle.cpp",
+
+                    // Helpers from qti composer.
+                    ":composer_helper_srcs",
+                ],
+                header_libs: [
+                    "snapalloc_interface_headers",
+                    "sdmclient_interface_headers",
+                    "display_core_headers",
+                    "composer_helper_headers",
+                    "display_headers",
+                    "libimapper_stablec",
+                    "libimapper_providerutils",
+                ],
+                shared_libs: [
+                    "libsdmcore",
+                    "libsdmclient",
+                    "libsdmutils",
+                    "libmapperutils",
+                    "libdisplaydebug",
+                    "libvndksupport",
+                    "libgrallocutils",
+                    "libgralloc.qti",
+                    "vendor.qti.hardware.display.snapalloc-impl",
+                    "android.hardware.graphics.allocator-V2-ndk",
+                    "android.hardware.graphics.mapper@4.0",
+                ],
+            },
+        },
+    },
+}

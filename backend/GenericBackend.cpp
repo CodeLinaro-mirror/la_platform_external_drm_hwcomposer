@@ -14,17 +14,17 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "drmhwc"
-
 #include "GenericBackend.h"
 
 #include "backend/BackendManager.h"
 #include "bufferinfo/BufferInfoMapperMetadata.h"
 #include "compositor/CompositionPlanner.h"
 #include "compositor/GenericCompositionPlanner.h"
+#include "compositor/GenericLayerMapperCompositionPlanner.h"
 #include "drm/DrmAtomicStateManager.h"
 #include "drm/DrmConnector.h"
 #include "drm/DrmDisplayPipeline.h"
+#include "utils/properties.h"
 
 namespace android::drm_hwcomposer {
 
@@ -61,6 +61,10 @@ std::unique_ptr<BufferInfoGetter> GenericBackend::CreateBufferInfoGetter() {
 }
 
 std::unique_ptr<CompositionPlanner> GenericBackend::CreateCompositionPlanner() {
+  if (Properties::ForcedHolePunchingEnabled()) {
+    return std::make_unique<GenericLayerMapperCompositionPlanner>();
+  }
+
   return std::make_unique<GenericCompositionPlanner>();
 }
 

@@ -14,20 +14,18 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "drmhwc"
-
 #include "HwcLayer.h"
 
+#include "compositor/ICompositorDisplay.h"
 #include "drm/DrmDevice.h"
 #include "drm/DrmDisplayPipeline.h"
 #include "drm/DrmFbImporter.h"
-#include "hwc/HwcDisplay.h"
-#include "utils/ColorUtil.h"
 #include "utils/log.h"
 
 namespace android::drm_hwcomposer {
 
-HwcLayer::HwcLayer(HwcDisplay* parent_display) : parent_(parent_display) {
+HwcLayer::HwcLayer(ICompositorDisplay* parent_display)
+    : parent_(parent_display) {
 }
 
 void HwcLayer::SetLayerProperties(const LayerProperties& layer_properties) {
@@ -42,7 +40,9 @@ void HwcLayer::SetLayerProperties(const LayerProperties& layer_properties) {
   }
   if (layer_properties.colorspace) {
     colorspace_ = layer_properties.colorspace.value();
-    color_encoding_ = ColorUtil::ToColorEncoding(colorspace_);
+  }
+  if (layer_properties.color_encoding) {
+    color_encoding_ = layer_properties.color_encoding.value();
   }
   if (layer_properties.sample_range) {
     sample_range_ = layer_properties.sample_range.value();
@@ -86,9 +86,8 @@ void HwcLayer::PopulateLayerData() {
   if (colorspace_ != Colorspace::kDefault) {
     layer_data_.colorspace = colorspace_;
   }
-  auto color_encoding = ColorUtil::ToColorEncoding(colorspace_);
-  if (color_encoding != BufferColorEncoding::kUndefined) {
-    layer_data_.bi->color_encoding = color_encoding;
+  if (color_encoding_ != BufferColorEncoding::kUndefined) {
+    layer_data_.bi->color_encoding = color_encoding_;
   }
   if (sample_range_ != BufferSampleRange::kUndefined) {
     layer_data_.bi->sample_range = sample_range_;

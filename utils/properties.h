@@ -37,6 +37,8 @@ class Properties {
   static auto GetBackendOverride() -> std::string;
   static auto GetDevicePath() -> std::string;
   static auto UseColorPipeline() -> bool;
+  static auto DropDrmMasterAfterInit() -> bool;
+  static auto ForcedHolePunchingEnabled() -> bool;
 };
 
 }  // namespace android::drm_hwcomposer
