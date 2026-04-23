@@ -74,6 +74,11 @@ class ResourceManager {
   bool ForceP3Support() const {
     return force_p3_support_;
   }
+
+  int ForceColorMode() const {
+    return force_color_mode_;
+  }
+
   auto &GetMainLock() {
     return main_lock_;
   }
@@ -99,6 +104,7 @@ class ResourceManager {
   CtmHandling ctm_handling_{};
   bool color_pipeline_enabled_{};
   bool force_p3_support_{};
+  int force_color_mode_{};
 
   std::shared_ptr<UEventListener> uevent_listener_;
 

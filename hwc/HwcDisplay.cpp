@@ -828,6 +828,24 @@ auto HwcDisplay::GetColorModes() -> std::vector<ColorMode> {
   GetEdid()->GetColorModes(modes);
 
   if (GetPipe().connector->Get()->IsInternal() &&
+      hwc_->GetResMan().ForceColorMode() >= 0) {
+    auto force_color_mode = static_cast<ColorMode>(
+        hwc_->GetResMan().ForceColorMode());
+
+    if (force_color_mode >= ColorMode::kNative &&
+        force_color_mode <= ColorMode::kDisplayBt2020) {
+      modes.clear();
+      modes.emplace_back(ColorMode::kNative);
+
+      if (force_color_mode != ColorMode::kNative) {
+        modes.emplace_back(force_color_mode);
+      }
+
+      return modes;
+    }
+  }
+
+  if (GetPipe().connector->Get()->IsInternal() &&
       hwc_->GetResMan().ForceP3Support()) {
     const bool already_has_p3 = std::find_if(modes.begin(), modes.end(),
                                              [](ColorMode m) {

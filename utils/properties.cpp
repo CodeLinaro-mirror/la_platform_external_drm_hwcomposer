@@ -77,10 +77,48 @@ auto inline property_get_bool(const char *key, int8_t default_value) -> int8_t {
   return result;
 }
 
+/**
+ * Bluntly copied from system/core/libcutils/properties.cpp,
+ * which is part of the Android Project and licensed under Apache 2.
+ * Source:
+ * https://cs.android.com/android/platform/superproject/main/+/main:system/core/libcutils/properties.cpp;l=53
+ */
+auto inline property_get_int32(const char *key, int32_t default_value)
+    -> int32_t {
+  if (!key)
+    return default_value;
+
+  char value[PROPERTY_VALUE_MAX] = {};
+  if (property_get(key, value, "") < 1)
+    return default_value;
+
+  // libcutils unwisely allows octal, which libbase doesn't.
+  int32_t result = default_value;
+  int saved_errno = errno;
+  errno = 0;
+  char *end = nullptr;
+  intmax_t v = strtoimax(value, &end, 0);
+  if (errno != ERANGE && end != value &&
+      v >= std::numeric_limits<int32_t>::min() &&
+      v <= std::numeric_limits<int32_t>::max()) {
+    result = v;
+  }
+  errno = saved_errno;
+  return result;
+}
+
 }  // namespace
 #endif
 
 namespace android::drm_hwcomposer {
+
+/**
+ * Force a color mode for the internal panel. See
+ * android::drm_hwcomposer::ColorMode for valid values.
+ */
+auto Properties::ForceColorMode() -> int {
+  return property_get_int32("vendor.hwc.drm.force_color_mode", -1);
+}
 
 /**
  * Adds DCI-P3 and Display-P3 support to internal
