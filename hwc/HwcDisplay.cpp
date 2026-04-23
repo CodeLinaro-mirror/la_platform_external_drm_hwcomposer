@@ -845,21 +845,6 @@ auto HwcDisplay::GetColorModes() -> std::vector<ColorMode> {
     }
   }
 
-  if (GetPipe().connector->Get()->IsInternal() &&
-      hwc_->GetResMan().ForceP3Support()) {
-    const bool already_has_p3 = std::find_if(modes.begin(), modes.end(),
-                                             [](ColorMode m) {
-                                               return m == ColorMode::kDciP3 ||
-                                                      m ==
-                                                          ColorMode::kDisplayP3;
-                                             }) != modes.end();
-
-    if (!already_has_p3) {
-      modes.emplace_back(ColorMode::kDciP3);
-      modes.emplace_back(ColorMode::kDisplayP3);
-    }
-  }
-
   if (modes.empty()) {
     modes.emplace_back(ColorMode::kNative);
   }

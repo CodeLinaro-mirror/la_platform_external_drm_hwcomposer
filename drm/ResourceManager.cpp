@@ -62,7 +62,6 @@ void ResourceManager::Init() {
   BackendManager::GetInstance().InitializeBackends();
 
   color_pipeline_enabled_ = Properties::UseColorPipeline();
-  force_p3_support_ = Properties::ForceP3Support();
   force_color_mode_ = Properties::ForceColorMode();
 
   // Could be a valid path or it can have at the end of it the wildcard %
