@@ -104,6 +104,7 @@ filegroup {
         "compositor/mapper/CursorLayerMapper.cpp",
         "compositor/mapper/ForceClientCompositionLayerMapper.cpp",
         "compositor/mapper/LayerCachingMapper.cpp",
+        "compositor/mapper/LeftoverLayerMapper.cpp",
         "compositor/mapper/UnderlayMapper.cpp",
 
         "drm/DrmAtomicStateManager.cpp",
@@ -317,6 +318,8 @@ cc_test_host {
         "compositor/mapper/ForceClientCompositionLayerMapperTest.cpp",
         "compositor/mapper/LayerCachingMapper.cpp",
         "compositor/mapper/LayerCachingMapperTest.cpp",
+        "compositor/mapper/LeftoverLayerMapper.cpp",
+        "compositor/mapper/LeftoverLayerMapperTest.cpp",
         "compositor/mapper/UnderlayMapper.cpp",
         "compositor/mapper/UnderlayMapperTest.cpp",
         "drm/DrmColorOp.cpp",
@@ -326,6 +329,7 @@ cc_test_host {
         "drm/DrmDisplayPipeline.cpp",
         "drm/DrmDisplayPipelineTest.cpp",
         "drm/DrmEncoder.cpp",
+        "drm/DrmFbImporter.cpp",
         "drm/DrmMode.cpp",
         "drm/DrmPlane.cpp",
         "drm/DrmProperty.cpp",
@@ -354,6 +358,14 @@ cc_test_host {
     shared_libs: [
         "libhardware",
     ],
+    target: {
+        host: {
+            include_dirs: [
+                "bionic/libc/kernel/uapi",
+                "bionic/libc/kernel/uapi/drm",
+            ],
+        },
+    },
 }
 
 soong_config_module_type {
