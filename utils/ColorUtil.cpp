@@ -220,6 +220,7 @@ Lut1D CreateLut(TransferFunction tf, uint32_t lut_size, const double lut_scale,
       case TransferFunction::kUnknown:
         [[fallthrough]];
       default:
+        // Fallback to linear mapping for unknown transfer functions
         break;
     }
 
@@ -334,7 +335,8 @@ std::tuple<const Lut1D &, const Lut1D &> ColorUtil::Get1DLutsIfNeeded(
     TransferFunction src_tf, TransferFunction dest_tf,
     const size_t degamma_lut_size, const size_t gamma_lut_size,
     Lut1DCache &degamma_lut_map, Lut1DCache &gamma_lut_map,
-    const float display_brightness, const float hdr_headroom) {
+    const float layer_brightness, const float display_brightness,
+    const float hdr_headroom) {
   bool needs_lut = src_tf != dest_tf &&
                    (NeedsTonemapping(src_tf) || NeedsTonemapping(dest_tf));
 
@@ -350,6 +352,12 @@ std::tuple<const Lut1D &, const Lut1D &> ColorUtil::Get1DLutsIfNeeded(
   if (hdr_headroom > kSignalMin && hdr_headroom < kSignalMax) {
     needs_lut = true;
     lut_scale *= hdr_headroom;
+  }
+
+  // Validate layer brightness
+  if (layer_brightness > kSignalMin && layer_brightness < kSignalMax) {
+    needs_lut = true;
+    lut_scale *= layer_brightness;
   }
 
   if (needs_lut) {
