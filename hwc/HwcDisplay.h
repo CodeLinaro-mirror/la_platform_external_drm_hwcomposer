@@ -155,7 +155,15 @@ class HwcDisplay : public ICompositorDisplay {
   // requested layers have been validated, otherwise the vector describes
   // the requested composition type changes.
   using ChangedLayer = std::pair<ILayerId, CompositionType>;
-  auto ValidateStagedComposition() -> std::vector<ChangedLayer>;
+
+  struct ValidateResult {
+    // Layers whose composition type was changed my the HWC.
+    std::vector<ChangedLayer> changed_layers;
+    // Request the client to write transparent pixels where these layers would
+    // be.
+    std::vector<ILayerId> punch_out_layers;
+  };
+  auto ValidateStagedComposition() -> ValidateResult;
 
   // Mark previously validated properties as ready to present.
   auto AcceptValidatedComposition() -> void;

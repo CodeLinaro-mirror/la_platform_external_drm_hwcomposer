@@ -306,7 +306,7 @@ auto HwcDisplay::QueueConfig(ConfigId config, int64_t desired_time,
   return ConfigError::kNone;
 }
 
-auto HwcDisplay::ValidateStagedComposition() -> std::vector<ChangedLayer> {
+auto HwcDisplay::ValidateStagedComposition() -> ValidateResult {
   if (validated_composition_.has_value()) {
     ALOGE("%s: Previously validated composition was not presented", __func__);
     validated_composition_.reset();
@@ -354,7 +354,22 @@ auto HwcDisplay::ValidateStagedComposition() -> std::vector<ChangedLayer> {
     }
   }
 
-  return changed_layers;
+  // Get the layer id for the punch out layers.
+  std::vector<ILayerId> punch_out_layers;
+  for (const auto *layer : validated_composition_->punch_out_layers) {
+    const auto it = std::find_if(layers_.begin(), layers_.end(),
+                                 [&](const auto &pair) {
+                                   return &pair.second == layer;
+                                 });
+    if (it != layers_.end()) {
+      punch_out_layers.push_back(it->first);
+    }
+  }
+
+  return ValidateResult{
+      .changed_layers = std::move(changed_layers),
+      .punch_out_layers = std::move(punch_out_layers),
+  };
 }
 
 auto HwcDisplay::GetDisplayBoundsMm() -> std::pair<int32_t, int32_t> {
