@@ -24,9 +24,11 @@
 namespace android::drm_hwcomposer {
 
 enum class CompositionType;
-class ICompositorDisplay;
 class HwcLayer;
+class ICompositorDisplay;
+struct DstRectInfo;
 struct LayerToPlaneJoiningPlan;
+struct SrcRectInfo;
 
 // CompositionPlanner is responsible for determining the mapping between
 // HwcLayer and drm planes. This includes deciding which HwcLayers should be
@@ -67,10 +69,14 @@ class CompositionPlanner {
 
   virtual ~CompositionPlanner() = default;
 
+  struct ValidationResult {
+    ValidatedComposition composition{};
+    bool short_circuited = false;
+  };
   // ValidateDisplay will be called at most once per frame update. It will not
   // be called again until the AtomicCommitArgs created from these
   // ValidatedComposition have been Executed through DrmAtomicCommitSink.
-  virtual ValidatedComposition ValidateDisplay(
+  virtual ValidationResult ValidateDisplay(
       const ICompositorDisplay* display) = 0;
 
   // Returns a ValidatedComposition that assigns all HwcLayers to client

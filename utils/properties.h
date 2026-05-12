@@ -40,6 +40,9 @@ class Properties {
   static auto ForcedHolePunchingEnabled() -> bool;
   static auto ForceColorMode() -> int;
   static auto PersistentHdrEnabled() -> bool;
+  static auto ValidationShortCircuiting() -> bool;
+  static auto ShortCircuitIgnoreGeometry() -> bool;
+  static auto ShortCircuitIgnoreCtm() -> bool;
 };
 
 }  // namespace android::drm_hwcomposer
