@@ -358,7 +358,6 @@ class HwcDisplay : public ICompositorDisplay {
 
   bool Init();
 
-  void SetHdrHeadroom();
   void SetHdrOutputMetadata(ui::Hdr hdrType);
   void SetOutputType(OutputType hdr_output_type);
 
@@ -404,7 +403,6 @@ class HwcDisplay : public ICompositorDisplay {
   int32_t min_bpc_{};
   std::shared_ptr<hdr_output_metadata> hdr_metadata_;
   float brightness_ = -1.F;
-  float hdr_headroom_{};
 
   // Most recent result of ValidateStagedComposition. Must be kept alive until
   // the composition is committed.
