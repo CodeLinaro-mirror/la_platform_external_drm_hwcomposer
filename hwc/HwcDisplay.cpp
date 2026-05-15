@@ -77,6 +77,13 @@ using ColorGamut = ::android::ColorSpace;
 
 namespace android::drm_hwcomposer {
 
+// ITU-R BT.2408 reference white level for HDR
+constexpr float kSdrReferenceWhiteLuminance = 203.F;
+// Practical reference peak luminance, matches libtonemap
+constexpr float kHdrReferenceLuminance = 1000.F;
+// Default fallback max luminance of internal panels if unspecified by EDID
+constexpr float kDefaultMaxLuminance = 500.F;
+
 using FlattenReason = CompositionPlanner::FlattenReason;
 
 namespace {
@@ -202,16 +209,23 @@ const HwcDisplayConfig *HwcDisplay::GetNextConfig() const {
 }
 
 void HwcDisplay::SetHdrHeadroom() {
-  // Internal display HDR headrom is configured in HwcLayer
+  float hdr_luminance[3]{0.F, 0.F, 0.F};
+  GetEdid()->GetHdrLuminance(&hdr_luminance[0], &hdr_luminance[1],
+                             &hdr_luminance[2]);
+
+  float max_lum = hdr_luminance[0];
+  if (max_lum <= 0.F) {
+    max_lum = kDefaultMaxLuminance;
+  }
+
+  // For internal displays, scale the headroom relative to practical HDR content
+  // peak luminance
   if (GetPipe().connector->Get()->IsInternal()) {
-    hdr_headroom_ = {};
+    hdr_headroom_ = max_lum / kHdrReferenceLuminance;
     return;
   }
 
-  float hdr_luminance[3]{500.F, 500.F, 0.F};
-  GetEdid()->GetHdrLuminance(&hdr_luminance[0], &hdr_luminance[1],
-                             &hdr_luminance[2]);
-  hdr_headroom_ = 203.F / hdr_luminance[0];
+  hdr_headroom_ = kSdrReferenceWhiteLuminance / max_lum;
   hdr_headroom_ *= 0.2F;
 }
 
