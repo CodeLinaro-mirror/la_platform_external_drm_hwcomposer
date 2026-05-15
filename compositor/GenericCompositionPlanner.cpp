@@ -84,6 +84,7 @@ auto GenericCompositionPlanner::ValidateDisplay(
   size_t client_start = 0;
   size_t client_size = 0;
   ValidatedComposition validated_composition{};
+  CommitStatus commit_status;
 
   // Populates and tests |validated_composition|, returning whether it
   // succeeded.
@@ -94,7 +95,8 @@ auto GenericCompositionPlanner::ValidateDisplay(
 
     bool testing_needed = client_start != 0 || client_size != layers.size();
     if (testing_needed) {
-      return display->TestComposition(validated_composition).success;
+      commit_status = display->TestComposition(validated_composition);
+      return commit_status.success;
     }
 
     // Reset the plan in case it was set during a previous test.
@@ -127,6 +129,7 @@ auto GenericCompositionPlanner::ValidateDisplay(
     validated_composition = GetFlattenedComposition(layers,
                                                     FlattenReason::
                                                         kValidateFailed);
+    validated_composition.error_code = commit_status.error_code;
   }
 
   if (use_cursor_plane) {
