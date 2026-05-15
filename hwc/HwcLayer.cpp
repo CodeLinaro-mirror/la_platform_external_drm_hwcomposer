@@ -79,7 +79,7 @@ void HwcLayer::SetLayerProperties(const LayerProperties& layer_properties) {
     layer_data_.pi.damage = layer_properties.damage.value();
   }
   if (layer_properties.brightness) {
-    brightness_ = layer_properties.brightness.value();
+    brightness_ = layer_properties.brightness;
   }
 
   if (has_buffer_set_) {
@@ -108,7 +108,7 @@ void HwcLayer::PopulateLayerData() {
   if (transfer_func_ != TransferFunction::kUnknown) {
     layer_data_.transfer_func = transfer_func_;
   }
-  if (brightness_ >= 0.F) {
+  if (brightness_) {
     layer_data_.brightness = brightness_;
   }
 }
