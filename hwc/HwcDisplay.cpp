@@ -484,6 +484,7 @@ auto HwcDisplay::PresentStagedComposition(
                                            FlattenReason::kValidateFailed
                                        ? ValidationResult::kFailure
                                        : ValidationResult::kSuccess;
+    attributes.validation_error_code = validated_composition_->error_code;
     attributes.flatten_reason = validated_composition_->flatten_reason;
     if (validated_composition_->flatten_reason ==
         FlattenReason::kValidateFailed) {
@@ -536,14 +537,17 @@ auto HwcDisplay::PresentStagedComposition(
     ++stats.used_plane_count;
   }
 
-  if (!CommitStagedComposition(out_present_fence).success) {
+  const auto commit_status = CommitStagedComposition(out_present_fence);
+  if (!commit_status.success) {
     attributes.present_failed = true;
+    attributes.present_error_code = commit_status.error_code;
     ++stats.failed_kms_present;
     comp_stats_[attributes] += stats;
     return false;
   }
 
   attributes.present_failed = false;
+  attributes.present_error_code = 0;
   comp_stats_[attributes] += stats;
 
   // Reset the hdr output metadata blobs so we don't apply it repeatedly.
