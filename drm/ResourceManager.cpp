@@ -46,11 +46,7 @@ ResourceManager::ResourceManager(
     : frontend_interface_(p2f_bind_interface) {
 }
 
-ResourceManager::~ResourceManager() {
-  if (uevent_listener_) {
-    uevent_listener_->StopThread();
-  }
-}
+ResourceManager::~ResourceManager() = default;
 
 void ResourceManager::Init() {
   if (initialized_) {
@@ -134,10 +130,7 @@ void ResourceManager::DeInit() {
     return;
   }
 
-  if (uevent_listener_) {
-    uevent_listener_->StopThread();
-    uevent_listener_.reset();
-  }
+  uevent_listener_.reset();
 
   DetachAllFrontendDisplays();
   drms_.clear();

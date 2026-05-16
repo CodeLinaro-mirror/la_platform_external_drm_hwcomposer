@@ -32,8 +32,6 @@ class UEventListener {
   static auto CreateInstance(std::function<void()> hotplug_handler)
       -> std::shared_ptr<UEventListener>;
 
-  void StopThread();
-
  private:
   explicit UEventListener(std::function<void()> hotplug_handler);
 

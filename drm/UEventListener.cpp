@@ -35,13 +35,9 @@ UEventListener::UEventListener(std::function<void()> hotplug_handler)
 }
 
 UEventListener::~UEventListener() {
-  StopThread();
-  thread_.join();
-}
-
-void UEventListener::StopThread() {
   exit_ = true;
   uevent_->Stop();
+  thread_.join();
 }
 
 auto UEventListener::CreateInstance(std::function<void()> hotplug_handler)
