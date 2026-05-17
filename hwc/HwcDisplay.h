@@ -71,6 +71,7 @@ class FrontendDisplayBase {
 };
 
 inline constexpr uint32_t kPrimaryDisplay = 0;
+inline constexpr float kBrightnessUnset = -1;
 
 // NOLINTNEXTLINE
 class HwcDisplay : public ICompositorDisplay {
@@ -403,7 +404,7 @@ class HwcDisplay : public ICompositorDisplay {
   TransferFunction transfer_func_{};
   int32_t min_bpc_{};
   std::shared_ptr<hdr_output_metadata> hdr_metadata_;
-  float brightness_ = -1.F;
+  float brightness_ = kBrightnessUnset;
   float hdr_headroom_{};
 
   // Most recent result of ValidateStagedComposition. Must be kept alive until

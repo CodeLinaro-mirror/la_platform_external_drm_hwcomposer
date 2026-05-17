@@ -202,11 +202,12 @@ const HwcDisplayConfig *HwcDisplay::GetNextConfig() const {
 }
 
 void HwcDisplay::SetHdrHeadroom() {
-  float hdr_luminance[3]{500.F, 500.F, 0.F};
+  float hdr_luminance[3]{kDefaultMaxLuminance, kDefaultMaxLuminance, 0.F};
   GetEdid()->GetHdrLuminance(&hdr_luminance[0], &hdr_luminance[1],
                              &hdr_luminance[2]);
-  float max_lum = hdr_luminance[0] > 0.F ? hdr_luminance[0] : 500.F;
-  hdr_headroom_ = max_lum / 10000.F;
+  float max_lum = hdr_luminance[0] > 0.F ? hdr_luminance[0]
+                                         : kDefaultMaxLuminance;
+  hdr_headroom_ = max_lum / kHdrReferenceLuminance;
 }
 
 void HwcDisplay::SetOutputType(OutputType hdr_output_type) {
@@ -1585,7 +1586,7 @@ auto HwcDisplay::SetBrightness(float brightness) -> bool {
         std::optional<float>(brightness));
   }
 
-  brightness_ = -1.F;
+  brightness_ = kBrightnessUnset;
   return backlight_controller_->SetBrightness(std::nullopt);
 }
 

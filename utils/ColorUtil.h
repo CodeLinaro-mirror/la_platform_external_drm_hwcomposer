@@ -39,6 +39,9 @@ using CscCache = std::map<std::tuple<Colorspace, Colorspace>, const mat3d>;
 
 inline const Lut1D kEmptyLut = {};
 
+inline constexpr float kHdrReferenceLuminance = 10000.F;
+inline constexpr float kDefaultMaxLuminance = 500.F;
+
 class ColorUtil {
  public:
   /**

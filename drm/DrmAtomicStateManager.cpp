@@ -387,7 +387,7 @@ bool DrmAtomicStateManager::SetCompositionIfNeeded(const AtomicCommitArgs &args,
                                                      sizeof(drm_color_ctm_3x4));
       }
 
-      const float default_signal = 1.F;
+      constexpr float kDefaultSignal = 1.F;
       const auto &[degamma_lut, gamma_lut] = ColorUtil::
           Get1DLutsIfNeeded(layer.transfer_func,
                             args.transfer_func.value_or(
@@ -395,9 +395,9 @@ bool DrmAtomicStateManager::SetCompositionIfNeeded(const AtomicCommitArgs &args,
                             plane->GetDegamma1DLutSize(),
                             plane->GetGamma1DLutSize(), degamma_lut_1d_map_,
                             gamma_lut_1d_map_,
-                            layer.brightness.value_or(default_signal),
-                            args.brightness.value_or(default_signal),
-                            args.hdr_headroom.value_or(default_signal));
+                            layer.brightness.value_or(kDefaultSignal),
+                            args.brightness.value_or(kDefaultSignal),
+                            args.hdr_headroom.value_or(kDefaultSignal));
       DrmModeUserPropertyBlobUnique degamma_lut_blob;
       DrmModeUserPropertyBlobUnique gamma_lut_blob;
       if (!degamma_lut.empty()) {
