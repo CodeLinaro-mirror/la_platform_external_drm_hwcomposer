@@ -42,7 +42,7 @@ namespace android::drm_hwcomposer {
 namespace {
 
 // TODO: use layer data and display luminance to set this value
-constexpr double kHdrHeadroom = 1000.0 / 10000.0;
+constexpr double kHdrHeadroom = 500.0 / 10000.0;
 const double kSignalMin = 0.0;
 const double kSignalMax = 1.0;
 
@@ -140,8 +140,8 @@ struct PqConstants {
 const PqConstants kPq = {.n = 0.1593017578125,
                          .m = 78.84375,
                          .c1 = 0.8359375,
-                         .c2 = 18.83203125,
-                         .c3 = 18.68359375};
+                         .c2 = 18.8515625,
+                         .c3 = 18.6875};
 // NOLINTBEGIN(readability-magic-numbers)
 double EvaluatePqOetf(double l) {
   l *= kHdrHeadroom;
