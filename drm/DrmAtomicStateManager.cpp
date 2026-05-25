@@ -395,6 +395,7 @@ bool DrmAtomicStateManager::SetCompositionIfNeeded(const AtomicCommitArgs &args,
                             plane->GetDegamma1DLutSize(),
                             plane->GetGamma1DLutSize(), degamma_lut_1d_map_,
                             gamma_lut_1d_map_,
+                            layer.brightness.value_or(default_signal),
                             args.brightness.value_or(default_signal),
                             args.hdr_headroom.value_or(default_signal));
       DrmModeUserPropertyBlobUnique degamma_lut_blob;
