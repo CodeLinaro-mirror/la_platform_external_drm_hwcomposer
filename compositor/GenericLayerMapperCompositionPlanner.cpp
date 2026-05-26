@@ -123,6 +123,36 @@ int CountRemainingPlanes(const ICompositorDisplay* display,
 bool NoOpValidator(const std::vector<LayerMapping>& /*unused*/) {
   return true;
 }
+
+// Tests |proposed_layers| and updates |layers_to_update| and
+// |composition_to_update| if the proposed layer composition is valid.
+void TestLayerMappings(std::vector<LayerMapping>&& proposed_layers,
+                       const ICompositorDisplay* display,
+                       std::vector<LayerMapping>& layers_to_update,
+                       std::optional<CompositionPlanner::ValidatedComposition>&
+                           composition_to_update) {
+  CompositionPlanner::ValidatedComposition
+      new_composition = CreateValidatedComposition(proposed_layers);
+
+  if (display->TestComposition(new_composition)) {
+    layers_to_update = std::move(proposed_layers);
+    composition_to_update = std::move(new_composition);
+  }
+}
+
+// Updates |composition_to_update| if the proposed composition is valid.
+void TestLayerMappings(const std::vector<LayerMapping>& layers,
+                       const ICompositorDisplay* display,
+                       std::optional<CompositionPlanner::ValidatedComposition>&
+                           composition_to_update) {
+  CompositionPlanner::ValidatedComposition
+      new_composition = CreateValidatedComposition(layers);
+
+  if (display->TestComposition(new_composition)) {
+    composition_to_update = std::move(new_composition);
+  }
+}
+
 }  // namespace
 
 GenericLayerMapperCompositionPlanner::GenericLayerMapperCompositionPlanner()
@@ -170,32 +200,20 @@ GenericLayerMapperCompositionPlanner::ValidateDisplay(
 
   {
     auto new_layers = underlay_mapper_.AssignLayers(layers, validator);
-
-    ValidatedComposition new_composition = CreateValidatedComposition(
-        new_layers);
-    if (display->TestComposition(new_composition)) {
-      layers = std::move(new_layers);
-      validated_composition = std::move(new_composition);
-    }
+    TestLayerMappings(std::move(new_layers), display, layers,
+                      validated_composition);
   }
 
   if (auto new_layers = leftover_mapper_.AssignLayers(layers, validator);
       new_layers != layers) {
-    ValidatedComposition new_composition = CreateValidatedComposition(
-        new_layers);
-    if (display->TestComposition(new_composition)) {
-      layers = std::move(new_layers);
-      validated_composition = std::move(new_composition);
-    }
+    TestLayerMappings(std::move(new_layers), display, layers,
+                      validated_composition);
   }
 
   // If UnderlayMapper and LeftoverMapper didn't produce a valid composition,
   // convert all unmapped layers into client composited layers and try.
   if (!validated_composition) {
-    ValidatedComposition new_composition = CreateValidatedComposition(layers);
-    if (display->TestComposition(new_composition)) {
-      validated_composition = std::move(new_composition);
-    }
+    TestLayerMappings(layers, display, validated_composition);
   }
 
   // Cursor fallback: convert all non-cursor layers to client composition and
