@@ -402,8 +402,6 @@ class HwcDisplay : public ICompositorDisplay {
   TransferFunction transfer_func_{};
   int32_t min_bpc_{};
   std::shared_ptr<hdr_output_metadata> hdr_metadata_;
-  float brightness_ = -1.F;
-
   // Most recent result of ValidateStagedComposition. Must be kept alive until
   // the composition is committed.
   std::optional<CompositionPlanner::ValidatedComposition>
