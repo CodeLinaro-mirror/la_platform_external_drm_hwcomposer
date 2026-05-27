@@ -234,13 +234,9 @@ void HwcDisplay::SetOutputType(OutputType hdr_output_type) {
       }
       [[fallthrough]];
     }
-    case OutputType::kSdr:
-      hdr_headroom_ = {};
-      hdr_metadata_ = std::make_shared<hdr_output_metadata>();
-      min_bpc_ = 6;
-      transfer_func_ = TransferFunction::kSrgb;
-      break;
     case OutputType::kInvalid:
+      [[fallthrough]];
+    case OutputType::kSdr:
       [[fallthrough]];
     default:
       hdr_headroom_ = {};
