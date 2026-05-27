@@ -139,7 +139,7 @@ class HwcLayer {
   BufferBlendMode blend_mode_{};
   Colorspace colorspace_{};
   TransferFunction transfer_func_{};
-  std::optional<float> brightness_{};
+  float brightness_{};
 
   bool prior_buffer_scanout_flag_{};
 
