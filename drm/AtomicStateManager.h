@@ -60,7 +60,6 @@ struct AtomicCommitArgs {
   std::optional<ContentProtection> content_protection;
   std::optional<int32_t> min_bpc;
   std::optional<float> brightness;
-  std::optional<float> hdr_headroom;
 
   std::shared_ptr<IDrmFbIdHandle> writeback_fb;
   SharedFd writeback_release_fence;
