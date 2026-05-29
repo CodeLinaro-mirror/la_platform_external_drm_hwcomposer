@@ -26,6 +26,8 @@
 #include <utility>
 #include <vector>
 
+#include <ui/ColorSpace.h>
+
 #include "compositor/CompositionPlanner.h"
 #include "compositor/DisplayInfo.h"
 #include "compositor/ICompositorDisplay.h"
@@ -64,6 +66,7 @@ struct DrmDisplayPipeline;
 
 using DisplayHandle = int64_t;
 using EdidWrapperUnique = std::unique_ptr<EdidWrapper>;
+using ColorGamut = ::android::ColorSpace;
 
 class FrontendDisplayBase {
  public:
@@ -360,7 +363,8 @@ class HwcDisplay : public ICompositorDisplay {
   bool Init();
 
   void SetHdrHeadroom();
-  void SetHdrOutputMetadata(ui::Hdr hdrType);
+  void SetHdrOutputMetadata(const ColorGamut &color_gamut,
+                            TransferFunction transfer_function);
   void SetOutputType(OutputType hdr_output_type);
 
   auto GetEdid() const -> const EdidWrapperUnique & {
