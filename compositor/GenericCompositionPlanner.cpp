@@ -25,6 +25,7 @@
 
 #include "compositor/FlatteningController.h"
 #include "compositor/LayerData.h"
+#include "drm/CommitStatus.h"
 #include "drm/DrmPlane.h"
 #include "hwc/HwcLayer.h"
 #include "utils/log.h"
@@ -77,7 +78,7 @@ auto GenericCompositionPlanner::ValidateDisplay(
     ValidatedComposition cursor_composition{
         .composition_types = GetCompositionTypes(layers, 0, layers.size() - 1,
                                                  /*use_cursor_plane=*/true)};
-    use_cursor_plane = display->TestComposition(cursor_composition);
+    use_cursor_plane = display->TestComposition(cursor_composition).success;
   }
 
   size_t client_start = 0;
@@ -93,7 +94,7 @@ auto GenericCompositionPlanner::ValidateDisplay(
 
     bool testing_needed = client_start != 0 || client_size != layers.size();
     if (testing_needed) {
-      return display->TestComposition(validated_composition);
+      return display->TestComposition(validated_composition).success;
     }
 
     // Reset the plan in case it was set during a previous test.

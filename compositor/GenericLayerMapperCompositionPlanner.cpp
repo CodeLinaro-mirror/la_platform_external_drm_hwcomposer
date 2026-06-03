@@ -27,6 +27,7 @@
 #include "compositor/ShortCircuitor.h"
 #include "compositor/mapper/LayerMapper.h"
 #include "compositor/mapper/MapperUtils.h"
+#include "drm/CommitStatus.h"
 #include "hwc/HwcLayer.h"
 
 namespace android::drm_hwcomposer {
@@ -136,7 +137,7 @@ void TestLayerMappings(std::vector<LayerMapping>&& proposed_layers,
   CompositionPlanner::ValidatedComposition
       new_composition = CreateValidatedComposition(proposed_layers);
 
-  if (display->TestComposition(new_composition)) {
+  if (display->TestComposition(new_composition).success) {
     layers_to_update = std::move(proposed_layers);
     composition_to_update = std::move(new_composition);
   }
@@ -150,7 +151,7 @@ void TestLayerMappings(const std::vector<LayerMapping>& layers,
   CompositionPlanner::ValidatedComposition
       new_composition = CreateValidatedComposition(layers);
 
-  if (display->TestComposition(new_composition)) {
+  if (display->TestComposition(new_composition).success) {
     composition_to_update = std::move(new_composition);
   }
 }
@@ -243,7 +244,7 @@ GenericLayerMapperCompositionPlanner::ValidateDisplay(
 
       ValidatedComposition new_composition = ValidatedComposition{
           .composition_types = ToCompositionTypes(layers)};
-      if (display->TestComposition(new_composition)) {
+      if (display->TestComposition(new_composition).success) {
         validated_composition = std::move(new_composition);
       }
     }
@@ -288,7 +289,7 @@ bool GenericLayerMapperCompositionPlanner::ShouldUseCursorPlane(
 
     ValidatedComposition cursor_composition{
         .composition_types = ToCompositionTypes(test_mappings)};
-    return display->TestComposition(cursor_composition);
+    return display->TestComposition(cursor_composition).success;
   }
 
   return false;
