@@ -303,6 +303,7 @@ cc_test_host {
         "compositor/GenericLayerMapperCompositionPlannerTest.cpp",
         "compositor/PresentedCompositionCache.cpp",
         "compositor/ShortCircuitor.cpp",
+        "compositor/ShortCircuitorTest.cpp",
         "compositor/mapper/CursorLayerMapper.cpp",
         "compositor/mapper/CursorLayerMapperTest.cpp",
         "compositor/mapper/ForceClientCompositionLayerMapper.cpp",
