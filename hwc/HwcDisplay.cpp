@@ -1028,16 +1028,21 @@ AtomicCommitArgs HwcDisplay::CreateModesetCommit(
 
 std::optional<AtomicCommitResult> HwcDisplay::ExecuteAtomicCommit(
     AtomicCommitArgs &a_args) const {
+  const int64_t commit_start_time = ResourceManager::GetTimeMonotonicNs();
   auto res = GetPipe().device->GetAtomicCommitSink().ExecuteAtomicCommit(
       {{GetPipe().atomic_state_manager.get(), a_args}});
+  const int64_t commit_end_time = ResourceManager::GetTimeMonotonicNs();
+
   // Log successful modesets (seamless and full), including teardowns.
+  const bool is_config_change = a_args.display_mode || a_args.power_mode ||
+                                a_args.teardown;
+  if (is_config_change) {
+    LogConfigResult(a_args, res.size() == 1,
+                    commit_end_time - commit_start_time);
+  }
+
   ALOGE_IF(res.size() > 1,
            "More than one result returned for a singular display");
-  if (a_args.display_mode || a_args.power_mode || a_args.teardown) {
-    const bool blocking = a_args.blocking || a_args.power_mode ||
-                          a_args.teardown;
-    LogConfigResult(blocking, res.size() == 1);
-  }
   if (res.empty()) {
     return std::nullopt;
   }
@@ -1695,7 +1700,8 @@ void HwcDisplay::LogModesOnHotplug() {
   }
 }
 
-void HwcDisplay::LogConfigResult(bool blocking, bool success) const {
+void HwcDisplay::LogConfigResult(const AtomicCommitArgs &args, bool is_success,
+                                 int64_t duration_ns) const {
   if (!config_result_reporter_) {
     return;
   }
@@ -1718,9 +1724,14 @@ void HwcDisplay::LogConfigResult(bool blocking, bool success) const {
 
   const DisplayConfigurationResultReporter::Atom atom{
       .display_handle = handle_,
-      .success = success,
-      .is_seamless = !blocking,
+      .success = is_success,
+      .is_seamless = args.seamless,
       .display_type = display_type,
+      .is_blocking = args.blocking,
+      .is_display_mode = args.display_mode.has_value(),
+      .is_power_mode = args.power_mode.has_value(),
+      .is_teardown = args.teardown,
+      .duration_ns = duration_ns,
   };
   config_result_reporter_->PushAtom(atom);
 }
