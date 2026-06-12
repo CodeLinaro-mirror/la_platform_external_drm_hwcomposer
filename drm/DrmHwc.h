@@ -47,6 +47,8 @@ class DrmHwc : public PipelineToFrontendBindingInterface, public StatsProvider {
   };
 
   // Client Callback functions.:
+  // Check if an active client callback is registered for event delivery.
+  [[nodiscard]] virtual bool HasCallback() const = 0;
   virtual void SendVsyncEventToClient(DisplayHandle display_handle,
                                       int64_t timestamp,
                                       uint32_t vsync_period) const = 0;

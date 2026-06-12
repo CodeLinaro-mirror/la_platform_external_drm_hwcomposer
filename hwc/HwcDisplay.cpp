@@ -977,6 +977,9 @@ bool HwcDisplay::Init() {
   InitWcgSupported();
   InitHdrSupported();
 
+  static constexpr ColorMode kDefaultColorMode = ColorMode::kSrgb;
+  SetColorMode(kDefaultColorMode, ui::RenderIntent::COLORIMETRIC);
+
   if (SetConfig(configs_.preferred_config_id) !=
       HwcDisplay::ConfigError::kNone) {
     return false;

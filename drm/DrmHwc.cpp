@@ -120,6 +120,11 @@ void DrmHwc::FinalizeDisplayBinding() {
 }
 
 void DrmHwc::FlushHotplugEvents() {
+  // Preserve events in case of asynchronous hotplugs while a client hasn't been
+  // loaded yet.
+  if (!HasCallback()) {
+    return;
+  }
   auto events = hotplug_event_queue_.RetrieveAndFlush();
   for (const auto &[handle, status] : events) {
     SendHotplugEventToClient(handle, status);

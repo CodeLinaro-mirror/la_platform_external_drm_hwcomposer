@@ -147,13 +147,17 @@ DisplayConfiguration HwcDisplayConfigToAidlConfiguration(
 
 }  // namespace
 
-ComposerClient::ComposerClient() {
+ComposerClient::ComposerClient(std::shared_ptr<DrmHwcThree> hwc)
+    : hwc_(std::move(hwc)) {
   DEBUG_FUNC();
 }
 
 void ComposerClient::Init() {
   DEBUG_FUNC();
-  hwc_ = std::make_unique<DrmHwcThree>();
+  if (hwc_ == nullptr) {
+    ALOGE("ComposerClient::Init: hwc_ is null");
+    return;
+  }
 
   auto composition_reporter = ::android::drm_hwcomposer::
       CompositionStatsAtomReporter::Create();
@@ -174,6 +178,9 @@ ComposerClient::~ComposerClient() {
       std::scoped_lock lock(hwc_->GetResMan().GetMainLock());
       hwc_->DeinitDisplays();
     }
+    // hwc_.reset() must be executed outside of GetMainLock(). ~DrmHwcThree()
+    // invokes ResourceManager::DeInit(), which acquires GetMainLock(); calling
+    // reset() under the lock would cause a self-deadlock.
     hwc_.reset();
   }
   ALOGD("removed composer client");
@@ -693,9 +700,20 @@ ndk::ScopedAStatus ComposerClient::getDisplayDecorationSupport(
 ndk::ScopedAStatus ComposerClient::registerCallback(
     const std::shared_ptr<IComposerCallback>& callback) {
   DEBUG_FUNC();
-  std::scoped_lock lock(hwc_->GetResMan().GetMainLock());
-  // This function is specified to be called exactly once.
-  hwc_->Init(callback);
+  {
+    std::scoped_lock lock(hwc_->GetResMan().GetMainLock());
+    // This function is specified to be called exactly once per client instance.
+    hwc_->SetCallback(callback);
+    // For the first client (SurfaceFlinger), ResourceManager was already
+    // initialized early in Composer::Composer(). For subsequent clients
+    // (e.g. VTS tests), initialize DRM resources on demand.
+    if (!hwc_->GetResMan().IsInitialized()) {
+      hwc_->GetResMan().Init();
+    }
+  }
+  // Flush queued hotplug events outside GetMainLock to prevent deadlock with
+  // synchronous callbacks into the client process.
+  hwc_->FlushHotplugEvents();
   return ndk::ScopedAStatus::ok();
 }
 
