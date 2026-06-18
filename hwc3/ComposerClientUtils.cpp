@@ -739,6 +739,10 @@ void ExecuteDisplayCommand(DrmHwcThree& hwc, const DisplayCommand& command,
       changes.AddLayerClearRequest(command.display, layer_id);
     }
     cmd_result_writer.AddChanges(changes);
+    cmd_result_writer
+        .AddClientTarget(display_handle,
+                         ToDataspace(display->GetWritebackBufferFormat()),
+                         ToPixelFormat(display->GetWritebackBufferFormat()));
     auto hwc3_display = DrmHwcThree::GetHwc3Display(*display);
     hwc.ClearMustValidateDisplay(display_handle);
     hwc3_display->desired_present_time = AidlToPresentTimeNs(

@@ -14,10 +14,14 @@
  * limitations under the License.
  */
 
+#include <aidl/android/hardware/graphics/common/Dataspace.h>
+#include <aidl/android/hardware/graphics/common/PixelFormat.h>
 #include <aidl/android/hardware/graphics/composer3/ChangedCompositionLayer.h>
+#include <aidl/android/hardware/graphics/composer3/ClientTargetPropertyWithBrightness.h>
 #include <aidl/android/hardware/graphics/composer3/CommandError.h>
 #include <aidl/android/hardware/graphics/composer3/CommandResultPayload.h>
 #include <aidl/android/hardware/graphics/composer3/Composition.h>
+#include <aidl/android/hardware/graphics/composer3/DimmingStage.h>
 #include <aidl/android/hardware/graphics/composer3/PresentFence.h>
 #include <aidl/android/hardware/graphics/composer3/PresentOrValidate.h>
 #include <aidl/android/hardware/graphics/composer3/ReleaseFences.h>
@@ -151,6 +155,19 @@ class CommandResultWriter {
     pov_command.result = pov_result;
 
     results_->emplace_back(pov_command);
+  }
+
+  void AddClientTarget(int64_t display_handle,
+                       const common::Dataspace dataspace,
+                       const common::PixelFormat pixel_format) {
+    constexpr float kDefaultBrightness = 1.F;
+    ClientTargetPropertyWithBrightness client_target;
+    client_target.display = display_handle;
+    client_target.brightness = kDefaultBrightness;
+    client_target.dimmingStage = DimmingStage::LINEAR;
+    client_target.clientTargetProperty.dataspace = dataspace;
+    client_target.clientTargetProperty.pixelFormat = pixel_format;
+    results_->emplace_back(client_target);
   }
 
  private:
