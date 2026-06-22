@@ -16,8 +16,6 @@
 
 #pragma once
 
-#include <drm/drm_mode.h>
-
 #include <cstdint>
 #include <map>
 
@@ -45,10 +43,6 @@ struct HwcDisplayConfig {
   DrmMode mode{};
   bool disabled{};
   OutputType output_type{};
-
-  bool IsInterlaced() const {
-    return (mode.GetRawMode().flags & DRM_MODE_FLAG_INTERLACE) != 0;
-  }
 };
 
 struct HwcDisplayConfigs {
