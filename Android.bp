@@ -301,6 +301,8 @@ cc_test_host {
         "compositor/FrameTimeHistoryTest.cpp",
         "compositor/GenericLayerMapperCompositionPlanner.cpp",
         "compositor/GenericLayerMapperCompositionPlannerTest.cpp",
+        "compositor/IntelMappingValidator.cpp",
+        "compositor/IntelMappingValidatorTest.cpp",
         "compositor/PresentedCompositionCache.cpp",
         "compositor/ShortCircuitor.cpp",
         "compositor/ShortCircuitorTest.cpp",
