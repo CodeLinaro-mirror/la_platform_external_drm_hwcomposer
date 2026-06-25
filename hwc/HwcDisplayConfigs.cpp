@@ -95,13 +95,6 @@ HwcDisplayConfigs HwcDisplayConfigsGenerator::GetFakeMode(uint16_t width,
 std::optional<HwcDisplayConfigs>
 HwcDisplayConfigsGenerator::GenerateDisplayConfigs(
     const DrmConnector &connector, const HwcConfigParameters &params) {
-  // Probe the connector for modes (IOCTL).
-  auto ret = connector.UpdateModes();
-  if (ret != 0) {
-    ALOGE("Failed to update display modes %d", ret);
-    return std::nullopt;
-  }
-
   if (connector.GetModes().empty()) {
     ALOGE("No modes reported by KMS");
     return std::nullopt;

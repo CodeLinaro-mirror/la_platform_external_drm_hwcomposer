@@ -844,15 +844,25 @@ bool HwcDisplay::Init() {
   } else if (IsInHeadlessMode()) {
     configs_ = configs_generator_.GetFakeMode(0, 0);
   } else {
+    // Ensure one config is available for headless mode in case we end up with
+    // no real modes from the connector or if initialization fails.
+    configs_ = configs_generator_.GetFakeMode(0, 0);
+    active_config_id_ = configs_.preferred_config_id;
+
+    auto *connector = pipeline_->connector->Get();
+    auto ret = connector->UpdateModes();
+    if (ret != 0) {
+      ALOGE("Failed to update display modes with error: %d", ret);
+      return false;
+    }
+
     const HwcConfigParameters params = {
         .use_color_pipeline = Properties::UseColorPipeline(),
         .persistent_hdr_enabled = Properties::PersistentHdrEnabled(),
     };
-    auto configs = configs_generator_
-                       .GenerateDisplayConfigs(*pipeline_->connector->Get(),
-                                               params);
+    auto configs = configs_generator_.GenerateDisplayConfigs(*connector,
+                                                             params);
     if (!configs) {
-      configs_ = configs_generator_.GetFakeMode(0, 0);
       return false;
     }
     configs_ = std::move(*configs);

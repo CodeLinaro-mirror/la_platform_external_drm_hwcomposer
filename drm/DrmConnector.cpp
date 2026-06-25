@@ -246,6 +246,14 @@ bool DrmConnector::IsWriteback() const {
 #endif
 }
 
+uint32_t DrmConnector::GetMmWidth() const {
+  return connector_->mmWidth;
+}
+
+uint32_t DrmConnector::GetMmHeight() const {
+  return connector_->mmHeight;
+}
+
 bool DrmConnector::IsValid() const {
   return IsInternal() || IsExternal() || IsWriteback();
 }
