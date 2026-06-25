@@ -18,6 +18,7 @@
 
 #include <cstdint>
 #include <map>
+#include <optional>
 
 #include "drm/DrmMode.h"
 
@@ -45,9 +46,6 @@ struct HwcDisplayConfig {
 };
 
 struct HwcDisplayConfigs {
-  bool Init(DrmConnector &connector);
-  void GenFakeMode(uint16_t width, uint16_t height);
-
   // Removes problematic configs from groups after they were set.
   bool SanitizeGroups();
 
@@ -55,13 +53,23 @@ struct HwcDisplayConfigs {
 
   ConfigId preferred_config_id = 0;
 
+  uint32_t mm_width = 0;
+  uint32_t mm_height = 0;
+};
+
+class HwcDisplayConfigsGenerator {
+ public:
+  HwcDisplayConfigsGenerator() = default;
+
+  std::optional<HwcDisplayConfigs> GenerateDisplayConfigs(
+      const DrmConnector &connector);
+  HwcDisplayConfigs GetFakeMode(uint16_t width, uint16_t height);
+
+ private:
   // Use sequential config IDs throughout the lifetime of the owner display to
   // prevent race conditions around hotplugs (mode updates). See:
   // https://source.android.com/docs/core/graphics/hotplug#prevent-race-conditions
-  ConfigId next_config_id = 1;
-
-  uint32_t mm_width = 0;
-  uint32_t mm_height = 0;
+  ConfigId next_config_id_ = 1;
 };
 
 }  // namespace android::drm_hwcomposer

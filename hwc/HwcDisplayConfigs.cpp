@@ -22,6 +22,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <optional>
 #include <unordered_set>
 #include <vector>
 
@@ -42,10 +43,11 @@ constexpr uint32_t kHzInKHz = 1000;
 
 namespace android::drm_hwcomposer {
 
-void HwcDisplayConfigs::GenFakeMode(uint16_t width, uint16_t height) {
-  hwc_configs.clear();
+HwcDisplayConfigs HwcDisplayConfigsGenerator::GetFakeMode(uint16_t width,
+                                                          uint16_t height) {
+  HwcDisplayConfigs configs;
 
-  preferred_config_id = next_config_id++;
+  configs.preferred_config_id = next_config_id_++;
   auto headless_drm_mode_info = (drmModeModeInfo){
       .hdisplay = width,
       .vdisplay = height,
@@ -78,38 +80,38 @@ void HwcDisplayConfigs::GenFakeMode(uint16_t width, uint16_t height) {
                                   headless_drm_mode_info.vrefresh) /
                                  kHzInKHz;
 
-  hwc_configs[preferred_config_id] = (HwcDisplayConfig){
-      .id = preferred_config_id,
+  configs.hwc_configs[configs.preferred_config_id] = (HwcDisplayConfig){
+      .id = configs.preferred_config_id,
       .group_id = 1,
       .mode = DrmMode(&headless_drm_mode_info),
       .output_type = OutputType::kSystem,
   };
 
-  mm_width = kHeadlessModeDisplayWidthMm;
-  mm_height = kHeadlessModeDisplayHeightMm;
+  configs.mm_width = kHeadlessModeDisplayWidthMm;
+  configs.mm_height = kHeadlessModeDisplayHeightMm;
+
+  return configs;
 }
 
-bool HwcDisplayConfigs::Init(DrmConnector &connector) {
-  // Ensure one config is available for headless mode in case we end up with no
-  // real modes from the connector.
-  GenFakeMode(0, 0);
-
+std::optional<HwcDisplayConfigs>
+HwcDisplayConfigsGenerator::GenerateDisplayConfigs(
+    const DrmConnector &connector) {
   // Probe the connector for modes (IOCTL).
   auto ret = connector.UpdateModes();
   if (ret != 0) {
     ALOGE("Failed to update display modes %d", ret);
-    return false;
+    return std::nullopt;
   }
 
   if (connector.GetModes().empty()) {
     ALOGE("No modes reported by KMS");
-    return false;
+    return std::nullopt;
   }
 
-  hwc_configs.clear();
-  preferred_config_id = 0;
-  mm_width = connector.GetMmWidth();
-  mm_height = connector.GetMmHeight();
+  HwcDisplayConfigs configs;
+  configs.preferred_config_id = 0;
+  configs.mm_width = connector.GetMmWidth();
+  configs.mm_height = connector.GetMmHeight();
 
   bool enable_hdr = Properties::UseColorPipeline() &&
                     (connector.IsExternal() ||
@@ -133,9 +135,9 @@ bool HwcDisplayConfigs::Init(DrmConnector &connector) {
         continue;
       }
 
-      const ConfigId new_config_id = next_config_id++;
+      const ConfigId new_config_id = next_config_id_++;
       const uint32_t new_group_id = next_group_id++;
-      hwc_configs[new_config_id] = {
+      configs.hwc_configs[new_config_id] = {
           .id = new_config_id,
           .group_id = new_group_id,
           .mode = mode,
@@ -143,19 +145,22 @@ bool HwcDisplayConfigs::Init(DrmConnector &connector) {
       };
 
       if ((mode.GetRawMode().type & DRM_MODE_TYPE_PREFERRED) != 0 &&
-          preferred_config_id == 0) {
-        preferred_config_id = new_config_id;
+          configs.preferred_config_id == 0) {
+        configs.preferred_config_id = new_config_id;
       }
     }
   }
 
   /* We must have preferred mode. Set first mode as preferred
    * in case KMS haven't reported anything. */
-  if (preferred_config_id == 0 && !hwc_configs.empty()) {
-    preferred_config_id = hwc_configs.begin()->first;
+  if (configs.preferred_config_id == 0 && !configs.hwc_configs.empty()) {
+    ALOGW(
+        "No preferred config reported by KMS. Falling back to the first "
+        "config.");
+    configs.preferred_config_id = configs.hwc_configs.begin()->first;
   }
 
-  return true;
+  return configs;
 }
 
 bool HwcDisplayConfigs::SanitizeGroups() {

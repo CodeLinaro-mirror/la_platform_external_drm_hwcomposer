@@ -838,12 +838,19 @@ bool HwcDisplay::Init() {
   SetColorMatrixToIdentity();
 
   if (is_virtual_) {
-    configs_.GenFakeMode(virtual_disp_width_, virtual_disp_height_);
+    configs_ = configs_generator_.GetFakeMode(virtual_disp_width_,
+                                              virtual_disp_height_);
     pipeline_->writeback_connector = pipeline_->connector;
   } else if (IsInHeadlessMode()) {
-    configs_.GenFakeMode(0, 0);
-  } else if (!configs_.Init(*pipeline_->connector->Get())) {
-    return false;
+    configs_ = configs_generator_.GetFakeMode(0, 0);
+  } else {
+    auto configs = configs_generator_.GenerateDisplayConfigs(
+        *pipeline_->connector->Get());
+    if (!configs) {
+      configs_ = configs_generator_.GetFakeMode(0, 0);
+      return false;
+    }
+    configs_ = std::move(*configs);
   }
 
   // Determine WCG and HDR support

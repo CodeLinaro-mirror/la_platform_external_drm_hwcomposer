@@ -400,6 +400,7 @@ class HwcDisplay : public ICompositorDisplay {
   void LogConfigResult(const AtomicCommitArgs &args, bool success,
                        int64_t duration_ns) const;
 
+  HwcDisplayConfigsGenerator configs_generator_;
   HwcDisplayConfigs configs_;
   ConfigId active_config_id_ = 0;
 
