@@ -57,12 +57,17 @@ struct HwcDisplayConfigs {
   uint32_t mm_height = 0;
 };
 
+struct HwcConfigParameters {
+  bool use_color_pipeline = false;
+  bool persistent_hdr_enabled = false;
+};
+
 class HwcDisplayConfigsGenerator {
  public:
   HwcDisplayConfigsGenerator() = default;
 
   std::optional<HwcDisplayConfigs> GenerateDisplayConfigs(
-      const DrmConnector &connector);
+      const DrmConnector &connector, const HwcConfigParameters &params);
   HwcDisplayConfigs GetFakeMode(uint16_t width, uint16_t height);
 
  private:

@@ -29,7 +29,6 @@
 #include "drm/DrmConnector.h"
 #include "drm/DrmMode.h"
 #include "utils/log.h"
-#include "utils/properties.h"
 
 constexpr uint32_t kHeadlessModeDisplayWidthMm = 163;
 constexpr uint32_t kHeadlessModeDisplayHeightMm = 122;
@@ -95,7 +94,7 @@ HwcDisplayConfigs HwcDisplayConfigsGenerator::GetFakeMode(uint16_t width,
 
 std::optional<HwcDisplayConfigs>
 HwcDisplayConfigsGenerator::GenerateDisplayConfigs(
-    const DrmConnector &connector) {
+    const DrmConnector &connector, const HwcConfigParameters &params) {
   // Probe the connector for modes (IOCTL).
   auto ret = connector.UpdateModes();
   if (ret != 0) {
@@ -113,9 +112,8 @@ HwcDisplayConfigsGenerator::GenerateDisplayConfigs(
   configs.mm_width = connector.GetMmWidth();
   configs.mm_height = connector.GetMmHeight();
 
-  bool enable_hdr = Properties::UseColorPipeline() &&
-                    (connector.IsExternal() ||
-                     Properties::PersistentHdrEnabled());
+  bool enable_hdr = params.use_color_pipeline &&
+                    (connector.IsExternal() || params.persistent_hdr_enabled);
   // Order determines preferred output type
   const std::vector<OutputType>
       hwc_supported_output_types = enable_hdr

@@ -844,8 +844,13 @@ bool HwcDisplay::Init() {
   } else if (IsInHeadlessMode()) {
     configs_ = configs_generator_.GetFakeMode(0, 0);
   } else {
-    auto configs = configs_generator_.GenerateDisplayConfigs(
-        *pipeline_->connector->Get());
+    const HwcConfigParameters params = {
+        .use_color_pipeline = Properties::UseColorPipeline(),
+        .persistent_hdr_enabled = Properties::PersistentHdrEnabled(),
+    };
+    auto configs = configs_generator_
+                       .GenerateDisplayConfigs(*pipeline_->connector->Get(),
+                                               params);
     if (!configs) {
       configs_ = configs_generator_.GetFakeMode(0, 0);
       return false;
