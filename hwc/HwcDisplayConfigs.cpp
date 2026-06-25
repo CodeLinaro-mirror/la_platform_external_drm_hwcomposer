@@ -22,6 +22,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <unordered_set>
 #include <vector>
 
 #include "drm/DrmConnector.h"
@@ -122,16 +123,14 @@ bool HwcDisplayConfigs::Init(DrmConnector &connector) {
                                        : std::vector<OutputType>{
                                              OutputType::kSdr};
 
-  ConfigId first_config_id = next_config_id;
   uint32_t next_group_id = 1;
 
   for (const auto &output_type : hwc_supported_output_types) {
     for (const auto &mode : connector.GetModes()) {
-      bool disabled = false;
       if ((mode.GetRawMode().flags & DRM_MODE_FLAG_3D_MASK) != 0) {
-        ALOGI("Disabling display mode %s (Modes with 3D flag aren't supported)",
+        ALOGI("Skipping display mode %s (Modes with 3D flag aren't supported)",
               mode.GetName().c_str());
-        disabled = true;
+        continue;
       }
 
       const ConfigId new_config_id = next_config_id++;
@@ -140,7 +139,6 @@ bool HwcDisplayConfigs::Init(DrmConnector &connector) {
           .id = new_config_id,
           .group_id = new_group_id,
           .mode = mode,
-          .disabled = disabled,
           .output_type = output_type,
       };
 
@@ -154,7 +152,7 @@ bool HwcDisplayConfigs::Init(DrmConnector &connector) {
   /* We must have preferred mode. Set first mode as preferred
    * in case KMS haven't reported anything. */
   if (preferred_config_id == 0 && !hwc_configs.empty()) {
-    preferred_config_id = first_config_id;
+    preferred_config_id = hwc_configs.begin()->first;
   }
 
   return true;
@@ -165,8 +163,14 @@ bool HwcDisplayConfigs::SanitizeGroups() {
    * otherwise android.graphics.cts.SetFrameRateTest CTS will fail
    */
   constexpr float kMinFpsDelta = 1.0;
+  std::unordered_set<ConfigId> configs_to_erase;
+
   for (const auto &[id1, config1] : hwc_configs) {
-    for (auto &[id2, config2] : hwc_configs) {
+    if (configs_to_erase.count(id1) > 0) {
+      continue;
+    }
+
+    for (const auto &[id2, config2] : hwc_configs) {
       if (id1 == id2) {
         continue;
       }
@@ -175,7 +179,7 @@ bool HwcDisplayConfigs::SanitizeGroups() {
         continue;
       }
 
-      if (config1.disabled || config2.disabled) {
+      if (configs_to_erase.count(id2) > 0) {
         continue;
       }
 
@@ -185,13 +189,17 @@ bool HwcDisplayConfigs::SanitizeGroups() {
       }
 
       ALOGI(
-          "Group %i: Disabling display mode %s (Refresh rate value is "
+          "Group %i: Skipping display mode %s (Refresh rate value is "
           "too close to existing mode %s)",
           config2.group_id, config2.mode.GetName().c_str(),
           config1.mode.GetName().c_str());
 
-      config2.disabled = true;
+      configs_to_erase.insert(id2);
     }
+  }
+
+  for (const auto &id : configs_to_erase) {
+    hwc_configs.erase(id);
   }
 
   return true;

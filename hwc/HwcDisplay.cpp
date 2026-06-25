@@ -124,16 +124,13 @@ auto HwcDisplay::GetDisplayName() const -> std::string {
 }
 
 auto HwcDisplay::GetDisplayConfigs() const -> std::vector<HwcDisplayConfig> {
-  std::vector<HwcDisplayConfig> filtered_configs;
+  std::vector<HwcDisplayConfig> display_configs;
+  display_configs.reserve(configs_.hwc_configs.size());
   for (const auto &[_, config] : configs_.hwc_configs) {
-    if (config.disabled) {
-      continue;
-    }
-
-    filtered_configs.emplace_back(config);
+    display_configs.emplace_back(config);
   }
 
-  return filtered_configs;
+  return display_configs;
 }
 
 HwcDisplay::HwcDisplay(DisplayHandle handle, bool is_virtual, DrmHwc *hwc)
@@ -185,10 +182,6 @@ auto HwcDisplay::GetConfig(ConfigId config_id) const
     -> const HwcDisplayConfig * {
   auto config_iter = configs_.hwc_configs.find(config_id);
   if (config_iter == configs_.hwc_configs.end()) {
-    return nullptr;
-  }
-
-  if (config_iter->second.disabled) {
     return nullptr;
   }
 

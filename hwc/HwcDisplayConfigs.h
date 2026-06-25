@@ -41,7 +41,6 @@ struct HwcDisplayConfig {
   ConfigId id{};
   uint32_t group_id{};
   DrmMode mode{};
-  bool disabled{};
   OutputType output_type{};
 };
 
