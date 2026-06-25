@@ -401,6 +401,7 @@ class HwcDisplay : public ICompositorDisplay {
                        int64_t duration_ns) const;
 
   HwcDisplayConfigs configs_;
+  ConfigId active_config_id_ = 0;
 
   DrmHwc *const hwc_;
 

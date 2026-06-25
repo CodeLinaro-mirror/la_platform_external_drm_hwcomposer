@@ -196,11 +196,11 @@ auto HwcDisplay::GetConfig(ConfigId config_id) const
 }
 
 auto HwcDisplay::GetCurrentConfig() const -> const HwcDisplayConfig * {
-  return GetConfig(configs_.active_config_id);
+  return GetConfig(active_config_id_);
 }
 
 auto HwcDisplay::GetLastRequestedConfig() const -> const HwcDisplayConfig * {
-  return GetConfig(staged_mode_config_id_.value_or(configs_.active_config_id));
+  return GetConfig(staged_mode_config_id_.value_or(active_config_id_));
 }
 
 const HwcDisplayConfig *HwcDisplay::GetNextConfig() const {
@@ -289,7 +289,7 @@ HwcDisplay::ConfigError HwcDisplay::SetConfig(ConfigId config) {
     return ConfigError::kBadConfig;
   }
   if (IsInHeadlessMode()) {
-    configs_.active_config_id = config;
+    active_config_id_ = config;
     hwc_->LogRefreshRateChanges();
     return ConfigError::kNone;
   }
@@ -310,7 +310,7 @@ HwcDisplay::ConfigError HwcDisplay::SetConfig(ConfigId config) {
   }
 
   ALOGV("Blocking config succeeded.");
-  configs_.active_config_id = config;
+  active_config_id_ = config;
   staged_mode_config_id_.reset();
   // set new vsync period
   vsync_worker_->SetVsyncPeriodNs(new_config->mode.GetVSyncPeriodNs());
@@ -1416,8 +1416,7 @@ void HwcDisplay::ApplyCommitChanges(const AtomicCommitArgs &a_args,
              "a_args.display_mode is set but staged_mode_config_id_ is not.");
     // Update the active_config_id and update the vsync period for the
     // VsyncWorker.
-    configs_.active_config_id = staged_mode_config_id_.value_or(
-        configs_.active_config_id);
+    active_config_id_ = staged_mode_config_id_.value_or(active_config_id_);
     staged_mode_config_id_.reset();
     vsync_worker_->SetVsyncPeriodNs(a_args.display_mode->GetVSyncPeriodNs());
   }

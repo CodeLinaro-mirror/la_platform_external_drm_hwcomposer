@@ -54,7 +54,6 @@ struct HwcDisplayConfigs {
 
   std::map<ConfigId, struct HwcDisplayConfig> hwc_configs;
 
-  ConfigId active_config_id = 0;
   ConfigId preferred_config_id = 0;
 
   // Use sequential config IDs throughout the lifetime of the owner display to

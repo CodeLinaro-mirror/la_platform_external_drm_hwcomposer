@@ -44,7 +44,7 @@ namespace android::drm_hwcomposer {
 void HwcDisplayConfigs::GenFakeMode(uint16_t width, uint16_t height) {
   hwc_configs.clear();
 
-  preferred_config_id = active_config_id = next_config_id++;
+  preferred_config_id = next_config_id++;
   auto headless_drm_mode_info = (drmModeModeInfo){
       .hdisplay = width,
       .vdisplay = height,
@@ -77,8 +77,8 @@ void HwcDisplayConfigs::GenFakeMode(uint16_t width, uint16_t height) {
                                   headless_drm_mode_info.vrefresh) /
                                  kHzInKHz;
 
-  hwc_configs[active_config_id] = (HwcDisplayConfig){
-      .id = active_config_id,
+  hwc_configs[preferred_config_id] = (HwcDisplayConfig){
+      .id = preferred_config_id,
       .group_id = 1,
       .mode = DrmMode(&headless_drm_mode_info),
       .output_type = OutputType::kSystem,
