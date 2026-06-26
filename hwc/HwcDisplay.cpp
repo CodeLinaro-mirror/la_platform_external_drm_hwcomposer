@@ -494,8 +494,7 @@ auto HwcDisplay::PresentStagedComposition(
     if (validated_composition_->flatten_reason ==
         FlattenReason::kValidateFailed) {
       ++stats.failed_kms_validate;
-    } else if (validated_composition_->flatten_reason ==
-               FlattenReason::kStaticScene) {
+    } else if (validated_composition_->flatten_reason != FlattenReason::kNone) {
       ++stats.frames_flattened;
     }
     if (validated_composition_->cursor_plane_validated.has_value()) {
@@ -1437,6 +1436,10 @@ bool HwcDisplay::CtmByGpu() const {
 
 bool HwcDisplay::ForcedScalingWithGpu() const {
   return hwc_->GetResMan().ForcedScalingWithGpu();
+}
+
+bool HwcDisplay::UseColorPipeline() const {
+  return hwc_->GetResMan().UseColorPipeline();
 }
 
 bool HwcDisplay::IsWritebackSupported() {
