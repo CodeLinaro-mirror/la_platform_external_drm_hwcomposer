@@ -142,9 +142,14 @@ HwcDisplayConfigsGenerator::GenerateDisplayConfigs(
     }
   }
 
+  if (configs.hwc_configs.empty()) {
+    ALOGE("No valid modes left after filtering");
+    return std::nullopt;
+  }
+
   /* We must have preferred mode. Set first mode as preferred
    * in case KMS haven't reported anything. */
-  if (configs.preferred_config_id == 0 && !configs.hwc_configs.empty()) {
+  if (configs.preferred_config_id == 0) {
     ALOGW(
         "No preferred config reported by KMS. Falling back to the first "
         "config.");
