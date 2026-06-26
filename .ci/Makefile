@@ -116,6 +116,7 @@ SKIP_FILES := \
     drm/DrmDisplayPipelineTest.cpp \
     drm/DrmTestUtils.h \
     hwc/HwcBufferCacheTest.cpp \
+    hwc/HwcDisplayConfigsGeneratorTest.cpp \
     stats/CompositionStatsAtomReporterDesktop.cpp \
     stats/CountActiveDisplaysReporterDesktop.cpp \
     stats/DisplayConfigurationResultReporterDesktop.cpp \
