@@ -218,13 +218,17 @@ bool DrmAtomicStateManager::SetDisplayModeIfNeeded(const AtomicCommitArgs &args,
 bool DrmAtomicStateManager::SetCtmIfNeeded(const AtomicCommitArgs &args,
                                            DrmAtomicRequest &request) {
   auto *crtc = pipe_->crtc->Get();
-  if (!args.color_matrix || !crtc->GetCtmProperty()) {
+  if (!crtc->GetCtmProperty()) {
     return true;
   }
 
   auto *drm = pipe_->device;
   if (use_color_pipeline_) {
     return crtc->GetCtmProperty().AtomicSet(*request.property_set, 0);
+  }
+
+  if (!args.color_matrix || !args.colorspace) {
+    return true;
   }
 
   Colorspace colorspace = Colorspace::kDefault;
