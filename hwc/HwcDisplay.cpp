@@ -245,7 +245,9 @@ void HwcDisplay::SetOutputType(OutputType hdr_output_type) {
         auto type = hdr_types.front();
         switch (type) {
           case ui::Hdr::HDR10:
-            SetHdrOutputMetadata(ColorGamut::BT2020(), TransferFunction::kPq);
+            // TODO: Remove once black crush issue is resolved in kernel API
+            SetHdrOutputMetadata(ColorGamut::BT2020(),
+                                 TransferFunction::kSmpte170M);
             break;
           case ui::Hdr::HLG:
             SetHdrOutputMetadata(ColorGamut::BT2020(), TransferFunction::kHlg);
