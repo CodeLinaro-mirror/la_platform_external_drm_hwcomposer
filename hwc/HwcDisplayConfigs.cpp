@@ -26,6 +26,7 @@
 #include <unordered_set>
 #include <vector>
 
+#include "backend/BackendDisplayCapabilities.h"
 #include "drm/DrmConnector.h"
 #include "drm/DrmMode.h"
 #include "utils/log.h"
@@ -118,14 +119,23 @@ HwcDisplayConfigsGenerator::GenerateDisplayConfigs(
 
   uint32_t next_group_id = 1;
 
-  for (const auto &output_type : hwc_supported_output_types) {
-    for (const auto &mode : connector.GetModes()) {
-      if ((mode.GetRawMode().flags & DRM_MODE_FLAG_3D_MASK) != 0) {
-        ALOGI("Skipping display mode %s (Modes with 3D flag aren't supported)",
-              mode.GetName().c_str());
-        continue;
-      }
+  std::vector<DrmMode> modes;
+  modes.reserve(connector.GetModes().size());
+  for (const auto &mode : connector.GetModes()) {
+    if ((mode.GetRawMode().flags & DRM_MODE_FLAG_3D_MASK) != 0) {
+      ALOGI("Skipping display mode %s (Modes with 3D flag aren't supported)",
+            mode.GetName().c_str());
+      continue;
+    }
+    modes.push_back(mode);
+  }
 
+  if (params.capabilities != nullptr) {
+    modes = params.capabilities->FilterModes(modes);
+  }
+
+  for (const auto &output_type : hwc_supported_output_types) {
+    for (const auto &mode : modes) {
       const ConfigId new_config_id = next_config_id_++;
       const uint32_t new_group_id = next_group_id++;
       configs.hwc_configs[new_config_id] = {

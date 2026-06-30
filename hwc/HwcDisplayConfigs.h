@@ -57,9 +57,12 @@ struct HwcDisplayConfigs {
   uint32_t mm_height = 0;
 };
 
+class BackendDisplayCapabilities;
+
 struct HwcConfigParameters {
   bool use_color_pipeline = false;
   bool persistent_hdr_enabled = false;
+  const BackendDisplayCapabilities *capabilities = nullptr;
 };
 
 class HwcDisplayConfigsGenerator {

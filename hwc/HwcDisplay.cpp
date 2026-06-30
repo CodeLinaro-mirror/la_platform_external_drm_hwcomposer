@@ -859,6 +859,7 @@ bool HwcDisplay::Init() {
     const HwcConfigParameters params = {
         .use_color_pipeline = Properties::UseColorPipeline(),
         .persistent_hdr_enabled = Properties::PersistentHdrEnabled(),
+        .capabilities = pipeline_->capabilities.get(),
     };
     auto configs = configs_generator_.GenerateDisplayConfigs(*connector,
                                                              params);

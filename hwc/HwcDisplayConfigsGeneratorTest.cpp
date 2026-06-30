@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
 #include <cmath>
@@ -21,6 +22,7 @@
 #include <map>
 #include <vector>
 
+#include "backend/BackendDisplayCapabilities.h"
 #include "drm/DrmMode.h"
 #include "drm/DrmTestUtils.h"
 #include "hwc/HwcDisplayConfigs.h"
@@ -47,6 +49,41 @@ DrmMode CreateModeFloat(uint16_t hdisplay, uint16_t vdisplay, float vrefresh,
   strncpy(mode_info.name, name, DRM_DISPLAY_MODE_LEN - 1);
   return DrmMode(&mode_info);
 }
+
+class FakeBackendDisplayCapabilities : public BackendDisplayCapabilities {
+ public:
+  explicit FakeBackendDisplayCapabilities(std::vector<DrmMode> supported_modes)
+      : supported_modes_(std::move(supported_modes)) {
+  }
+
+  std::vector<DrmMode> FilterModes(
+      const std::vector<DrmMode>& modes) const override {
+    std::vector<DrmMode> filtered;
+    for (const auto& mode : modes) {
+      EXPECT_EQ(mode.GetRawMode().flags & DRM_MODE_FLAG_3D_MASK, 0)
+          << "Backend received a 3D mode: " << mode.GetName();
+      for (const auto& supported : supported_modes_) {
+        if (mode.GetRawMode().hdisplay == supported.GetRawMode().hdisplay &&
+            mode.GetRawMode().vdisplay == supported.GetRawMode().vdisplay &&
+            std::round(mode.GetVRefresh()) ==
+                std::round(supported.GetVRefresh())) {
+          filtered.push_back(mode);
+          break;
+        }
+      }
+    }
+    return filtered;
+  }
+
+ private:
+  std::vector<DrmMode> supported_modes_;
+};
+
+class MockBackendDisplayCapabilities : public BackendDisplayCapabilities {
+ public:
+  MOCK_METHOD(std::vector<DrmMode>, FilterModes, (const std::vector<DrmMode>&),
+              (const, override));
+};
 
 }  // namespace
 
@@ -441,6 +478,71 @@ TEST_F(HwcDisplayConfigsGeneratorTest,
 
   EXPECT_EQ(configs.hwc_configs.size(), 1);
   EXPECT_EQ(configs.hwc_configs.begin()->second.output_type, OutputType::kSdr);
+}
+
+TEST_F(HwcDisplayConfigsGeneratorTest, Init_FilterModesViaCapabilities) {
+  auto connector = std::make_unique<FakeDrmConnector>(&fake_device_, 1,
+                                                      /*is_external=*/false,
+                                                      500, 300);
+  std::vector<DrmMode> modes = {
+      CreateModeFloat(1920, 1080, 30.0F, 0, DRM_MODE_TYPE_PREFERRED, "1080p30"),
+      CreateModeFloat(1920, 1080, 60.0F, 0, 0, "1080p60"),
+      CreateModeFloat(1920, 1080, 90.0F, 0, 0, "1080p90"),
+  };
+  connector->SetModes(modes);
+
+  // Fake capabilities that only support 60Hz
+  std::vector<DrmMode> supported_modes = {
+      CreateModeFloat(1920, 1080, 60.0F, 0, 0, "1080p60"),
+  };
+  FakeBackendDisplayCapabilities capabilities(supported_modes);
+
+  HwcConfigParameters params = {
+      .use_color_pipeline = false,
+      .persistent_hdr_enabled = false,
+      .capabilities = &capabilities,
+  };
+
+  auto configs_opt = generator_.GenerateDisplayConfigs(*connector, params);
+  ASSERT_TRUE(configs_opt.has_value());
+  const auto& configs = *configs_opt;
+
+  // Only 60Hz should remain
+  EXPECT_EQ(configs.hwc_configs.size(), 1);
+  EXPECT_EQ(configs.hwc_configs.begin()->second.mode.GetVRefresh(), 60.0F);
+}
+
+TEST_F(HwcDisplayConfigsGeneratorTest, Init_3DModesFilteredBeforeBackend) {
+  auto connector = std::make_unique<FakeDrmConnector>(&fake_device_, 1,
+                                                      /*is_external=*/false,
+                                                      500, 300);
+  std::vector<DrmMode> modes = {
+      CreateModeFloat(1920, 1080, 60.0F, 0, DRM_MODE_TYPE_PREFERRED, "1080p60"),
+      CreateModeFloat(1920, 1080, 60.0F, DRM_MODE_FLAG_3D_FRAME_PACKING, 0,
+                      "1080p60-3D"),
+  };
+  connector->SetModes(modes);
+
+  MockBackendDisplayCapabilities mock_capabilities;
+
+  // Verify that the backend's FilterModes is called with a list of modes
+  // that does NOT contain the 3D mode.
+  EXPECT_CALL(mock_capabilities, FilterModes(::testing::_))
+      .WillOnce([](const std::vector<DrmMode>& filtered_modes) {
+        EXPECT_EQ(filtered_modes.size(), 1);
+        EXPECT_EQ(filtered_modes[0].GetRawMode().flags & DRM_MODE_FLAG_3D_MASK,
+                  0);
+        return filtered_modes;
+      });
+
+  HwcConfigParameters params = {
+      .use_color_pipeline = false,
+      .persistent_hdr_enabled = false,
+      .capabilities = &mock_capabilities,
+  };
+
+  auto configs_opt = generator_.GenerateDisplayConfigs(*connector, params);
+  ASSERT_TRUE(configs_opt.has_value());
 }
 
 }  // namespace android::drm_hwcomposer
