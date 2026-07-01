@@ -22,7 +22,6 @@
 
 #include <android-base/thread_annotations.h>
 #include <cutils/trace.h>
-#include <drm/drm_mode.h>
 #include <sync/sync.h>
 #include <utils/Trace.h>
 

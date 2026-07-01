@@ -17,6 +17,7 @@
 #pragma once
 
 #include <android-base/thread_annotations.h>
+#include <drm/drm_mode.h>
 
 #include <condition_variable>
 #include <cstddef>
@@ -163,8 +164,8 @@ class DrmAtomicStateManager : public AtomicStateManager {
   // Cached gamut mappings
   CscCache color_transform_map_;
   // Cached 1D LUTs
-  Lut1DCache degamma_lut_1d_map_;
-  Lut1DCache gamma_lut_1d_map_;
+  Lut1DCache<drm_color_lut32> degamma_lut_1d_map_;
+  Lut1DCache<drm_color_lut32> gamma_lut_1d_map_;
 
   // Cached color pipeline property
   // TODO: Remove after investigating resource manager initialization bug.
