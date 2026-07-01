@@ -809,9 +809,12 @@ void HwcDisplay::InitHdrSupported() {
     return;
   }
 
+  bool crtc_gamma = GetPipe().crtc && GetPipe().crtc->Get() &&
+                    GetPipe().crtc->Get()->GetGammaLutProperty() &&
+                    GetPipe().crtc->Get()->GetGammaLutSizeProperty();
   std::vector<ui::Hdr> hdr_types;
   GetEdid()->GetSupportedHdrTypes(hdr_types);
-  has_hdr_support_ = use_color_pipeline_ && has_wcg_support_ &&
+  has_hdr_support_ = use_color_pipeline_ && crtc_gamma && has_wcg_support_ &&
                      GetPipe().connector && GetPipe().connector->Get() &&
                      (GetPipe().connector->Get()->IsExternal() ||
                       hwc_->GetResMan().PersistentHdrEnabled()) &&

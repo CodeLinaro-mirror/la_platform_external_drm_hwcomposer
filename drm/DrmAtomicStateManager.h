@@ -131,6 +131,8 @@ class DrmAtomicStateManager : public AtomicStateManager {
   bool SetDisplayModeIfNeeded(const AtomicCommitArgs &args,
                               DrmAtomicRequest &request);
   bool SetCtmIfNeeded(const AtomicCommitArgs &args, DrmAtomicRequest &request);
+  bool SetGammaIfNeeded(const AtomicCommitArgs &args,
+                        DrmAtomicRequest &request);
   bool SetColorSpaceIfNeeded(const AtomicCommitArgs &args,
                              DrmAtomicRequest &request);
   bool SetContentTypeIfNeeded(const AtomicCommitArgs &args,
@@ -165,7 +167,7 @@ class DrmAtomicStateManager : public AtomicStateManager {
   CscCache color_transform_map_;
   // Cached 1D LUTs
   Lut1DCache<drm_color_lut32> degamma_lut_1d_map_;
-  Lut1DCache<drm_color_lut32> gamma_lut_1d_map_;
+  Lut1DCache<drm_color_lut> gamma_lut_1d_map_;
 
   // Cached color pipeline property
   // TODO: Remove after investigating resource manager initialization bug.

@@ -371,25 +371,6 @@ std::shared_ptr<T> ColorUtil::GamutAdjustIfNeeded(
   }
 }
 
-std::tuple<const Lut1D<drm_color_lut32> &, const Lut1D<drm_color_lut32> &>
-ColorUtil::Get1DLutsIfNeeded(TransferFunction src_tf, TransferFunction dest_tf,
-                             const size_t degamma_lut_size,
-                             const size_t gamma_lut_size,
-                             Lut1DCache<drm_color_lut32> &degamma_lut_map,
-                             Lut1DCache<drm_color_lut32> &gamma_lut_map,
-                             const float layer_brightness,
-                             const float display_brightness,
-                             const float hdr_headroom) {
-  if (!NeedsTonemapping(src_tf) && !NeedsTonemapping(dest_tf)) {
-    return std::tie(kEmptyLut<drm_color_lut32>, kEmptyLut<drm_color_lut32>);
-  }
-
-  return {GetDegammaLut(src_tf, degamma_lut_size, degamma_lut_map,
-                        layer_brightness),
-          GetGammaLut(dest_tf, gamma_lut_size, gamma_lut_map,
-                      display_brightness, hdr_headroom)};
-}
-
 const Lut1D<drm_color_lut32> &ColorUtil::GetDegammaLut(
     TransferFunction tf, const size_t lut_size,
     Lut1DCache<drm_color_lut32> &lut_1d_map, const float layer_brightness) {
@@ -402,9 +383,9 @@ const Lut1D<drm_color_lut32> &ColorUtil::GetDegammaLut(
                                    /*is_degamma=*/true);
 }
 
-const Lut1D<drm_color_lut32> &ColorUtil::GetGammaLut(
+const Lut1D<drm_color_lut> &ColorUtil::GetGammaLut(
     TransferFunction tf, const size_t lut_size,
-    Lut1DCache<drm_color_lut32> &lut_1d_map, const float display_brightness,
+    Lut1DCache<drm_color_lut> &lut_1d_map, const float display_brightness,
     const float hdr_headroom) {
   // Validate display brightness
   auto lut_scale = (float)kSignalMax;
@@ -415,8 +396,8 @@ const Lut1D<drm_color_lut32> &ColorUtil::GetGammaLut(
   if (hdr_headroom > kSignalMin && hdr_headroom < kSignalMax) {
     lut_scale *= hdr_headroom;
   }
-  return Get1DLut<drm_color_lut32>(tf, lut_size, lut_1d_map, lut_scale,
-                                   /*is_degamma=*/false);
+  return Get1DLut<drm_color_lut>(tf, lut_size, lut_1d_map, lut_scale,
+                                 /*is_degamma=*/false);
 }
 
 // Tell the compiler explicitly to build these versions

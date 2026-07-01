@@ -143,26 +143,18 @@ class ColorUtil {
       const std::shared_ptr<HalColorTransforMatrix> &color_transform_matrix,
       CscCache &color_transform_cache);
 
-  /* Creates 1D Gamma/Degamma LUTs using an appropriate EOTF for the given
-   * colorspace and adds it to the lut_1d_map and returns the map element
-   * reference. If a LUT has already been generated for this colorspace, it
+  /* Creates 1D Gamma/Degamma LUTs using the appropriate OETF/EOTF for the given
+   * transfer function, adds it to the lut_1d_map and returns the map element
+   * reference. If a LUT has already been generated for this set of inputs, it
    * returns that LUT from the mapping. If no LUT is generated, returns an empty
    * array reference.
    */
-  static std::tuple<const Lut1D<drm_color_lut32> &,
-                    const Lut1D<drm_color_lut32> &>
-  Get1DLutsIfNeeded(TransferFunction src_tf, TransferFunction dest_tf,
-                    size_t degamma_lut_size, size_t gamma_lut_size,
-                    Lut1DCache<drm_color_lut32> &degamma_lut_map,
-                    Lut1DCache<drm_color_lut32> &gamma_lut_map,
-                    float layer_brightness, float display_brightness,
-                    float hdr_headroom);
   static const Lut1D<drm_color_lut32> &GetDegammaLut(
       TransferFunction tf, size_t lut_size,
       Lut1DCache<drm_color_lut32> &lut_1d_map, float layer_brightness);
-  static const Lut1D<drm_color_lut32> &GetGammaLut(
+  static const Lut1D<drm_color_lut> &GetGammaLut(
       TransferFunction tf, size_t lut_size,
-      Lut1DCache<drm_color_lut32> &lut_1d_map, float display_brightness,
+      Lut1DCache<drm_color_lut> &lut_1d_map, float display_brightness,
       float hdr_headroom);
 
  private:
