@@ -39,6 +39,7 @@ debian/x86_64_cuttlefish:
 ubuntu/x86_64_aospless:
   extends:
     - .ubuntu/x86_64_hwc
+  timeout: 2h
   variables:
     FDO_DISTRIBUTION_VERSION: "24.04"
     FDO_DISTRIBUTION_EXEC: 'bash .ci/container/ubuntu/x86_64_aospless.sh'
