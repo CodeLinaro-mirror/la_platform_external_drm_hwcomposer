@@ -9,6 +9,7 @@ set -e
 
 function my_atexit()
 {
+  local exit_status=$?
   set +e
   apt-get purge -y "${DEPS_FOR_AOSP[@]}"
   apt-get autoremove -y
@@ -19,6 +20,7 @@ function my_atexit()
   rm --preserve-root /tmp/* -rf
   rm --preserve-root /usr/local/bin/repo
   rm --preserve-root "${TOP}" -rf
+  exit $exit_status
 }
 
 trap my_atexit EXIT

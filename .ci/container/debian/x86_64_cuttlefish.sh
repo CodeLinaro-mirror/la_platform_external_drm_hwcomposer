@@ -36,6 +36,7 @@ source "$(dirname "$0")/../shared.sh"
 
 function my_atexit()
 {
+  local exit_status=$?
   set +e
   # This directory survives outside of the container, so use it for job artifacts
   mkdir -p "/cache/${CI_PROJECT_PATH}"
@@ -53,6 +54,7 @@ function my_atexit()
   rm --preserve-root "${CUTTLEFISH_DIR}" -rf
   rm --preserve-root /root/\.* -rf
   rm --preserve-root /tmp/* -rf
+  exit $exit_status
 }
 
 trap my_atexit EXIT
