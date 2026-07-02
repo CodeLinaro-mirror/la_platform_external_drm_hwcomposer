@@ -110,7 +110,7 @@ curl -L --retry 4 -f --retry-all-errors --retry-delay 60 \
   "https://dl.google.com/android/repository/build-tools_r${ANDROID_SDK_VERSION}_linux.zip"
 unzip "${BUILD_TOOLS_DIR}/build-tools.zip" -d "${BUILD_TOOLS_DIR}"
 rm "${BUILD_TOOLS_DIR}/build-tools.zip"
-mv "${BUILD_TOOLS_DIR}/android-$ANDROID_VERSION" "${TOOLS_DIR}"/build-tools #rename the directory
+mv "${BUILD_TOOLS_DIR}"/android-* "${TOOLS_DIR}"/build-tools #rename the directory
 rm "${BUILD_TOOLS_DIR}" -rf
 fdo_log_section_end get_build-tools "get_build-tools"
 

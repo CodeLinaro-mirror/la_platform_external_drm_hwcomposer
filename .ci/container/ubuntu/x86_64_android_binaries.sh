@@ -111,7 +111,7 @@ m teardown_vkms;
 cp "${TOP}/out/target/product/vsoc_x86_64_only/system/bin/teardown_vkms" \
   "/${BINARIES_DIR}/teardown_vkms"
 
-m test_hotplugs
-cp "${TOP}/out/target/product/vsoc_x86_64_only/data/nativetest64/test_hotplugs/test_hotplugs" \
+m VkmsTestHwcHotplugs
+cp "${TOP}/out/target/product/vsoc_x86_64_only/data/nativetest64/VkmsTestHwcHotplugs/VkmsTestHwcHotplugs" \
   "/${BINARIES_DIR}/test_hotplugs"
 fdo_log_section_end build_vkms_tests

@@ -32,6 +32,7 @@ DEPS_FOR_BUILD=(
   meson
   pkg-config
   rsync
+  zip
 )
 
 DEPS_FOR_TIDY=(
