@@ -31,6 +31,8 @@ function get_repo() {
   popd
 }
 
+source "$(dirname "$0")/../shared.sh"
+
 
 function my_atexit()
 {
@@ -129,7 +131,7 @@ yes n | repo init \
   --depth=1
 
  # Don't increase parallel jobs or they will be denied
-time repo sync --fail-fast --no-tags -j4
+time safe_repo_sync
 fdo_log_section_end repo_init
 
 fdo_log_section_start_collapsed customize_repo "customize_repo"

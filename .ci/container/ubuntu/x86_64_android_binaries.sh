@@ -24,6 +24,8 @@ function my_atexit()
 trap my_atexit EXIT
 trap 'exit 2' HUP INT PIPE TERM
 
+source "$(dirname "$0")/../shared.sh"
+
 source "${FDO_CI_BASH_HELPERS}"
 
 DEPS=(
@@ -71,8 +73,8 @@ yes n | repo init \
   -b "${ANDROID_BRANCH}" \
   --depth=1
 
- # Don't increase parallel jobs or they will be denied
-time repo sync --fail-fast --no-tags -j2
+# Don't increase parallel jobs or they will be denied
+time safe_repo_sync
 fdo_log_section_end repo_init
 
 source "${TOP}/build/envsetup.sh"
