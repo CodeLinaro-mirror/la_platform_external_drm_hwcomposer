@@ -68,6 +68,7 @@ mkdir "${TOP}"
 cd "${TOP}"
 
 : "${ANDROID_BRANCH:?ANDROID_BRANCH is not set}"
+: "${ANDROID_TARGET_RELEASE:?ANDROID_TARGET_RELEASE is not set}"
 
 # prevent interactive colour diffs question
 yes n | repo init \
@@ -82,7 +83,7 @@ fdo_log_section_end repo_init
 source "${TOP}/build/envsetup.sh"
 export TARGET_BUILD_VARIANT=userdebug
 export TARGET_PRODUCT=aosp_cf_x86_64_slim
-export TARGET_RELEASE=bp2a
+export TARGET_RELEASE=${ANDROID_TARGET_RELEASE}
 lunch "${TARGET_PRODUCT}-${TARGET_RELEASE}-${TARGET_BUILD_VARIANT}"
 
 : "${BINARIES_DIR:?BINARIES_DIR is not set}"

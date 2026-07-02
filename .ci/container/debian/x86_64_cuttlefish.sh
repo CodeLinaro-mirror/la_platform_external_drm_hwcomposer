@@ -125,6 +125,7 @@ mkdir "${TOP}"
 cd "${TOP}"
 
 : "${ANDROID_BRANCH:?ANDROID_BRANCH is not set}"
+: "${ANDROID_TARGET_RELEASE:?ANDROID_TARGET_RELEASE is not set}"
 
 # prevent interactive colour diffs question
 yes n | repo init \
@@ -208,7 +209,7 @@ fdo_log_section_start_collapsed build_cuttlefish "build_cuttlefish"
 source build/envsetup.sh
 export TARGET_BUILD_VARIANT=userdebug # needed for adb root and remount
 export TARGET_PRODUCT=aosp_cf_x86_64_phone
-export TARGET_RELEASE=bp2a
+export TARGET_RELEASE=${ANDROID_TARGET_RELEASE}
 
 # Trusty attempts to mount a fresh /proc to run nsjail,
 # but ci-templates uses buildah which already mounts /null on /proc

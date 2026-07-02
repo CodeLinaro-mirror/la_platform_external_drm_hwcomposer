@@ -64,6 +64,7 @@ mkdir "${TOP}"
 cd "${TOP}"
 
 : "${ANDROID_BRANCH:?ANDROID_BRANCH is not set}"
+: "${ANDROID_TARGET_RELEASE:?ANDROID_TARGET_RELEASE is not set}"
 
 yes n | repo init \
   -u https://android.googlesource.com/platform/manifest \
@@ -107,7 +108,7 @@ source build/envsetup.sh
 cd "${TOP}/aospext"
 export TARGET_BUILD_VARIANT=userdebug # needed for adb root and remount
 export TARGET_PRODUCT=aosp_cf_x86_64_slim
-export TARGET_RELEASE=bp2a
+export TARGET_RELEASE=${ANDROID_TARGET_RELEASE}
 
 # Disable LLVM Link-Time-Optimization so that the aospless artifacts will
 # have full object files for linking rather than raw bitcode
@@ -129,7 +130,7 @@ fdo_log_section_start_collapsed build_aospless_arm64 "build_aospless_arm64"
 cd "${TOP}/aospext"
 export TARGET_BUILD_VARIANT=userdebug # needed for adb root and remount
 export TARGET_PRODUCT=aosp_cf_arm64_slim
-export TARGET_RELEASE=bp2a
+export TARGET_RELEASE=${ANDROID_TARGET_RELEASE}
 lunch "${TARGET_PRODUCT}-${TARGET_RELEASE}-${TARGET_BUILD_VARIANT}"
 mm
 cd "${TOP}/out/target/product/vsoc_arm64_only/obj/AOSPEXT/DRMHWCOMPOSER/"

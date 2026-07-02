@@ -7,6 +7,9 @@ workflow:
 variables:
   ANDROID_BRANCH: android16-release
   ANDROID_SDK_VERSION: 36
+  ANDROID_TARGET_RELEASE: bp2a
+  ANDROID_CTS_REVISION: r2
+  ANDROID_CUTTLEFISH_VERSION: v1.17.0
   DEBIAN_FRONTEND: noninteractive
   CI_TEMPLATES_COMMIT: &ci-templates-commit aec7a6ce7bb38902c70641526f6611e27141784a
   FDO_UPSTREAM_REPO: "drm-hwcomposer/drm-hwcomposer"
