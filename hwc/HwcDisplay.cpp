@@ -443,7 +443,6 @@ auto HwcDisplay::AcceptValidatedComposition() -> void {
   }
 }
 
-// NOLINTNEXTLINE(readability-function-cognitive-complexity)
 auto HwcDisplay::PresentStagedComposition(
     std::optional<int64_t> desired_present_time, SharedFd &out_present_fence,
     std::vector<ReleaseFence> &out_release_fences) -> bool {

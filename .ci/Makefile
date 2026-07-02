@@ -55,6 +55,7 @@ TIDY_CHECKS_FINE := *                                   \
     -cppcoreguidelines-avoid-const-or-ref-data-members  \
     -cert-err33-c                                       \
     -readability-redundant-inline-specifier             \
+    -readability-function-cognitive-complexity          \
 
 
 TIDY_CHECKS_NORMAL :=                                   \
