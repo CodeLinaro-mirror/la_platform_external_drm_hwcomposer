@@ -246,7 +246,7 @@ PHONE_FILES=(
 );
 
 for file in "${PHONE_FILES[@]}"; do cp -v "$file" "${CUTTLEFISH_DIR}/"; done;
-cp -r  "${TOP}/out/host/linux-x86/cvd-host_package/." "${CUTTLEFISH_DIR}"
+tar -xvf "${TOP}/out/host/linux-x86/cvd-host_package.tar.gz" -C "${CUTTLEFISH_DIR}"
 
 BOOTLOADER_DIR="${TOP}/out/soong/.intermediates/device/google/cuttlefish_prebuilts/bootloader"
 cp -r "${BOOTLOADER_DIR}/bootloader_crosvm_x86_64/linux_glibc_common/bootloader.crosvm" \
