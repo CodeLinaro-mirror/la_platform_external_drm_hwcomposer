@@ -16,7 +16,7 @@ debian/x86_64_cuttlefish:
   extends:
     - .fdo.container-build@debian
     - .container
-  timeout: 6h
+  timeout: 8h
   variables:
     FDO_DISTRIBUTION_VERSION: "trixie-slim"
     FDO_DISTRIBUTION_EXEC: 'bash .ci/container/debian/x86_64_cuttlefish.sh'
