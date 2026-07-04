@@ -218,7 +218,12 @@ export TRUSTY_SYSTEM_VM=disabled
 
 lunch "${TARGET_PRODUCT}-${TARGET_RELEASE}-${TARGET_BUILD_VARIANT}"
 
-time make -j"${FDO_CI_CONCURRENT:-4}" > "/cuttlefish.log.txt" 2>&1 # Silent or job logs will exceed limit
+echo "NOTE: AOSP compilation output is being filtered to echo only errors, failures, and milestone progress lines (every 1000th step)."
+echo "This prevents the multi-million line build log from exceeding GitLab CI's job log size limit while keeping progress visible."
+echo "The complete, unfiltered build log is saved to /cuttlefish.log.txt and will be uploaded as an artifact on failure."
+time make -j"${FDO_CI_CONCURRENT:-4}" 2>&1 | tee "/cuttlefish.log.txt" | \
+  awk '/error:/ || /FAILED:/ || /ERROR:/ || /fatal:/ || (/\[/ && ++count % 1000 == 0) { print }'
+
 echo "Build of ${TARGET_PRODUCT}-${TARGET_RELEASE}-${TARGET_BUILD_VARIANT} complete."
 
 fdo_log_section_end build_cuttlefish
