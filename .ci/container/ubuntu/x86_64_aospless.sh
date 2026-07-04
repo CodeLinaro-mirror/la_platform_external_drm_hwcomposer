@@ -93,13 +93,17 @@ BOARD_BUILD_AOSPEXT_DRMHWCOMPOSER := true
 BOARD_DRMHWCOMPOSER_SRC_DIR := external/drm_hwcomposer
 EOF
 
-ALLOW_MK_x86_64="${TOP}/device/google/cuttlefish/vsoc_x86_64_only/phone/aosp_cf.mk"
-sed -i '/^PRODUCT_ALLOWED_ANDROIDMK_FILES := art\/Android.mk$/ s|$| aospext/Android.mk aospext/**/Android.mk|' \
-  "${ALLOW_MK_x86_64}"
+ALLOW_MK_x86_64="${TOP}/device/google/cuttlefish/vsoc_x86_64_only/slim/aosp_cf.mk"
+cat >> "${ALLOW_MK_x86_64}" <<EOF
+PRODUCT_ALLOWED_ANDROIDMK_FILES += aospext/Android.mk aospext/**/Android.mk
+PRODUCT_SOONG_ONLY := false
+EOF
 
-ALLOW_MK_arm64="${TOP}/device/google/cuttlefish/vsoc_arm64_only/phone/aosp_cf.mk"
-sed -i '/^PRODUCT_ALLOWED_ANDROIDMK_FILES := art\/Android.mk$/ s|$| aospext/Android.mk aospext/**/Android.mk|' \
-  "${ALLOW_MK_arm64}"
+ALLOW_MK_arm64="${TOP}/device/google/cuttlefish/vsoc_arm64_only/slim/aosp_cf.mk"
+cat >> "${ALLOW_MK_arm64}" <<EOF
+PRODUCT_ALLOWED_ANDROIDMK_FILES += aospext/Android.mk aospext/**/Android.mk
+PRODUCT_SOONG_ONLY := false
+EOF
 
 fdo_log_section_end customize_repo
 

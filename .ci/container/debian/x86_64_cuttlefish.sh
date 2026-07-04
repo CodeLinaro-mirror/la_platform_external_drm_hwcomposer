@@ -157,11 +157,6 @@ git fetch upstream
 # When this commit is included in the next mesa release, then just use the released version.
 MESA3D_LLVM_COMMIT="9029c8b1e37"
 git restore --source="$MESA3D_LLVM_COMMIT" android/
-
-# Revert the commit which removed the libglapi module since we still
-# need it for the Android 16 build
-MESA3D_LIBGLAPI_COMMIT="a1333d60e9f"
-git log -1 -p "${MESA3D_LIBGLAPI_COMMIT}" | patch -p1 -R
 popd
 
 # Remove references to AOSP's vulkan.lvp to avoid conflicts with Mesa make files
@@ -174,8 +169,10 @@ mkdir -p "${ALLOW_MESA_DIR}"
 echo 'external/mesa3d/android/Android.mk' > "${ALLOW_MESA_DIR}/allowlist.txt"
 
 ALLOW_MESA_PRODUCT="${TOP}/device/google/cuttlefish/vsoc_x86_64/phone/aosp_cf.mk"
-sed -i '/^PRODUCT_ALLOWED_ANDROIDMK_FILES := art\/Android.mk$/ s|$| external/mesa3d/android/Android.mk|' \
-  "${ALLOW_MESA_PRODUCT}"
+cat >> "${ALLOW_MESA_PRODUCT}" <<EOF
+PRODUCT_ALLOWED_ANDROIDMK_FILES += external/mesa3d/android/Android.mk
+PRODUCT_SOONG_ONLY := false
+EOF
 
 cat >> "${CUTTLEFISH_DEVICE_DIR}/shared/virgl/BoardConfig.mk" <<EOF
   BOARD_MESA3D_USES_MESON_BUILD := true
@@ -190,7 +187,6 @@ cat >> "${CUTTLEFISH_DEVICE_DIR}/shared/virgl/device_vendor.mk" <<EOF
     libGLESv1_CM_mesa \\
     libGLESv2_mesa \\
     libgallium_dri \\
-    libglapi \\
     vulkan.lvp
 EOF
 
