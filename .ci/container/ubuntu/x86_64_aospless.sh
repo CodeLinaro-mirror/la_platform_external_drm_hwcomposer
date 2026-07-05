@@ -94,6 +94,9 @@ fi
 git -C "${DRMHWC_DIR}" checkout FETCH_HEAD
 
 git clone https://github.com/GloDroid/aospext.git
+# drm_hwcomposer dropped HWC2 support, so we don't build hwcomposer.drm.so anymore.
+# Patch aospext to not expect it.
+sed -i '/hwcomposer.drm.so/d' aospext/meson_drmhwcomposer.mk
 
 cat >> "${TOP}/device/google/cuttlefish/shared/device.mk" <<EOF
 BOARD_BUILD_AOSPEXT_DRMHWCOMPOSER := true
