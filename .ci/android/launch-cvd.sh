@@ -55,7 +55,7 @@ VSOCK_BASE=10000 # greater than all the default vsock ports
 VSOCK_CID=$((VSOCK_BASE + (CI_JOB_ID & 0xfff)))
 
 ulimit -S unlimited
-HOME=/cuttlefish launch_cvd \
+HOME=/cuttlefish timeout -k 30s 15m launch_cvd \
   -daemon \
   -verbosity=VERBOSE \
   -file_verbosity=VERBOSE \
