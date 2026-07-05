@@ -55,6 +55,12 @@ apt-get install -y --no-remove --no-install-recommends "${DEPS_FOR_BUILD[@]}"
 apt-get install -y --no-remove --no-install-recommends "${DEPS_FOR_TIDY[@]}"
 apt-get install -y --no-remove --no-install-recommends "${DEPS_FOR_CHECK[@]}"
 
+# Make Clang 19 the default
+ln -sf /usr/bin/clang-19 /usr/bin/clang
+ln -sf /usr/bin/clang++-19 /usr/bin/clang++
+ln -sf /usr/bin/clang-tidy-19 /usr/bin/clang-tidy
+ln -sf /usr/bin/clang-format-19 /usr/bin/clang-format
+
 curl -o /usr/local/bin/repo https://storage.googleapis.com/git-repo-downloads/repo
 chmod a+x /usr/local/bin/repo
 fdo_log_section_end install_packages
