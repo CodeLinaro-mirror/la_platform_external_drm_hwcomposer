@@ -224,7 +224,7 @@ function run_vts() {
 
   mapfile -t expected_skips < <(
     sed -nE '/^(#|[[:space:]]*$)/!{ s/^[[:space:]]+//; s/[[:space:]]+$//; p }' \
-      "${CI_PROJECT_DIR}/.ci/android/${skip_file_name}"
+      "${CI_PROJECT_DIR}/.ci/android/${skip_file_name}" | sort
   )
 
   local actual_skips_file="vts_results_${test_name}_actual_skips.txt"
@@ -233,7 +233,7 @@ function run_vts() {
 
   mapfile -t actual_skips < <(
     sed -nE 's/^\[[[:space:]]*SKIPPED[[:space:]]*\][[:space:]]*(.*)$/\1/p' \
-      "${RESULTS_DIR}/${actual_skips_file}"
+      "${RESULTS_DIR}/${actual_skips_file}" | sort
   )
 
   UNEXPECTED_SKIPS=0
