@@ -197,11 +197,17 @@ function run_vts() {
   fi
   local test_name=$1
   local skip_file_name=${2:-vts-skips.txt}
+  local gtest_filter=${3:-${GTEST_FILTER:-}}
   local results_log="vts_results_${test_name}"
   adb shell stop surfaceflinger
   adb logcat -c
 
-  ADB_TEST_CMD="(MESA_SHADER_CACHE_DIR=/data/local/tmp/ /data/local/tmp/VtsHalGraphicsComposer3_TargetTest 2>&1 \
+  local gtest_filter_arg=""
+  if [[ -n "${gtest_filter}" ]]; then
+    gtest_filter_arg=" --gtest_filter=${gtest_filter}"
+  fi
+
+  ADB_TEST_CMD="(MESA_SHADER_CACHE_DIR=/data/local/tmp/ /data/local/tmp/VtsHalGraphicsComposer3_TargetTest${gtest_filter_arg} 2>&1 \
     | tee /data/local/tmp/${results_log})"
 
   set +e
