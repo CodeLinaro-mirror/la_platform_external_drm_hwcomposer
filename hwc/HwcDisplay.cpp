@@ -778,6 +778,50 @@ void HwcDisplay::Deinit() {
   }
 }
 
+void HwcDisplay::InitUseColorPipeline() {
+  if (IsInHeadlessMode()) {
+    use_color_pipeline_ = false;
+    return;
+  }
+
+  use_color_pipeline_ = hwc_->GetResMan().UseColorPipeline() &&
+                        GetPipe().primary_plane &&
+                        GetPipe().primary_plane->Get() &&
+                        GetPipe().primary_plane->Get()->HasColorPipeline();
+}
+
+void HwcDisplay::InitWcgSupported() {
+  if (IsInHeadlessMode()) {
+    has_wcg_support_ = false;
+    return;
+  }
+
+  bool crtc_ctm = GetPipe().crtc && GetPipe().crtc->Get() &&
+                  GetPipe().crtc->Get()->GetCtmProperty();
+  std::vector<ColorMode> color_modes;
+  GetEdid()->GetColorModes(color_modes);
+  has_wcg_support_ = (use_color_pipeline_ || crtc_ctm) && !color_modes.empty();
+}
+
+void HwcDisplay::InitHdrSupported() {
+  if (IsInHeadlessMode()) {
+    has_hdr_support_ = false;
+    return;
+  }
+
+  std::vector<ui::Hdr> hdr_types;
+  GetEdid()->GetSupportedHdrTypes(hdr_types);
+  has_hdr_support_ = use_color_pipeline_ && has_wcg_support_ &&
+                     GetPipe().connector && GetPipe().connector->Get() &&
+                     (GetPipe().connector->Get()->IsExternal() ||
+                      hwc_->GetResMan().PersistentHdrEnabled()) &&
+                     GetPipe()
+                         .connector->Get()
+                         ->GetHdrOutputMetadataProperty() &&
+                     GetPipe().connector->Get()->GetColorspaceProperty() &&
+                     !hdr_types.empty();
+}
+
 bool HwcDisplay::Init() {
   if (!is_virtual_) {
     vsync_worker_ = VSyncWorker::CreateInstance(pipeline_);
@@ -868,32 +912,9 @@ bool HwcDisplay::Init() {
     configs_ = std::move(*configs);
   }
 
-  // Determine WCG and HDR support
-  if (IsInHeadlessMode()) {
-    use_color_pipeline_ = has_wcg_support_ = has_hdr_support_ = false;
-  } else {
-    use_color_pipeline_ = hwc_->GetResMan().UseColorPipeline() &&
-                          GetPipe().primary_plane &&
-                          GetPipe().primary_plane->Get() &&
-                          GetPipe().primary_plane->Get()->HasColorPipeline();
-    std::vector<ColorMode> color_modes;
-    GetEdid()->GetColorModes(color_modes);
-    has_wcg_support_ = (use_color_pipeline_ ||
-                        (GetPipe().crtc && GetPipe().crtc->Get() &&
-                         GetPipe().crtc->Get()->GetCtmProperty())) &&
-                       !color_modes.empty();
-    std::vector<ui::Hdr> hdr_types;
-    GetEdid()->GetSupportedHdrTypes(hdr_types);
-    has_hdr_support_ = use_color_pipeline_ && has_wcg_support_ &&
-                       GetPipe().connector && GetPipe().connector->Get() &&
-                       (GetPipe().connector->Get()->IsExternal() ||
-                        hwc_->GetResMan().PersistentHdrEnabled()) &&
-                       GetPipe()
-                           .connector->Get()
-                           ->GetHdrOutputMetadataProperty() &&
-                       GetPipe().connector->Get()->GetColorspaceProperty() &&
-                       !hdr_types.empty();
-  }
+  InitUseColorPipeline();
+  InitWcgSupported();
+  InitHdrSupported();
 
   if (SetConfig(configs_.preferred_config_id) !=
       HwcDisplay::ConfigError::kNone) {

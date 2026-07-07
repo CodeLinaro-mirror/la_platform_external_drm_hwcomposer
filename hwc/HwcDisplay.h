@@ -334,6 +334,10 @@ class HwcDisplay : public ICompositorDisplay {
   bool IsDozeSuspendSupported() const;
   bool IsSuspendSupported() const;
 
+  void InitUseColorPipeline();
+  void InitWcgSupported();
+  void InitHdrSupported();
+
   // Before CreateFrameUpdateCommit() can be called, it must be ensured that
   // the composition's internal states are up to date and ready to create an
   // AtomicCommitArgs.
