@@ -1099,8 +1099,8 @@ auto HwcDisplay::IsHdcpPropertyPresent() -> bool {
 
 auto HwcDisplay::StartHdcp() -> bool {
   /*
-   * Client can request to start Hdcp
-   * If Client requests to start Hdcp, internal state is set to kDesired
+   * Hdcp will be enabled on hotplug or client can request to start Hdcp
+   * With requests to start Hdcp, internal state is set to kDesired
    * else the state stays as Undesired
    * Since the HDCP Content and Content Protection prop are optional
    * We need to make sure the connector has these properties else
@@ -1109,11 +1109,11 @@ auto HwcDisplay::StartHdcp() -> bool {
    */
   if (hdcpcon_ == nullptr) {
     ALOGE(
-        "Client requested HDCP, but HDCP properties not available on that "
+        "HDCP requested, but HDCP properties not available on that "
         "display");
     return false;
   }
-  ALOGI("Client requested to start HDCP");
+  ALOGI("HDCP requested to start");
   hdcpcon_->Start();
   return true;
 }
@@ -1791,7 +1791,7 @@ void HwcDisplay::LogModesOnHotplug() {
 
   const uint32_t
       connection_type = GetPipe().connector->Get()->GetConnectorType();
-  const bool has_path = GetPipe().connector->Get()->HasPathProperty();
+  const bool is_mst = GetPipe().connector->Get()->IsMst();
 
   auto vendor = EdidWrapper::VendorProductInfo{};
   uint32_t vrr_range_min = 0;
@@ -1851,7 +1851,7 @@ void HwcDisplay::LogModesOnHotplug() {
          .max_average_luminance = max_average_luminance,
          .min_luminance = min_luminance,
          .connection_type = connection_type,
-         .has_path = has_path,
+         .has_path = is_mst,
          .vrr_range_min = vrr_range_min,
          .vrr_range_max = vrr_range_max};
 
