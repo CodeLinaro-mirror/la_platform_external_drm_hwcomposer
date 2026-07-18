@@ -87,27 +87,16 @@ std::shared_ptr<drm_color_ctm> ToColorTransform3x3(
   return color_matrix;
 }
 
-ColorGamut ToColorGamut(DrmColorspace colorspace) {
+ColorGamut ToColorGamut(HwcColorspace colorspace) {
   switch (colorspace) {
-    case DrmColorspace::kBt709Ycc:
-    case DrmColorspace::kXvycc709:
-    case DrmColorspace::kDefault:
+    case HwcColorspace::kBt709:
+    case HwcColorspace::kDefault:
       return ColorGamut::BT709();
-    case DrmColorspace::kBt2020Cycc:
-    case DrmColorspace::kBt2020Rgb:
-    case DrmColorspace::kBt2020Ycc:
+    case HwcColorspace::kBt2020:
       return ColorGamut::BT2020();
-    case DrmColorspace::kDciP3RgbD65:
-    case DrmColorspace::kDciP3RgbTheater:
+    case HwcColorspace::kDciP3:
       return ColorGamut::DCIP3();
-    case DrmColorspace::kSycc601:
-    case DrmColorspace::kOpycc601:
-    case DrmColorspace::kBt601Ycc:
-    case DrmColorspace::kOprgb:
-    case DrmColorspace::kRgbWideFixed:
-    case DrmColorspace::kSmpte170MYcc:
-    case DrmColorspace::kRgbWideFloat:
-    default:
+    case HwcColorspace::kBt601:
       return ColorGamut::sRGB();
   }
 }
@@ -318,7 +307,7 @@ std::shared_ptr<drm_color_ctm_3x4> ColorUtil::ToColorTransform3x4(
 
 template <typename T>
 std::shared_ptr<T> ColorUtil::GamutAdjustIfNeeded(
-    DrmColorspace src_colorspace, DrmColorspace dest_colorspace,
+    HwcColorspace src_colorspace, HwcColorspace dest_colorspace,
     const std::shared_ptr<HalColorTransforMatrix> &color_transform_matrix,
     CscCache &color_transform_cache) {
   if (src_colorspace == dest_colorspace) {
@@ -403,11 +392,11 @@ const Lut1D<drm_color_lut> &ColorUtil::GetGammaLut(
 
 // Tell the compiler explicitly to build these versions
 template std::shared_ptr<drm_color_ctm> ColorUtil::GamutAdjustIfNeeded<
-    drm_color_ctm>(DrmColorspace, DrmColorspace,
+    drm_color_ctm>(HwcColorspace, HwcColorspace,
                    const std::shared_ptr<HalColorTransforMatrix> &, CscCache &);
 template std::shared_ptr<drm_color_ctm_3x4>
 ColorUtil::GamutAdjustIfNeeded<drm_color_ctm_3x4>(
-    DrmColorspace, DrmColorspace,
+    HwcColorspace, HwcColorspace,
     const std::shared_ptr<HalColorTransforMatrix> &, CscCache &);
 
 }  // namespace android::drm_hwcomposer

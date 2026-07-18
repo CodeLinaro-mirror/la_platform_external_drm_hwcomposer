@@ -1007,7 +1007,7 @@ auto HwcDisplay::GetColorModes() const -> std::vector<ColorMode> {
 }
 
 void HwcDisplay::SetColorMode(ColorMode mode) {
-  colorspace_ = ColorUtil::ToColorspace(mode);
+  colorspace_ = ColorUtil::ToHwcColorspace(mode);
 }
 
 void HwcDisplay::GetHdrCapabilities(std::vector<ui::Hdr> *types,
@@ -1852,7 +1852,7 @@ bool HwcDisplay::CursorPlaneNeedsColorPipeline(
     return false;
   }
 
-  const DrmColorspace cursor_colorspace = cursor_layer.GetLayerData()
+  const HwcColorspace cursor_colorspace = cursor_layer.GetLayerData()
                                               .colorspace;
   CscCache cursor_color_map;
   auto cursor_matrix = ColorUtil::GamutAdjustIfNeeded<

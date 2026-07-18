@@ -25,6 +25,7 @@
 #include <string>
 #include <vector>
 
+#include "drm/DrmColorspace.h"
 #include "drm/DrmDisplayPipeline.h"
 #include "drm/DrmProperty.h"
 #include "drm/DrmUnique.h"

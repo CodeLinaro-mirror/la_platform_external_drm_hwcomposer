@@ -29,6 +29,7 @@
 
 #include "compositor/DisplayInfo.h"
 #include "compositor/LayerData.h"
+#include "drm/DrmColorspace.h"
 #include "utils/log.h"
 
 namespace android::drm_hwcomposer {
@@ -38,7 +39,7 @@ using Lut1D = std::vector<T>;
 template <typename T>
 using Lut1DCache = std::map<std::tuple<TransferFunction, size_t, float>,
                             Lut1D<T>>;
-using CscCache = std::map<std::tuple<DrmColorspace, DrmColorspace>,
+using CscCache = std::map<std::tuple<HwcColorspace, HwcColorspace>,
                           const mat3d>;
 
 template <typename T>
@@ -106,41 +107,51 @@ class ColorUtil {
   static std::shared_ptr<drm_color_ctm_3x4> ToColorTransform3x4(
       const std::shared_ptr<HalColorTransforMatrix> &color_transform_matrix);
 
-  /* Maps to the Colorspace DRM connector property:
-   * https://elixir.bootlin.com/linux/v6.11/source/include/drm/drm_connector.h#L538
-   */
-  static DrmColorspace ToColorspace(ColorMode mode) {
+  static HwcColorspace ToHwcColorspace(ColorMode mode) {
     switch (mode) {
       case ColorMode::kNative:
-        return DrmColorspace::kDefault;
+        return HwcColorspace::kDefault;
       case ColorMode::kBt601_625:
       case ColorMode::kBt601_625Unadjusted:
       case ColorMode::kBt601_525:
       case ColorMode::kBt601_525Unadjusted:
-        // The DP spec does not say whether this is the 525 or the 625 line
-        // version.
-        return DrmColorspace::kBt601Ycc;
+        return HwcColorspace::kBt601;
       case ColorMode::kBt709:
       case ColorMode::kSrgb:
-        return DrmColorspace::kBt709Ycc;
+        return HwcColorspace::kBt709;
       case ColorMode::kDciP3:
       case ColorMode::kDisplayP3:
-        return DrmColorspace::kDciP3RgbD65;
+        return HwcColorspace::kDciP3;
       case ColorMode::kBt2020:
       case ColorMode::kDisplayBt2020:
-        return DrmColorspace::kBt2020Rgb;
+        return HwcColorspace::kBt2020;
       case ColorMode::kAdobeRgb:
       case ColorMode::kBt2100Pq:
       case ColorMode::kBt2100Hlg:
         ALOGW("Unsupported color mode: %d", static_cast<int32_t>(mode));
+        return HwcColorspace::kDefault;
+    }
+  }
+
+  static DrmColorspace ToDrmColorspace(HwcColorspace colorspace) {
+    switch (colorspace) {
+      case HwcColorspace::kDefault:
         return DrmColorspace::kDefault;
+      case HwcColorspace::kBt601:
+        return DrmColorspace::kBt601Ycc;
+      case HwcColorspace::kBt709:
+        return DrmColorspace::kBt709Ycc;
+      case HwcColorspace::kDciP3:
+        return DrmColorspace::kDciP3RgbD65;
+      case HwcColorspace::kBt2020:
+        return DrmColorspace::kBt2020Rgb;
     }
   }
 
   // If required, adjust color transform matrix to handle gamut mapping
   template <typename T>
   static std::shared_ptr<T> GamutAdjustIfNeeded(
-      DrmColorspace src_colorspace, DrmColorspace dest_colorspace,
+      HwcColorspace src_colorspace, HwcColorspace dest_colorspace,
       const std::shared_ptr<HalColorTransforMatrix> &color_transform_matrix,
       CscCache &color_transform_cache);
 

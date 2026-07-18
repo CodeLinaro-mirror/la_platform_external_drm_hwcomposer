@@ -229,7 +229,7 @@ bool DrmAtomicStateManager::SetCtmIfNeeded(const AtomicCommitArgs &args,
     return true;
   }
 
-  Colorspace colorspace = Colorspace::kDefault;
+  HwcColorspace colorspace = HwcColorspace::kDefault;
   if (!args.composition || args.composition->plan.empty()) {
     ALOGW(
         "Composition plan is empty; using default colorspace as src for gamut "
@@ -241,7 +241,8 @@ bool DrmAtomicStateManager::SetCtmIfNeeded(const AtomicCommitArgs &args,
     colorspace = args.composition->plan.front().layer.colorspace;
   }
   auto drm_color_matrix = ColorUtil::GamutAdjustIfNeeded<
-      drm_color_ctm>(colorspace, args.colorspace.value_or(Colorspace::kDefault),
+      drm_color_ctm>(colorspace,
+                     args.colorspace.value_or(HwcColorspace::kDefault),
                      args.color_matrix, color_transform_map_);
 
   DrmModeUserPropertyBlobUnique ctm_blob;
@@ -311,9 +312,10 @@ bool DrmAtomicStateManager::SetColorSpaceIfNeeded(const AtomicCommitArgs &args,
     return true;
   }
 
+  DrmColorspace drm_colorspace = ColorUtil::ToDrmColorspace(*args.colorspace);
   return connector->GetColorspaceProperty()
       .AtomicSet(*request.property_set,
-                 connector->GetColorspacePropertyValue(*args.colorspace));
+                 connector->GetColorspacePropertyValue(drm_colorspace));
 }
 
 bool DrmAtomicStateManager::SetContentTypeIfNeeded(const AtomicCommitArgs &args,
@@ -442,7 +444,7 @@ bool DrmAtomicStateManager::SetCompositionIfNeeded(const AtomicCommitArgs &args,
     if (use_color_pipeline_ && plane->HasColorPipeline()) {
       auto drm_color_matrix = ColorUtil::GamutAdjustIfNeeded<
           drm_color_ctm_3x4>(layer.colorspace,
-                             args.colorspace.value_or(Colorspace::kDefault),
+                             args.colorspace.value_or(HwcColorspace::kDefault),
                              args.color_matrix, color_transform_map_);
       DrmModeUserPropertyBlobUnique ctm_3x4_blob;
       if (drm_color_matrix) {
