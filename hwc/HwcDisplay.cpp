@@ -804,6 +804,16 @@ void HwcDisplay::InitHdrSupported() {
     return;
   }
 
+  if (pipeline_->capabilities) {
+    auto override_types = pipeline_->capabilities->GetHdrTypesOverride();
+    if (override_types.has_value()) {
+      has_hdr_support_ = !override_types->empty();
+      ALOGI("InitHdrSupported: using backend override: has_hdr_support_=%d",
+            has_hdr_support_);
+      return;
+    }
+  }
+
   bool crtc_gamma = GetPipe().crtc && GetPipe().crtc->Get() &&
                     GetPipe().crtc->Get()->GetGammaLutProperty() &&
                     GetPipe().crtc->Get()->GetGammaLutSizeProperty();
@@ -1016,6 +1026,18 @@ void HwcDisplay::GetHdrCapabilities(std::vector<ui::Hdr> *types,
                                     float *min_luminance) const {
   if (IsInHeadlessMode() || !has_hdr_support_) {
     return;
+  }
+
+  if (pipeline_->capabilities) {
+    auto override_types = pipeline_->capabilities->GetHdrTypesOverride();
+    if (override_types.has_value()) {
+      *types = *override_types;
+      if (GetEdid()) {
+        GetEdid()->GetHdrLuminance(max_luminance, max_average_luminance,
+                                   min_luminance);
+      }
+      return;
+    }
   }
 
   // Return HDR caps only when we have the ability to set HDR
