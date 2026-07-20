@@ -168,7 +168,6 @@ CommitStatus TestLayerMappings(
 GenericLayerMapperCompositionPlanner::GenericLayerMapperCompositionPlanner(
     LayerMapper::MappingValidator backend_validator)
     : cursor_mapper_(CompositionType::kCursor),
-      device_cursor_mapper_(CompositionType::kDevice),
       backend_validator_(std::move(backend_validator)) {
 }
 
@@ -222,8 +221,10 @@ GenericLayerMapperCompositionPlanner::ValidateDisplay(
                (backend_validator_ ? backend_validator_(layers) : true);
       };
 
-  const bool use_cursor_plane = ShouldUseCursorPlane(display, layers);
-  layers = GetCursorMapper(use_cursor_plane).AssignLayers(layers, validator);
+  const CompositionType
+      cursor_composition_type = GetCursorCompositionType(display, layers);
+  cursor_mapper_.SetCursorPlaneType(cursor_composition_type);
+  layers = cursor_mapper_.AssignLayers(layers, validator);
 
   // Mapping dealing with layer caching does not need any testing as they do
   // not consume actual hardware resources.
@@ -257,8 +258,7 @@ GenericLayerMapperCompositionPlanner::ValidateDisplay(
     if (IsCursorPlaneUsed(layers)) {
       layers = force_client_composition_mapper_.AssignLayers(layers, validator);
       layers.back().composition_type = CompositionType::kInvalid;
-      layers = GetCursorMapper(use_cursor_plane)
-                   .AssignLayers(layers, validator);
+      layers = cursor_mapper_.AssignLayers(layers, validator);
 
       ValidatedComposition new_composition = ValidatedComposition{
           .composition_types = ToCompositionTypes(layers)};
@@ -278,7 +278,7 @@ GenericLayerMapperCompositionPlanner::ValidateDisplay(
     validated_composition->error_code = commit_status.error_code;
   }
 
-  if (use_cursor_plane) {
+  if (cursor_composition_type == CompositionType::kCursor) {
     validated_composition->cursor_plane_validated = success_before_flattening;
   }
   validated_composition->composition_plan.reset();
@@ -297,7 +297,7 @@ GenericLayerMapperCompositionPlanner::CreateFlattenedComposition(
                               .flatten_reason = flatten_reason};
 }
 
-bool GenericLayerMapperCompositionPlanner::ShouldUseCursorPlane(
+CompositionType GenericLayerMapperCompositionPlanner::GetCursorCompositionType(
     const ICompositorDisplay* display,
     const std::vector<LayerMapping>& layers) const {
   if (DisplayCanUseCursorPlane(display, GetCursorLayer(layers))) {
@@ -309,15 +309,12 @@ bool GenericLayerMapperCompositionPlanner::ShouldUseCursorPlane(
 
     ValidatedComposition cursor_composition{
         .composition_types = ToCompositionTypes(test_mappings)};
-    return display->TestComposition(cursor_composition).success;
+    return display->TestComposition(cursor_composition).success
+               ? CompositionType::kCursor
+               : CompositionType::kDevice;
   }
 
-  return false;
-}
-
-const CursorLayerMapper& GenericLayerMapperCompositionPlanner::GetCursorMapper(
-    bool use_cursor_plane) const {
-  return use_cursor_plane ? cursor_mapper_ : device_cursor_mapper_;
+  return CompositionType::kDevice;
 }
 
 std::vector<LayerMapping>
