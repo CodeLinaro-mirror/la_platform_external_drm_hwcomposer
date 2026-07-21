@@ -38,6 +38,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <set>
 #include <sstream>
 #include <string>
 #include <tuple>
@@ -980,24 +981,22 @@ auto HwcDisplay::GetColorModes() const -> std::vector<ColorMode> {
     }
   }
 
-  std::vector<ColorMode> modes;
-  GetEdid()->GetColorModes(modes);
-
+  // If force_color_mode is set, override the color modes.
   if (GetPipe().connector->Get()->IsInternal() &&
       hwc_->GetResMan().ForceColorMode() >= 0) {
     auto force_color_mode = static_cast<ColorMode>(
         hwc_->GetResMan().ForceColorMode());
 
+    std::set<ColorMode> modes;
     if (force_color_mode >= ColorMode::kNative &&
         force_color_mode <= ColorMode::kDisplayBt2020) {
-      modes.clear();
-      modes.emplace_back(ColorMode::kNative);
-
+      modes.emplace(ColorMode::kNative);
       if (force_color_mode != ColorMode::kNative) {
-        modes.emplace_back(force_color_mode);
+        modes.emplace(ColorMode::kSrgb);
+        modes.emplace(force_color_mode);
       }
 
-      return modes;
+      return {modes.begin(), modes.end()};
     }
   }
 
@@ -1005,10 +1004,15 @@ auto HwcDisplay::GetColorModes() const -> std::vector<ColorMode> {
     return {ColorMode::kNative};
   }
 
+  // TODO: refactor to use set instead of vector
+  std::vector<ColorMode> modes;
+  GetEdid()->GetColorModes(modes);
+
   if (modes.empty()) {
     return {ColorMode::kNative};
   }
 
+  modes.emplace_back(ColorMode::kSrgb);
   return modes;
 }
 
@@ -1020,6 +1024,20 @@ auto HwcDisplay::GetRenderIntents(ColorMode /*color_mode*/) const
 
 void HwcDisplay::SetColorMode(ColorMode mode, ui::RenderIntent render_intent) {
   colorspace_ = ColorUtil::ToHwcColorspace(mode);
+
+  // If force_color_mode is set, override the color modes.
+  if (GetPipe().connector->Get()->IsInternal() &&
+      hwc_->GetResMan().ForceColorMode() >= 0) {
+    auto force_color_mode = static_cast<ColorMode>(
+        hwc_->GetResMan().ForceColorMode());
+
+    if (force_color_mode >= ColorMode::kNative &&
+        force_color_mode <= ColorMode::kDisplayBt2020) {
+      if (force_color_mode != ColorMode::kNative) {
+        colorspace_ = ColorUtil::ToHwcColorspace(force_color_mode);
+      }
+    }
+  }
 
   switch (render_intent) {
     case ui::RenderIntent::COLORIMETRIC:
