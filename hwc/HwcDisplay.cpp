@@ -829,6 +829,31 @@ void HwcDisplay::InitHdrSupported() {
                      !hdr_types.empty();
 }
 
+void HwcDisplay::InitForcedColorMode() {
+  if (IsInHeadlessMode()) {
+    return;
+  }
+
+  // Forced color modes only apply to the internal display
+  if (GetPipe().connector && GetPipe().connector->Get() &&
+      GetPipe().connector->Get()->IsExternal()) {
+    return;
+  }
+
+  if (hwc_->GetResMan().ForceColorMode() < 0) {
+    return;
+  }
+
+  auto force_color_mode = static_cast<ColorMode>(
+      hwc_->GetResMan().ForceColorMode());
+  if (force_color_mode < ColorMode::kNative ||
+      force_color_mode > ColorMode::kDisplayBt2020) {
+    return;
+  }
+
+  forced_color_mode_ = force_color_mode;
+}
+
 bool HwcDisplay::Init() {
   if (!is_virtual_) {
     vsync_worker_ = VSyncWorker::CreateInstance(pipeline_);
@@ -922,6 +947,7 @@ bool HwcDisplay::Init() {
   InitUseColorPipeline();
   InitWcgSupported();
   InitHdrSupported();
+  InitForcedColorMode();
 
   if (SetConfig(configs_.preferred_config_id) !=
       HwcDisplay::ConfigError::kNone) {
@@ -981,23 +1007,13 @@ auto HwcDisplay::GetColorModes() const -> std::vector<ColorMode> {
     }
   }
 
-  // If force_color_mode is set, override the color modes.
-  if (GetPipe().connector->Get()->IsInternal() &&
-      hwc_->GetResMan().ForceColorMode() >= 0) {
-    auto force_color_mode = static_cast<ColorMode>(
-        hwc_->GetResMan().ForceColorMode());
-
+  // If forced_color_mode_ is set, override the color modes.
+  if (forced_color_mode_.has_value()) {
     std::set<ColorMode> modes;
-    if (force_color_mode >= ColorMode::kNative &&
-        force_color_mode <= ColorMode::kDisplayBt2020) {
-      modes.emplace(ColorMode::kNative);
-      if (force_color_mode != ColorMode::kNative) {
-        modes.emplace(ColorMode::kSrgb);
-        modes.emplace(force_color_mode);
-      }
-
-      return {modes.begin(), modes.end()};
-    }
+    modes.emplace(ColorMode::kNative);
+    modes.emplace(ColorMode::kSrgb);
+    modes.emplace(forced_color_mode_.value());
+    return {modes.begin(), modes.end()};
   }
 
   if (!GetPipe().connector->Get()->GetColorspaceProperty()) {
@@ -1023,21 +1039,10 @@ auto HwcDisplay::GetRenderIntents(ColorMode /*color_mode*/) const
 }
 
 void HwcDisplay::SetColorMode(ColorMode mode, ui::RenderIntent render_intent) {
-  colorspace_ = ColorUtil::ToHwcColorspace(mode);
-
   // If force_color_mode is set, override the color modes.
-  if (GetPipe().connector->Get()->IsInternal() &&
-      hwc_->GetResMan().ForceColorMode() >= 0) {
-    auto force_color_mode = static_cast<ColorMode>(
-        hwc_->GetResMan().ForceColorMode());
-
-    if (force_color_mode >= ColorMode::kNative &&
-        force_color_mode <= ColorMode::kDisplayBt2020) {
-      if (force_color_mode != ColorMode::kNative) {
-        colorspace_ = ColorUtil::ToHwcColorspace(force_color_mode);
-      }
-    }
-  }
+  colorspace_ = forced_color_mode_
+                    ? ColorUtil::ToHwcColorspace(forced_color_mode_.value())
+                    : ColorUtil::ToHwcColorspace(mode);
 
   switch (render_intent) {
     case ui::RenderIntent::COLORIMETRIC:
@@ -1075,13 +1080,6 @@ void HwcDisplay::GetHdrCapabilities(std::vector<ui::Hdr> *types,
       }
       return;
     }
-  }
-
-  // Return HDR caps only when we have the ability to set HDR
-  const DrmDisplayPipeline &pipeline = GetPipe();
-  if (pipeline.connector == nullptr || pipeline.connector->Get() == nullptr ||
-      !pipeline.connector->Get()->GetHdrOutputMetadataProperty()) {
-    return;
   }
 
   GetEdid()->GetHdrCapabilities(*types, max_luminance, max_average_luminance,
