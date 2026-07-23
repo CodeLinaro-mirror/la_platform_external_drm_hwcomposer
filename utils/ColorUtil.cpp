@@ -305,6 +305,28 @@ std::shared_ptr<drm_color_ctm_3x4> ColorUtil::ToColorTransform3x4(
   return color_matrix;
 }
 
+std::shared_ptr<HalColorTransformMatrix> ColorUtil::Multiply(
+    const std::shared_ptr<HalColorTransformMatrix> &a,
+    const std::shared_ptr<HalColorTransformMatrix> &b) {
+  if (a == nullptr && b == nullptr) {
+    return nullptr;
+  }
+  if (a == nullptr || a == GetIdentityCtmPtr()) {
+    return b;
+  }
+  if (b == nullptr || b == GetIdentityCtmPtr()) {
+    return a;
+  }
+
+  android::mat4 mat_a(static_cast<const float *>(a->data()));
+  android::mat4 mat_b(static_cast<const float *>(b->data()));
+  android::mat4 res = mat_a * mat_b;
+  auto out = std::make_shared<HalColorTransformMatrix>();
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+  std::copy(res.asArray(), res.asArray() + kColorMatrixSize, out->begin());
+  return out;
+}
+
 template <typename T>
 std::shared_ptr<T> ColorUtil::GamutAdjustIfNeeded(
     HwcColorspace src_colorspace, HwcColorspace dest_colorspace,

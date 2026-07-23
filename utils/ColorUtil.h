@@ -107,6 +107,10 @@ class ColorUtil {
   static std::shared_ptr<drm_color_ctm_3x4> ToColorTransform3x4(
       const std::shared_ptr<HalColorTransformMatrix> &color_transform_matrix);
 
+  static std::shared_ptr<HalColorTransformMatrix> Multiply(
+      const std::shared_ptr<HalColorTransformMatrix> &a,
+      const std::shared_ptr<HalColorTransformMatrix> &b);
+
   static HwcColorspace ToHwcColorspace(ColorMode mode) {
     switch (mode) {
       case ColorMode::kNative:

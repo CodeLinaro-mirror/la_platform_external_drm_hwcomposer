@@ -26,6 +26,7 @@
 #include <vector>
 
 #include <ui/ColorSpace.h>
+#include <ui/GraphicTypes.h>
 
 #include "compositor/CompositionPlanner.h"
 #include "compositor/DisplayInfo.h"
@@ -78,6 +79,9 @@ class FrontendDisplayBase {
 
 inline constexpr uint32_t kPrimaryDisplay = 0;
 inline constexpr float kBrightnessUnset = -1;
+
+inline constexpr ui::RenderIntent
+    kVendorBoostedRenderIntent = static_cast<ui::RenderIntent>(256);
 
 // NOLINTNEXTLINE
 class HwcDisplay : public ICompositorDisplay {
@@ -232,7 +236,9 @@ class HwcDisplay : public ICompositorDisplay {
   auto DestroyLayer(ILayerId layer_id) -> bool;
 
   auto GetColorModes() const -> std::vector<ColorMode>;
-  void SetColorMode(ColorMode color_mode);
+  auto GetRenderIntents(ColorMode color_mode) const
+      -> std::vector<ui::RenderIntent>;
+  void SetColorMode(ColorMode color_mode, ui::RenderIntent render_intent);
 
   void GetHdrCapabilities(std::vector<ui::Hdr> *types, float *max_luminance,
                           float *max_average_luminance,
@@ -272,6 +278,8 @@ class HwcDisplay : public ICompositorDisplay {
   size_t GetNumAvailablePlanes() const override;
   std::shared_ptr<BindingOwner<DrmPlane>> GetCursorPlane() const override;
 
+  // Whether the GPU should be responsible for the client CTM. (GPU is never
+  // responsible for render intent CTM).
   bool CtmByGpu() const override;
 
   bool ForcedScalingWithGpu() const override;
@@ -388,7 +396,7 @@ class HwcDisplay : public ICompositorDisplay {
   // transitions and update the config groups.
   void SetConfigGroupsForActiveConfig();
 
-  void SetColorMatrixToIdentity();
+  void UpdateColorTransformMatrix();
 
   bool Init();
 
@@ -432,9 +440,13 @@ class HwcDisplay : public ICompositorDisplay {
   std::unique_ptr<HwcLayer> writeback_layer_;
   uint16_t virtual_disp_width_{};
   uint16_t virtual_disp_height_{};
-  std::shared_ptr<HalColorTransformMatrix> color_matrix_;
-  bool color_transform_is_identity_{};
-  bool ctm_has_offset_ = false;
+  std::shared_ptr<HalColorTransformMatrix> color_matrix_ = GetIdentityCtmPtr();
+  std::shared_ptr<HalColorTransformMatrix>
+      client_color_matrix_ = GetIdentityCtmPtr();
+  // ASSERTION: render_intent_matrix_ must never have offset.
+  std::shared_ptr<HalColorTransformMatrix>
+      render_intent_matrix_ = GetIdentityCtmPtr();
+  bool client_ctm_has_offset_ = false;
   ContentType content_type_ = ContentType::kNoData;
   HwcColorspace colorspace_{};
   TransferFunction transfer_func_{};

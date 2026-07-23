@@ -46,6 +46,28 @@ inline const std::shared_ptr<HalColorTransformMatrix> &GetIdentityCtmPtr() {
 }
 
 /*
+ * 4x4 Boosted CTM for kVendorBoostedRenderIntent.
+ *
+ * WARNING: This matrix must not have an offset. Ensure that requirement is
+ * satisfied if it is ever modified.
+ */
+// clang-format off
+// NOLINTNEXTLINE(clang-diagnostic-unused-const-variable)
+constexpr HalColorTransformMatrix kBoostedMatrix = {
+    1.097F, -0.026F, -0.026F, 0.000F,
+   -0.088F,  1.035F, -0.088F, 0.000F,
+   -0.009F, -0.009F,  1.114F, 0.000F,
+    0.000F,  0.000F,  0.000F, 1.000F,
+};
+// clang-format on
+
+inline const std::shared_ptr<HalColorTransformMatrix> &GetBoostedCTMPtr() {
+  static const auto kBoostedPtr = std::make_shared<HalColorTransformMatrix>(
+      kBoostedMatrix);
+  return kBoostedPtr;
+}
+
+/*
  * Display colorimetry enums.
  */
 // NOLINTBEGIN(readability-identifier-naming)
