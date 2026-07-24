@@ -1852,7 +1852,8 @@ bool HwcDisplay::CursorPlaneNeedsColorPipeline(
     return false;
   }
 
-  const Colorspace cursor_colorspace = cursor_layer.GetLayerData().colorspace;
+  const DrmColorspace cursor_colorspace = cursor_layer.GetLayerData()
+                                              .colorspace;
   CscCache cursor_color_map;
   auto cursor_matrix = ColorUtil::GamutAdjustIfNeeded<
       drm_color_ctm_3x4>(cursor_colorspace, colorspace_, color_matrix_,

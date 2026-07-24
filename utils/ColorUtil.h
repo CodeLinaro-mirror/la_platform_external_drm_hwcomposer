@@ -38,7 +38,8 @@ using Lut1D = std::vector<T>;
 template <typename T>
 using Lut1DCache = std::map<std::tuple<TransferFunction, size_t, float>,
                             Lut1D<T>>;
-using CscCache = std::map<std::tuple<Colorspace, Colorspace>, const mat3d>;
+using CscCache = std::map<std::tuple<DrmColorspace, DrmColorspace>,
+                          const mat3d>;
 
 template <typename T>
 inline const Lut1D<T> kEmptyLut = {};
@@ -108,38 +109,38 @@ class ColorUtil {
   /* Maps to the Colorspace DRM connector property:
    * https://elixir.bootlin.com/linux/v6.11/source/include/drm/drm_connector.h#L538
    */
-  static Colorspace ToColorspace(ColorMode mode) {
+  static DrmColorspace ToColorspace(ColorMode mode) {
     switch (mode) {
       case ColorMode::kNative:
-        return Colorspace::kDefault;
+        return DrmColorspace::kDefault;
       case ColorMode::kBt601_625:
       case ColorMode::kBt601_625Unadjusted:
       case ColorMode::kBt601_525:
       case ColorMode::kBt601_525Unadjusted:
         // The DP spec does not say whether this is the 525 or the 625 line
         // version.
-        return Colorspace::kBt601Ycc;
+        return DrmColorspace::kBt601Ycc;
       case ColorMode::kBt709:
       case ColorMode::kSrgb:
-        return Colorspace::kBt709Ycc;
+        return DrmColorspace::kBt709Ycc;
       case ColorMode::kDciP3:
       case ColorMode::kDisplayP3:
-        return Colorspace::kDciP3RgbD65;
+        return DrmColorspace::kDciP3RgbD65;
       case ColorMode::kBt2020:
       case ColorMode::kDisplayBt2020:
-        return Colorspace::kBt2020Rgb;
+        return DrmColorspace::kBt2020Rgb;
       case ColorMode::kAdobeRgb:
       case ColorMode::kBt2100Pq:
       case ColorMode::kBt2100Hlg:
         ALOGW("Unsupported color mode: %d", static_cast<int32_t>(mode));
-        return Colorspace::kDefault;
+        return DrmColorspace::kDefault;
     }
   }
 
   // If required, adjust color transform matrix to handle gamut mapping
   template <typename T>
   static std::shared_ptr<T> GamutAdjustIfNeeded(
-      Colorspace src_colorspace, Colorspace dest_colorspace,
+      DrmColorspace src_colorspace, DrmColorspace dest_colorspace,
       const std::shared_ptr<HalColorTransforMatrix> &color_transform_matrix,
       CscCache &color_transform_cache);
 

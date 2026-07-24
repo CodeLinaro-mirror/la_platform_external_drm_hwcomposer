@@ -35,7 +35,7 @@ class DrmDevice;
 class DrmProperty;
 class DrmMode;
 
-enum class Colorspace;
+enum class DrmColorspace;
 enum class PanelOrientation;
 
 class DrmConnector : public PipelineBindable<DrmConnector> {
@@ -110,7 +110,7 @@ class DrmConnector : public PipelineBindable<DrmConnector> {
     return colorspace_property_;
   }
 
-  auto GetColorspacePropertyValue(Colorspace c) {
+  auto GetColorspacePropertyValue(DrmColorspace c) {
     return colorspace_enum_map_[c];
   }
 
@@ -200,7 +200,7 @@ class DrmConnector : public PipelineBindable<DrmConnector> {
   DrmProperty writeback_fb_id_property_;
   DrmProperty writeback_out_fence_property_;
 
-  std::map<Colorspace, uint64_t> colorspace_enum_map_;
+  std::map<DrmColorspace, uint64_t> colorspace_enum_map_;
   std::map<uint64_t, PanelOrientation> panel_orientation_enum_map_;
 };
 

@@ -62,7 +62,7 @@ enum class ColorMode : int32_t {
 /**
  * Display panel colorspace property values.
  */
-enum class Colorspace : int32_t {
+enum class DrmColorspace : int32_t {
   kDefault,
   kSmpte170MYcc,
   kBt709Ycc,
