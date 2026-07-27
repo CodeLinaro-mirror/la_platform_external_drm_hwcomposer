@@ -18,24 +18,32 @@
 
 #include <array>
 #include <cstdint>
+#include <memory>
 
 namespace android::drm_hwcomposer {
 
 constexpr int kColorMatrixSize = 16;
-using HalColorTransforMatrix = std::array<float, kColorMatrixSize>;
+using HalColorTransformMatrix = std::array<float, kColorMatrixSize>;
 
 /*
  * 4x4 Identity matrix used for color transformations.
  */
 // clang-format off
 // NOLINTNEXTLINE(clang-diagnostic-unused-const-variable)
-constexpr HalColorTransforMatrix kIdentityMatrix = {
+constexpr HalColorTransformMatrix kIdentityMatrix = {
     1.0F, 0.0F, 0.0F, 0.0F,
     0.0F, 1.0F, 0.0F, 0.0F,
     0.0F, 0.0F, 1.0F, 0.0F,
     0.0F, 0.0F, 0.0F, 1.0F,
 };
 // clang-format on
+
+inline const std::shared_ptr<HalColorTransformMatrix> &GetIdentityCtmPtr() {
+  static const auto
+      kIdentityMatrixPtr = std::make_shared<HalColorTransformMatrix>(
+          kIdentityMatrix);
+  return kIdentityMatrixPtr;
+}
 
 /*
  * Display colorimetry enums.

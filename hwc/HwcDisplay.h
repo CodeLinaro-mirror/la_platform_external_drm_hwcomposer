@@ -111,12 +111,12 @@ class HwcDisplay : public ICompositorDisplay {
   ~HwcDisplay() override;
 
   auto GetColorTransformMatrix() const
-      -> std::shared_ptr<const HalColorTransforMatrix> override {
+      -> std::shared_ptr<const HalColorTransformMatrix> override {
     return color_matrix_;
   }
 
   void SetColorTransformMatrix(
-      const HalColorTransforMatrix &color_transform_matrix);
+      const HalColorTransformMatrix &color_transform_matrix);
 
   bool CursorPlaneNeedsColorPipeline(
       const HwcLayer &cursor_layer) const override;
@@ -432,8 +432,7 @@ class HwcDisplay : public ICompositorDisplay {
   std::unique_ptr<HwcLayer> writeback_layer_;
   uint16_t virtual_disp_width_{};
   uint16_t virtual_disp_height_{};
-  std::shared_ptr<HalColorTransforMatrix> color_matrix_;
-  std::shared_ptr<HalColorTransforMatrix> identity_color_matrix_;
+  std::shared_ptr<HalColorTransformMatrix> color_matrix_;
   bool color_transform_is_identity_{};
   bool ctm_has_offset_ = false;
   ContentType content_type_ = ContentType::kNoData;

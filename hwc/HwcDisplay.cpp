@@ -139,16 +139,13 @@ HwcDisplay::HwcDisplay(DisplayHandle handle, bool is_virtual, DrmHwc *hwc)
   // operations
   writeback_layer_ = std::make_unique<HwcLayer>(this);
 
-  identity_color_matrix_ = std::make_shared<HalColorTransforMatrix>(
-      kIdentityMatrix);
-
   display_mode_reporter_ = DisplayHotplugConnectModeDetectedAtomReporter::
       Create();
   config_result_reporter_ = DisplayConfigurationResultReporter::Create();
 }
 
 void HwcDisplay::SetColorTransformMatrix(
-    const HalColorTransforMatrix &color_transform_matrix) {
+    const HalColorTransformMatrix &color_transform_matrix) {
   color_transform_is_identity_ = std::equal(color_transform_matrix.begin(),
                                             color_transform_matrix.end(),
                                             kIdentityMatrix.begin(),
@@ -164,13 +161,13 @@ void HwcDisplay::SetColorTransformMatrix(
   }
 
   ctm_has_offset_ = TransformHasOffsetValue(color_transform_matrix.data());
-  color_matrix_ = std::make_shared<HalColorTransforMatrix>(
+  color_matrix_ = std::make_shared<HalColorTransformMatrix>(
       color_transform_matrix);
 }
 
 void HwcDisplay::SetColorMatrixToIdentity() {
   ctm_has_offset_ = false;
-  color_matrix_ = identity_color_matrix_;
+  color_matrix_ = GetIdentityCtmPtr();
   color_transform_is_identity_ = true;
 }
 
@@ -1315,12 +1312,12 @@ std::optional<AtomicCommitArgs> HwcDisplay::CreateFrameUpdateCommit(
                                  a_args.composition->plan.size() == 1;
   if (all_client_layers &&
       hwc_->GetResMan().GetCtmHandling() == CtmHandling::kDrmOrGpu) {
-    a_args.color_matrix = identity_color_matrix_;
+    a_args.color_matrix = GetIdentityCtmPtr();
   }
 
   // CTM with offset cannot be processed by CTM prop
   if (ctm_has_offset_ && !UseColorPipeline()) {
-    a_args.color_matrix = identity_color_matrix_;
+    a_args.color_matrix = GetIdentityCtmPtr();
   }
 
   if (pipeline_->writeback_connector) {
@@ -1866,10 +1863,6 @@ void HwcDisplay::LogConfigResult(const AtomicCommitArgs &args, bool is_success,
 
 bool HwcDisplay::CursorPlaneNeedsColorPipeline(
     const HwcLayer &cursor_layer) const {
-  if (!identity_color_matrix_) {
-    return false;
-  }
-
   if (!UseColorPipeline()) {
     return false;
   }
@@ -1886,7 +1879,7 @@ bool HwcDisplay::CursorPlaneNeedsColorPipeline(
   }
 
   std::shared_ptr<drm_color_ctm_3x4>
-      identity_3x4 = ColorUtil::ToColorTransform3x4(identity_color_matrix_);
+      identity_3x4 = ColorUtil::ToColorTransform3x4(GetIdentityCtmPtr());
 
   return (memcmp(cursor_matrix->matrix, identity_3x4->matrix,
                  sizeof(identity_3x4->matrix)) != 0);
