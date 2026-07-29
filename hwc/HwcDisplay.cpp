@@ -219,7 +219,7 @@ void HwcDisplay::SetOutputType(OutputType hdr_output_type) {
     hdr_headroom_ = {};
     hdr_metadata_ = std::make_shared<hdr_output_metadata>();
     min_bpc_ = 6;
-    transfer_func_ = TransferFunction::kUnknown;
+    transfer_func_ = TransferFunction::kSrgb;
     return;
   }
 

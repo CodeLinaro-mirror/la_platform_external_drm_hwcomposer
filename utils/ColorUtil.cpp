@@ -231,6 +231,9 @@ Lut1D<T> CreateLut(TransferFunction tf, uint32_t lut_size,
         signal = is_degamma ? EvaluateHlgEotf(signal)
                             : ColorUtil::EvaluateHlgOetf(signal);
         break;
+      case TransferFunction::kUnknown:
+        ALOGV("Unknown transfer function, falling back to sRGB");
+        [[fallthrough]];
       case TransferFunction::kSrgb:
         signal = is_degamma ? ColorGamut::sRGB().toLinear(signal)[0]
                             : ColorGamut::sRGB().fromLinear(signal)[0];
@@ -240,8 +243,6 @@ Lut1D<T> CreateLut(TransferFunction tf, uint32_t lut_size,
         signal = is_degamma ? ColorGamut::BT709().toLinear(signal)[0]
                             : ColorGamut::BT709().fromLinear(signal)[0];
         break;
-      case TransferFunction::kUnknown:
-        [[fallthrough]];
       default:
         break;
     }
