@@ -38,11 +38,12 @@ constexpr HalColorTransformMatrix kIdentityMatrix = {
 };
 // clang-format on
 
-inline const std::shared_ptr<HalColorTransformMatrix> &GetIdentityCtmPtr() {
+inline const std::shared_ptr<const HalColorTransformMatrix>&
+GetIdentityCtmPtr() {
   static const auto
-      kIdentityMatrixPtr = std::make_shared<HalColorTransformMatrix>(
+      kIdentityPtr = std::make_shared<const HalColorTransformMatrix>(
           kIdentityMatrix);
-  return kIdentityMatrixPtr;
+  return kIdentityPtr;
 }
 
 /*
@@ -61,9 +62,11 @@ constexpr HalColorTransformMatrix kBoostedMatrix = {
 };
 // clang-format on
 
-inline const std::shared_ptr<HalColorTransformMatrix> &GetBoostedCTMPtr() {
-  static const auto kBoostedPtr = std::make_shared<HalColorTransformMatrix>(
-      kBoostedMatrix);
+inline const std::shared_ptr<const HalColorTransformMatrix>&
+GetBoostedCTMPtr() {
+  static const auto
+      kBoostedPtr = std::make_shared<const HalColorTransformMatrix>(
+          kBoostedMatrix);
   return kBoostedPtr;
 }
 

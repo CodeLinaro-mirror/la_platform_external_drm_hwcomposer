@@ -440,11 +440,12 @@ class HwcDisplay : public ICompositorDisplay {
   std::unique_ptr<HwcLayer> writeback_layer_;
   uint16_t virtual_disp_width_{};
   uint16_t virtual_disp_height_{};
-  std::shared_ptr<HalColorTransformMatrix> color_matrix_ = GetIdentityCtmPtr();
-  std::shared_ptr<HalColorTransformMatrix>
+  std::shared_ptr<const HalColorTransformMatrix>
+      color_matrix_ = GetIdentityCtmPtr();
+  std::shared_ptr<const HalColorTransformMatrix>
       client_color_matrix_ = GetIdentityCtmPtr();
   // ASSERTION: render_intent_matrix_ must never have offset.
-  std::shared_ptr<HalColorTransformMatrix>
+  std::shared_ptr<const HalColorTransformMatrix>
       render_intent_matrix_ = GetIdentityCtmPtr();
   bool client_ctm_has_offset_ = false;
   ContentType content_type_ = ContentType::kNoData;
