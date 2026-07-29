@@ -232,27 +232,32 @@ void HwcDisplay::SetOutputType(OutputType hdr_output_type) {
     case OutputType::kSystem: {
       std::vector<ui::Hdr> hdr_types;
       GetEdid()->GetSupportedHdrTypes(hdr_types);
-      if (!hdr_types.empty()) {
-        SetHdrHeadroom();
-        auto type = hdr_types.front();
-        switch (type) {
-          case ui::Hdr::HDR10:
-            SetHdrOutputMetadata(ColorGamut::BT2020(), TransferFunction::kPq);
-            break;
-          case ui::Hdr::HLG:
-            SetHdrOutputMetadata(ColorGamut::BT2020(), TransferFunction::kHlg);
-            break;
-          default:
-            ALOGW("HDR type %d is not supported, using Display BT2020 instead.",
-                  static_cast<int>(type));
-            SetHdrOutputMetadata(ColorGamut::BT2020(),
-                                 TransferFunction::kSmpte170M);
-            break;
-        }
-        min_bpc_ = 8;
+      if (hdr_types.empty() && !forced_color_mode_) {
+        SetHdrOutputMetadata(ColorGamut::BT2020(), TransferFunction::kSrgb);
+        min_bpc_ = 6;
         break;
       }
-      [[fallthrough]];
+
+      // TODO: pick appropriate HDR type
+      SetHdrHeadroom();
+      min_bpc_ = 8;
+      auto type = (hdr_types.empty() && forced_color_mode_) ? ui::Hdr::HDR10
+                                                            : hdr_types.front();
+      switch (type) {
+        case ui::Hdr::HDR10:
+          SetHdrOutputMetadata(ColorGamut::BT2020(), TransferFunction::kPq);
+          break;
+        case ui::Hdr::HLG:
+          SetHdrOutputMetadata(ColorGamut::BT2020(), TransferFunction::kHlg);
+          break;
+        default:
+          ALOGW("HDR type %d is not supported, using Display BT2020 instead.",
+                static_cast<int>(type));
+          SetHdrOutputMetadata(ColorGamut::BT2020(),
+                               TransferFunction::kSmpte170M);
+          break;
+      }
+      break;
     }
     case OutputType::kSdr:
       hdr_headroom_ = {};
@@ -772,63 +777,6 @@ void HwcDisplay::Deinit() {
   }
 }
 
-void HwcDisplay::InitUseColorPipeline() {
-  if (IsInHeadlessMode()) {
-    use_color_pipeline_ = false;
-    return;
-  }
-
-  use_color_pipeline_ = hwc_->GetResMan().UseColorPipeline() &&
-                        GetPipe().primary_plane &&
-                        GetPipe().primary_plane->Get() &&
-                        GetPipe().primary_plane->Get()->HasColorPipeline();
-}
-
-void HwcDisplay::InitWcgSupported() {
-  if (IsInHeadlessMode()) {
-    has_wcg_support_ = false;
-    return;
-  }
-
-  bool crtc_ctm = GetPipe().crtc && GetPipe().crtc->Get() &&
-                  GetPipe().crtc->Get()->GetCtmProperty();
-  std::vector<ColorMode> color_modes;
-  GetEdid()->GetColorModes(color_modes);
-  has_wcg_support_ = (use_color_pipeline_ || crtc_ctm) && !color_modes.empty();
-}
-
-void HwcDisplay::InitHdrSupported() {
-  if (IsInHeadlessMode()) {
-    has_hdr_support_ = false;
-    return;
-  }
-
-  if (pipeline_->capabilities) {
-    auto override_types = pipeline_->capabilities->GetHdrTypesOverride();
-    if (override_types.has_value()) {
-      has_hdr_support_ = !override_types->empty();
-      ALOGI("InitHdrSupported: using backend override: has_hdr_support_=%d",
-            has_hdr_support_);
-      return;
-    }
-  }
-
-  bool crtc_gamma = GetPipe().crtc && GetPipe().crtc->Get() &&
-                    GetPipe().crtc->Get()->GetGammaLutProperty() &&
-                    GetPipe().crtc->Get()->GetGammaLutSizeProperty();
-  std::vector<ui::Hdr> hdr_types;
-  GetEdid()->GetSupportedHdrTypes(hdr_types);
-  has_hdr_support_ = use_color_pipeline_ && crtc_gamma && has_wcg_support_ &&
-                     GetPipe().connector && GetPipe().connector->Get() &&
-                     (GetPipe().connector->Get()->IsExternal() ||
-                      hwc_->GetResMan().PersistentHdrEnabled()) &&
-                     GetPipe()
-                         .connector->Get()
-                         ->GetHdrOutputMetadataProperty() &&
-                     GetPipe().connector->Get()->GetColorspaceProperty() &&
-                     !hdr_types.empty();
-}
-
 void HwcDisplay::InitForcedColorMode() {
   if (IsInHeadlessMode()) {
     return;
@@ -852,6 +800,70 @@ void HwcDisplay::InitForcedColorMode() {
   }
 
   forced_color_mode_ = force_color_mode;
+}
+
+void HwcDisplay::InitUseColorPipeline() {
+  if (IsInHeadlessMode()) {
+    use_color_pipeline_ = false;
+    return;
+  }
+
+  use_color_pipeline_ = hwc_->GetResMan().UseColorPipeline() &&
+                        GetPipe().primary_plane &&
+                        GetPipe().primary_plane->Get() &&
+                        GetPipe().primary_plane->Get()->HasColorPipeline();
+}
+
+void HwcDisplay::InitWcgSupported() {
+  if (IsInHeadlessMode()) {
+    has_wcg_support_ = false;
+    return;
+  }
+
+  bool crtc_ctm = GetPipe().crtc && GetPipe().crtc->Get() &&
+                  GetPipe().crtc->Get()->GetCtmProperty();
+  std::vector<ColorMode> color_modes;
+  GetEdid()->GetColorModes(color_modes);
+  // TODO check for WCG modes
+  has_wcg_support_ = (use_color_pipeline_ || crtc_ctm) &&
+                     (!color_modes.empty() ||
+                      (forced_color_mode_ &&
+                       forced_color_mode_.value() != ColorMode::kNative));
+}
+
+void HwcDisplay::InitHdrSupported() {
+  if (IsInHeadlessMode()) {
+    has_hdr_support_ = false;
+    return;
+  }
+
+  if (pipeline_->capabilities) {
+    auto override_types = pipeline_->capabilities->GetHdrTypesOverride();
+    if (override_types.has_value()) {
+      has_hdr_support_ = !override_types->empty();
+      ALOGI("InitHdrSupported: using backend override: has_hdr_support_=%d",
+            has_hdr_support_);
+      return;
+    }
+  }
+
+  bool crtc_gamma = GetPipe().crtc && GetPipe().crtc->Get() &&
+                    GetPipe().crtc->Get()->GetGammaLutProperty() &&
+                    GetPipe().crtc->Get()->GetGammaLutSizeProperty();
+  std::vector<ui::Hdr> hdr_types;
+  GetEdid()->GetSupportedHdrTypes(hdr_types);
+  // TODO check for HDR types
+  has_hdr_support_ = use_color_pipeline_ && crtc_gamma && has_wcg_support_ &&
+                     GetPipe().connector && GetPipe().connector->Get() &&
+                     (GetPipe().connector->Get()->IsExternal() ||
+                      hwc_->GetResMan().PersistentHdrEnabled()) &&
+                     GetPipe()
+                         .connector->Get()
+                         ->GetHdrOutputMetadataProperty() &&
+                     GetPipe().connector->Get()->GetColorspaceProperty() &&
+                     (!hdr_types.empty() ||
+                      (forced_color_mode_ &&
+                       forced_color_mode_.value() != ColorMode::kNative));
 }
 
 bool HwcDisplay::Init() {
@@ -944,10 +956,10 @@ bool HwcDisplay::Init() {
     configs_ = std::move(*configs);
   }
 
+  InitForcedColorMode();
   InitUseColorPipeline();
   InitWcgSupported();
   InitHdrSupported();
-  InitForcedColorMode();
 
   if (SetConfig(configs_.preferred_config_id) !=
       HwcDisplay::ConfigError::kNone) {
@@ -1084,6 +1096,10 @@ void HwcDisplay::GetHdrCapabilities(std::vector<ui::Hdr> *types,
 
   GetEdid()->GetHdrCapabilities(*types, max_luminance, max_average_luminance,
                                 min_luminance);
+  // TODO: pick appropriate HDR type
+  if (types->empty() && forced_color_mode_) {
+    types->emplace_back(ui::Hdr::HDR10);
+  }
 }
 
 auto HwcDisplay::IsHdcpPropertyPresent() -> bool {
