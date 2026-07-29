@@ -1902,8 +1902,8 @@ bool HwcDisplay::CursorPlaneNeedsColorPipeline(
     return false;
   }
 
-  std::shared_ptr<drm_color_ctm_3x4>
-      identity_3x4 = ColorUtil::ToColorTransform3x4(GetIdentityCtmPtr());
+  static const auto identity_3x4 = ColorUtil::ToColorTransform3x4(
+      GetIdentityCtmPtr());
 
   return (memcmp(cursor_matrix->matrix, identity_3x4->matrix,
                  sizeof(identity_3x4->matrix)) != 0);
