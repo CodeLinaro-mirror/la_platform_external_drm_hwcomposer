@@ -100,7 +100,6 @@ clean:
 
 # Build
 # clang-tidy picks up gtest and gmock headers
-# IStats includes are not available in aospless
 SKIP_FILES := \
     bufferinfo/GrallocBufferCacheTest.cpp \
     compositor/mapper/CursorLayerMapperTest.cpp \
@@ -111,7 +110,6 @@ SKIP_FILES := \
     compositor/CompositorTestUtils.h \
     compositor/CompositorTestUtils.cpp \
     compositor/FlatteningControllerTests.cpp \
-    compositor/FlatteningEventAtomReporterDesktop.cpp \
     compositor/FrameTimeHistoryTest.cpp \
     compositor/GenericLayerMapperCompositionPlannerTest.cpp \
     compositor/IntelMappingValidatorTest.cpp \
@@ -120,11 +118,6 @@ SKIP_FILES := \
     drm/DrmTestUtils.h \
     hwc/HwcBufferCacheTest.cpp \
     hwc/HwcDisplayConfigsGeneratorTest.cpp \
-    stats/CompositionStatsAtomReporterDesktop.cpp \
-    stats/CountActiveDisplaysReporterDesktop.cpp \
-    stats/DisplayConfigurationResultReporterDesktop.cpp \
-    stats/DisplayHotplugConnectModeDetectedAtomReporterDesktop.cpp \
-    stats/DisplayRefreshRatesChangedAtomReporterDesktop.cpp \
     stats/StatsTest.cpp \
     utils/BacklightControllerTest.cpp \
     utils/ColorUtilTest.cpp \
