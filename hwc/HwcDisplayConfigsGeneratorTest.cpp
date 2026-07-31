@@ -29,6 +29,10 @@
 #include "drm/DrmTestUtils.h"
 #include "hwc/HwcDisplayConfigs.h"
 
+namespace android::ui {
+using aidl::android::hardware::graphics::common::Hdr;
+}  // namespace android::ui
+
 namespace android::drm_hwcomposer {
 
 namespace {

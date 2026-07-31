@@ -68,7 +68,6 @@ struct CompositionAttributes;
 struct CompositionStats;
 struct DrmDisplayPipeline;
 
-using DisplayHandle = int64_t;
 using EdidWrapperUnique = std::unique_ptr<EdidWrapper>;
 using ColorGamut = ::android::ColorSpace;
 
@@ -102,13 +101,7 @@ class HwcDisplay : public ICompositorDisplay {
 
   enum DisplayType { kInternal, kExternal, kVirtual };
 
-  enum class PowerMode {
-    kOff,
-    kDoze,
-    kDozeSuspend,
-    kSuspend,
-    kOn,
-  };
+  using PowerMode = android::drm_hwcomposer::PowerMode;
 
   HwcDisplay(DisplayHandle handle, bool is_virtual, DrmHwc *hwc);
   HwcDisplay(const HwcDisplay &) = delete;

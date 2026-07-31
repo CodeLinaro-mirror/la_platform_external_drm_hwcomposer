@@ -42,6 +42,9 @@
 #include "drm/DrmDevice.h"
 #include "drm/DrmDisplayPipeline.h"
 #include "drm/UEventListener.h"
+#if HAS_LIBDISPLAY_INFO
+#include "utils/EdidWrapper.h"
+#endif
 #include "utils/log.h"
 #include "utils/properties.h"
 

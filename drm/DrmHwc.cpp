@@ -29,6 +29,7 @@
 #include <utility>
 #include <vector>
 
+#include "compositor/DisplayInfo.h"
 #include "drm/DrmConnector.h"
 #include "drm/DrmDisplayPipeline.h"
 #include "hwc/HwcDisplay.h"
