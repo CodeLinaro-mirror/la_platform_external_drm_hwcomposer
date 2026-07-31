@@ -109,22 +109,18 @@ SKIP_FILES := \
     compositor/mapper/LayerCachingMapperTest.cpp \
     compositor/mapper/LeftoverLayerMapperTest.cpp \
     compositor/mapper/UnderlayMapperTest.cpp \
-    compositor/CompositorTestUtils.h \
-    compositor/CompositorTestUtils.cpp \
     compositor/FlatteningControllerTests.cpp \
     compositor/FrameTimeHistoryTest.cpp \
     compositor/GenericLayerMapperCompositionPlannerTest.cpp \
     compositor/IntelMappingValidatorTest.cpp \
     compositor/ShortCircuitorTest.cpp \
     drm/DrmDisplayPipelineTest.cpp \
-    drm/DrmTestUtils.h \
     hwc/HwcBufferCacheTest.cpp \
     hwc/HwcDisplayConfigsGeneratorTest.cpp \
     stats/StatsTest.cpp \
     utils/BacklightControllerTest.cpp \
     utils/ColorUtilTest.cpp \
     utils/SysfsBacklightControllerTest.cpp \
-    tests/backend_test_stub.cpp \
 
 BUILD_FILES_AUTO := $(shell find -L $(SRC_DIR) -not -path '*/\.*' -not -path '*/tests/test_include/*' -path '*.cpp')
 SKIP_FILES_path := $(foreach file,$(SKIP_FILES),$(SRC_DIR)/$(file))

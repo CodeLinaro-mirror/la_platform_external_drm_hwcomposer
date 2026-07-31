@@ -121,8 +121,8 @@ class ShortCircuitorTest : public ::testing::Test {
                                FakeDrmDevice& drm_device,
                                DrmPlanePtr& cursor_plane) {
     cursor_plane = std::make_shared<FakeDrmPlane>(drm_device,
-                                                  DRM_PLANE_TYPE_CURSOR);
-    cursor_plane->is_valid_ = true;
+                                                  DRM_PLANE_TYPE_CURSOR,
+                                                  /*is_valid=*/true);
 
     // Expected to be called from ShortCircuitor::Check()
     EXPECT_CALL(display, GetCursorPlane())

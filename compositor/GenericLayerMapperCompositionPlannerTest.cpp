@@ -91,8 +91,8 @@ TEST(GenericLayerMapperCompositionPlannerTest,
   FakeDrmDevice device;
   std::shared_ptr<FakeDrmPlane>
       cursor_plane = std::make_shared<FakeDrmPlane>(device,
-                                                    DRM_PLANE_TYPE_CURSOR);
-  cursor_plane->is_valid_ = true;
+                                                    DRM_PLANE_TYPE_CURSOR,
+                                                    /*is_valid=*/true);
 
   EXPECT_CALL(mock_display, GetNumAvailablePlanes()).WillRepeatedly(Return(4));
   EXPECT_CALL(mock_display, GetCursorPlane())
@@ -387,8 +387,8 @@ TEST(GenericLayerMapperCompositionPlannerTest, SingleLayerAndCursor) {
   FakeDrmDevice device;
   std::shared_ptr<FakeDrmPlane>
       cursor_plane = std::make_shared<FakeDrmPlane>(device,
-                                                    DRM_PLANE_TYPE_CURSOR);
-  cursor_plane->is_valid_ = true;
+                                                    DRM_PLANE_TYPE_CURSOR,
+                                                    /*is_valid=*/true);
 
   EXPECT_CALL(mock_display, GetNumAvailablePlanes()).WillRepeatedly(Return(4));
   EXPECT_CALL(mock_display, GetCursorPlane())
@@ -444,8 +444,8 @@ TEST(GenericLayerMapperCompositionPlannerTest,
   FakeDrmDevice device;
   std::shared_ptr<FakeDrmPlane>
       cursor_plane = std::make_shared<FakeDrmPlane>(device,
-                                                    DRM_PLANE_TYPE_CURSOR);
-  cursor_plane->is_valid_ = true;
+                                                    DRM_PLANE_TYPE_CURSOR,
+                                                    /*is_valid=*/true);
 
   EXPECT_CALL(mock_display, GetNumAvailablePlanes()).WillRepeatedly(Return(4));
   EXPECT_CALL(mock_display, GetCursorPlane())
@@ -507,8 +507,8 @@ TEST(GenericLayerMapperCompositionPlannerTest,
   FakeDrmDevice device;
   std::shared_ptr<FakeDrmPlane>
       cursor_plane = std::make_shared<FakeDrmPlane>(device,
-                                                    DRM_PLANE_TYPE_CURSOR);
-  cursor_plane->is_valid_ = true;
+                                                    DRM_PLANE_TYPE_CURSOR,
+                                                    /*is_valid=*/true);
 
   EXPECT_CALL(mock_display, GetNumAvailablePlanes()).WillRepeatedly(Return(4));
   EXPECT_CALL(mock_display, GetCursorPlane())
@@ -564,8 +564,8 @@ TEST(GenericLayerMapperCompositionPlannerTest,
   // Have the cursor layer reject the layer data from the cursor layer.
   std::shared_ptr<FakeDrmPlane>
       cursor_plane = std::make_shared<FakeDrmPlane>(device,
-                                                    DRM_PLANE_TYPE_CURSOR);
-  cursor_plane->is_valid_ = false;
+                                                    DRM_PLANE_TYPE_CURSOR,
+                                                    /*is_valid=*/false);
 
   EXPECT_CALL(mock_display, GetNumAvailablePlanes()).WillRepeatedly(Return(4));
   EXPECT_CALL(mock_display, GetCursorPlane())
@@ -623,8 +623,8 @@ TEST(GenericLayerMapperCompositionPlannerTest,
   // the fallback.
   std::shared_ptr<FakeDrmPlane>
       cursor_plane = std::make_shared<FakeDrmPlane>(device,
-                                                    DRM_PLANE_TYPE_CURSOR);
-  cursor_plane->is_valid_ = false;
+                                                    DRM_PLANE_TYPE_CURSOR,
+                                                    /*is_valid=*/false);
 
   EXPECT_CALL(mock_display, GetNumAvailablePlanes()).WillRepeatedly(Return(4));
   EXPECT_CALL(mock_display, GetCursorPlane())
@@ -691,8 +691,8 @@ TEST(GenericLayerMapperCompositionPlannerTest,
   // the fallback.
   std::shared_ptr<FakeDrmPlane>
       cursor_plane = std::make_shared<FakeDrmPlane>(device,
-                                                    DRM_PLANE_TYPE_CURSOR);
-  cursor_plane->is_valid_ = false;
+                                                    DRM_PLANE_TYPE_CURSOR,
+                                                    /*is_valid=*/false);
 
   EXPECT_CALL(mock_display, GetNumAvailablePlanes()).WillRepeatedly(Return(4));
   EXPECT_CALL(mock_display, GetCursorPlane())
@@ -780,8 +780,8 @@ TEST(GenericLayerMapperCompositionPlannerTest, LayerCachingDeviceOcclusion) {
   FakeDrmDevice device;
   std::shared_ptr<FakeDrmPlane>
       cursor_plane = std::make_shared<FakeDrmPlane>(device,
-                                                    DRM_PLANE_TYPE_CURSOR);
-  cursor_plane->is_valid_ = true;
+                                                    DRM_PLANE_TYPE_CURSOR,
+                                                    /*is_valid=*/true);
 
   EXPECT_CALL(mock_display, GetNumAvailablePlanes()).WillRepeatedly(Return(4));
   EXPECT_CALL(mock_display, GetCursorPlane())
@@ -873,8 +873,8 @@ TEST(GenericLayerMapperCompositionPlannerTest,
   FakeDrmDevice device;
   std::shared_ptr<FakeDrmPlane>
       cursor_plane = std::make_shared<FakeDrmPlane>(device,
-                                                    DRM_PLANE_TYPE_CURSOR);
-  cursor_plane->is_valid_ = true;
+                                                    DRM_PLANE_TYPE_CURSOR,
+                                                    /*is_valid=*/true);
 
   EXPECT_CALL(mock_display, GetNumAvailablePlanes()).WillRepeatedly(Return(4));
   EXPECT_CALL(mock_display, GetCursorPlane())
@@ -954,8 +954,8 @@ TEST(GenericLayerMapperCompositionPlannerTest, Underlay) {
   FakeDrmDevice device;
   std::shared_ptr<FakeDrmPlane>
       cursor_plane = std::make_shared<FakeDrmPlane>(device,
-                                                    DRM_PLANE_TYPE_CURSOR);
-  cursor_plane->is_valid_ = true;
+                                                    DRM_PLANE_TYPE_CURSOR,
+                                                    /*is_valid=*/true);
 
   EXPECT_CALL(mock_display, GetNumAvailablePlanes()).WillRepeatedly(Return(4));
   EXPECT_CALL(mock_display, GetCursorPlane())
@@ -1034,8 +1034,8 @@ TEST(GenericLayerMapperCompositionPlannerTest, AttemptUnderlayButIneligible) {
   FakeDrmDevice device;
   std::shared_ptr<FakeDrmPlane>
       cursor_plane = std::make_shared<FakeDrmPlane>(device,
-                                                    DRM_PLANE_TYPE_CURSOR);
-  cursor_plane->is_valid_ = true;
+                                                    DRM_PLANE_TYPE_CURSOR,
+                                                    /*is_valid=*/true);
 
   EXPECT_CALL(mock_display, GetNumAvailablePlanes()).WillRepeatedly(Return(4));
   EXPECT_CALL(mock_display, GetCursorPlane())
@@ -1129,8 +1129,8 @@ TEST(GenericLayerMapperCompositionPlannerTest, UnderlayAndLayerCached) {
   FakeDrmDevice device;
   std::shared_ptr<FakeDrmPlane>
       cursor_plane = std::make_shared<FakeDrmPlane>(device,
-                                                    DRM_PLANE_TYPE_CURSOR);
-  cursor_plane->is_valid_ = true;
+                                                    DRM_PLANE_TYPE_CURSOR,
+                                                    /*is_valid=*/true);
 
   EXPECT_CALL(mock_display, GetNumAvailablePlanes()).WillRepeatedly(Return(4));
   EXPECT_CALL(mock_display, GetCursorPlane())
@@ -1228,8 +1228,8 @@ TEST(GenericLayerMapperCompositionPlannerTest, HotspotUnderlayAndLayerCached) {
   FakeDrmDevice device;
   std::shared_ptr<FakeDrmPlane>
       cursor_plane = std::make_shared<FakeDrmPlane>(device,
-                                                    DRM_PLANE_TYPE_CURSOR);
-  cursor_plane->is_valid_ = true;
+                                                    DRM_PLANE_TYPE_CURSOR,
+                                                    /*is_valid=*/true);
 
   EXPECT_CALL(mock_display, GetNumAvailablePlanes()).WillRepeatedly(Return(4));
   EXPECT_CALL(mock_display, GetCursorPlane())
@@ -1318,8 +1318,8 @@ TEST(GenericLayerMapperCompositionPlannerTest,
   FakeDrmDevice device;
   std::shared_ptr<FakeDrmPlane>
       cursor_plane = std::make_shared<FakeDrmPlane>(device,
-                                                    DRM_PLANE_TYPE_CURSOR);
-  cursor_plane->is_valid_ = true;
+                                                    DRM_PLANE_TYPE_CURSOR,
+                                                    /*is_valid=*/true);
 
   EXPECT_CALL(mock_display, GetNumAvailablePlanes()).WillRepeatedly(Return(4));
   EXPECT_CALL(mock_display, GetCursorPlane())
@@ -1395,8 +1395,8 @@ TEST(GenericLayerMapperCompositionPlannerTest,
   FakeDrmDevice device;
   std::shared_ptr<FakeDrmPlane>
       cursor_plane = std::make_shared<FakeDrmPlane>(device,
-                                                    DRM_PLANE_TYPE_CURSOR);
-  cursor_plane->is_valid_ = true;
+                                                    DRM_PLANE_TYPE_CURSOR,
+                                                    /*is_valid=*/true);
 
   // Just enough planes to fit both layers onto overlay.
   EXPECT_CALL(mock_display, GetNumAvailablePlanes()).WillRepeatedly(Return(2));

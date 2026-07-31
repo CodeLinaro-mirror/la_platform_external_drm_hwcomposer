@@ -27,10 +27,13 @@ BackendManager &BackendManager::GetInstance() {
   return backend_manager;
 }
 
-void BackendManager::RegisterCreator(const std::string & /*name*/,
-                                     BackendCreator /*creator*/) {
+void BackendManager::RegisterCreator(
+    const std::string & /*name*/,
+    // NOLINTNEXTLINE(performance-unnecessary-value-param)
+    BackendCreator /*creator*/) {
 }
 
+// NOLINTNEXTLINE(readability-convert-member-functions-to-static)
 std::unique_ptr<Backend> BackendManager::CreateBackendForDevice(
     DrmDevice & /*drm*/) {
   return nullptr;
