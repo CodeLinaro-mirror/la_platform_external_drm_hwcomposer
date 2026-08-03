@@ -40,6 +40,7 @@ class Properties {
   static auto GetDevicePath() -> std::string;
   static auto UseColorPipeline() -> bool;
   static auto ForcedHolePunchingEnabled() -> bool;
+  static auto SkipInternalDisplayReset() -> bool;
   static auto ForceColorMode() -> int;
   static auto PersistentHdrEnabled() -> bool;
   static auto ValidationShortCircuiting() -> bool;
