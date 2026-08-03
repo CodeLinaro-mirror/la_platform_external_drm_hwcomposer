@@ -232,4 +232,10 @@ auto Properties::ShortCircuitIgnoreCtm() -> bool {
                             kDefault) != 0);
 }
 
+auto Properties::ExternalHdrEnabled() -> bool {
+  constexpr int kDefault = 1;
+  return (property_get_bool("vendor.hwc.drm.external_hdr_enabled", kDefault) !=
+          0);
+}
+
 }  // namespace android::drm_hwcomposer

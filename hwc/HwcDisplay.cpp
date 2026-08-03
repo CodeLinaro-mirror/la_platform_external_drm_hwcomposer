@@ -852,11 +852,20 @@ void HwcDisplay::InitHdrSupported() {
                     GetPipe().crtc->Get()->GetGammaLutSizeProperty();
   std::vector<ui::Hdr> hdr_types;
   GetEdid()->GetSupportedHdrTypes(hdr_types);
+
+  if (!GetPipe().connector || !GetPipe().connector->Get()) {
+    has_hdr_support_ = false;
+    return;
+  }
+
+  const bool hdr_sysprop_enabled = GetPipe().connector->Get()->IsExternal()
+                                       ? hwc_->GetResMan().ExternalHdrEnabled()
+                                       : hwc_->GetResMan()
+                                             .PersistentHdrEnabled();
+
   // TODO check for HDR types
   has_hdr_support_ = use_color_pipeline_ && crtc_gamma && has_wcg_support_ &&
-                     GetPipe().connector && GetPipe().connector->Get() &&
-                     (GetPipe().connector->Get()->IsExternal() ||
-                      hwc_->GetResMan().PersistentHdrEnabled()) &&
+                     hdr_sysprop_enabled &&
                      GetPipe()
                          .connector->Get()
                          ->GetHdrOutputMetadataProperty() &&
@@ -946,6 +955,7 @@ bool HwcDisplay::Init() {
     const HwcConfigParameters params = {
         .use_color_pipeline = Properties::UseColorPipeline(),
         .persistent_hdr_enabled = Properties::PersistentHdrEnabled(),
+        .external_hdr_enabled = Properties::ExternalHdrEnabled(),
         .capabilities = pipeline_->capabilities.get(),
     };
     auto configs = configs_generator_.GenerateDisplayConfigs(*connector,

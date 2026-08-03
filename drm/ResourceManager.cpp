@@ -164,6 +164,7 @@ void ResourceManager::Init() {
   color_pipeline_enabled_ = Properties::UseColorPipeline();
   force_color_mode_ = Properties::ForceColorMode();
   persistent_hdr_enabled_ = Properties::PersistentHdrEnabled();
+  external_hdr_enabled_ = Properties::ExternalHdrEnabled();
 
   // Could be a valid path or it can have at the end of it the wildcard %
   // which means that it will try open all devices until an error is met.
