@@ -274,6 +274,11 @@ bool DrmAtomicStateManager::SetGammaIfNeeded(const AtomicCommitArgs &args,
     return true;
   }
 
+  // Must be used with corresponding plane degamma LUT
+  if (!use_color_pipeline_) {
+    return crtc->GetGammaLutProperty().AtomicSet(*request.property_set, 0);
+  }
+
   if (!args.transfer_func) {
     return true;
   }
