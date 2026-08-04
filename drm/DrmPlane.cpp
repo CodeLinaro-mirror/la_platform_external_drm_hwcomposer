@@ -292,8 +292,12 @@ int DrmPlane::Init() {
     size_hints_property_.GetBlobData(size_hints_);
   }
 
-  GetPlaneProperty("FB_DAMAGE_CLIPS", fb_damage_clips_property_,
-                   Presence::kOptional);
+  if (Properties::SkipPlaneDamageClips()) {
+    ALOGV("Skipping initialization of FB_DAMAGE_CLIPS plane property");
+  } else {
+    GetPlaneProperty("FB_DAMAGE_CLIPS", fb_damage_clips_property_,
+                     Presence::kOptional);
+  }
 
   return 0;
 }

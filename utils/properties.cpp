@@ -238,4 +238,10 @@ auto Properties::ExternalHdrEnabled() -> bool {
           0);
 }
 
+auto Properties::SkipPlaneDamageClips() -> bool {
+  constexpr int kDefault = 0;
+  return (property_get_bool("vendor.hwc.drm.skip_plane_damage_clips",
+                            kDefault) != 0);
+}
+
 }  // namespace android::drm_hwcomposer
