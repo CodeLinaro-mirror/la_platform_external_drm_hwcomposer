@@ -19,7 +19,9 @@ CXXARGS := $(shell cat $(BASE_DIR)/toolchain_wrapper/sharedlib.cppflags)
 CXXARGS := $(subst [BASE_DIR],$(BASE_DIR),$(CXXARGS))
 # clang-tidy doesn't like -mcpu=xxx flag
 CXXARGS := $(patsubst -mcpu=%,,$(CXXARGS))
-CXXARGS += -I. -I./tests/test_include $(CXXFLAGS)
+GTEST_INCLUDE_DIR := $(OUT_DIR)/googletest_include
+$(shell mkdir -p $(GTEST_INCLUDE_DIR) && ln -sfn /usr/include/gtest $(GTEST_INCLUDE_DIR)/gtest && ln -sfn /usr/include/gmock $(GTEST_INCLUDE_DIR)/gmock)
+CXXARGS += -I. -I./tests/test_include -isystem $(GTEST_INCLUDE_DIR) $(CXXFLAGS)
 
 TIDY_FILES_OVERRIDE := \
     bufferinfo/legacy/BufferInfoImagination.cpp:COARSE  \
