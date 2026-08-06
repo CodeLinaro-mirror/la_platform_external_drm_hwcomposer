@@ -14,9 +14,12 @@
  * limitations under the License.
  */
 
-#include <drm/drm_fourcc.h>
+// NOLINTBEGIN(readability-magic-numbers)
+
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+
+#include <drm/drm_fourcc.h>
 #include <xf86drmMode.h>
 
 #include <cstdint>
@@ -25,6 +28,7 @@
 
 #include "compositor/CompositionPlanner.h"
 #include "compositor/CompositorTestUtils.h"
+#include "compositor/DisplayInfo.h"
 #include "compositor/GenericLayerMapperCompositionPlanner.h"
 #include "compositor/LayerData.h"
 #include "drm/CommitStatus.h"
@@ -47,7 +51,7 @@ using ::testing::ReturnRefOfCopy;
 constexpr float kOpaque = 1.0F;
 constexpr float kLayerCached = 0.0F;
 
-std::shared_ptr<const HalColorTransformMatrix>
+const std::shared_ptr<const HalColorTransformMatrix>
     kIdentityCtm = std::make_shared<const HalColorTransformMatrix>(
         kIdentityMatrix);
 
@@ -60,7 +64,7 @@ constexpr const HalColorTransformMatrix kOffsetMatrix = {
 };
 // clang-format on
 
-std::shared_ptr<const HalColorTransformMatrix>
+const std::shared_ptr<const HalColorTransformMatrix>
     kOffsetCtm = std::make_shared<const HalColorTransformMatrix>(kOffsetMatrix);
 }  // namespace
 
@@ -323,8 +327,12 @@ TEST(GenericLayerMapperCompositionPlannerTest,
         .source_crop = SrcRectInfo{.f_rect = FRect{.left = 0.0F,
                                                    .top = 0.0F,
                                                    // Scaling required.
-                                                   .right = width / 2.0F,
-                                                   .bottom = height / 2.0F}},
+                                                   .right = static_cast<float>(
+                                                                width) /
+                                                            2.0F,
+                                                   .bottom = static_cast<float>(
+                                                                 height) /
+                                                             2.0F}},
         .z_order = 0,
     };
     scaled_underlay_candidate.SetLayerProperties(props);
@@ -1423,3 +1431,5 @@ TEST(GenericLayerMapperCompositionPlannerTest,
   EXPECT_TRUE(composition.cursor_plane_validated);
 }
 }  // namespace android::drm_hwcomposer
+
+// NOLINTEND(readability-magic-numbers)

@@ -101,31 +101,9 @@ clean:
 	rm -rf $(OUT_DIR)/
 
 # Build
-# clang-tidy picks up gtest and gmock headers
-SKIP_FILES := \
-    bufferinfo/GrallocBufferCacheTest.cpp \
-    compositor/mapper/CursorLayerMapperTest.cpp \
-    compositor/mapper/ForceClientCompositionLayerMapperTest.cpp \
-    compositor/mapper/LayerCachingMapperTest.cpp \
-    compositor/mapper/LeftoverLayerMapperTest.cpp \
-    compositor/mapper/UnderlayMapperTest.cpp \
-    compositor/FlatteningControllerTests.cpp \
-    compositor/FrameTimeHistoryTest.cpp \
-    compositor/GenericLayerMapperCompositionPlannerTest.cpp \
-    compositor/IntelMappingValidatorTest.cpp \
-    compositor/ShortCircuitorTest.cpp \
-    drm/DrmDisplayPipelineTest.cpp \
-    hwc/HwcBufferCacheTest.cpp \
-    hwc/HwcDisplayConfigsGeneratorTest.cpp \
-    stats/StatsTest.cpp \
-    utils/BacklightControllerTest.cpp \
-    utils/ColorUtilTest.cpp \
-    utils/SysfsBacklightControllerTest.cpp \
-
 BUILD_FILES_AUTO := $(shell find -L $(SRC_DIR) -not -path '*/\.*' -not -path '*/tests/test_include/*' -path '*.cpp')
-SKIP_FILES_path := $(foreach file,$(SKIP_FILES),$(SRC_DIR)/$(file))
 
-BUILD_FILES := $(subst ./,,$(filter-out $(SKIP_FILES_path),$(BUILD_FILES_AUTO)))
+BUILD_FILES := $(subst ./,,$(BUILD_FILES_AUTO))
 
 _OBJ := $(BUILD_FILES:.cpp=.o)
 OBJ  := $(patsubst %,$(OUT_DIR)/%,$(_OBJ))
@@ -146,13 +124,11 @@ $(OUT_DIR)/%.d: $(SRC_DIR)/%.cpp
 # TIDY
 TIDY_FILES_AUTO := $(shell find -L $(SRC_DIR) -not -path '*/\.*' -not -path '*/tests/test_include/*' \( -path '*.cpp' -o -path '*.h' \))
 
-TIDY_FILES_AUTO_filtered := $(filter-out $(SKIP_FILES_path),$(TIDY_FILES_AUTO))
-
 TIDY_FILES_OVERRIDE_path := $(foreach pair,$(TIDY_FILES_OVERRIDE),$(SRC_DIR)/$(pair))
 
 TIDY_FILES_OVERRIDE_name_only := $(foreach pair,$(TIDY_FILES_OVERRIDE_path),$(word 1, $(subst :, ,$(pair))))
 
-TIDY_FILES := $(sort $(TIDY_FILES_AUTO_filtered) $(TIDY_FILES_OVERRIDE_name_only))
+TIDY_FILES := $(sort $(TIDY_FILES_AUTO) $(TIDY_FILES_OVERRIDE_name_only))
 
 space := $(subst ,, )
 comma := ,
