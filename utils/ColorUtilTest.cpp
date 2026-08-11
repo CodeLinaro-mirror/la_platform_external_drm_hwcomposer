@@ -22,6 +22,7 @@
 
 #include "compositor/DisplayInfo.h"
 #include "utils/ColorUtil.h"
+#include "utils/TestUtils.h"
 
 namespace android::drm_hwcomposer {
 
@@ -291,6 +292,55 @@ TEST(ColorUtilTest, GetGammaLutValidAndCaching) {
   const auto &lut_cached = ColorUtil::GetGammaLut(TransferFunction::kHlg,
                                                   kLutSize, cache, 1.0F, 1.0F);
   EXPECT_EQ(&lut, &lut_cached);
+}
+
+TEST(ColorUtilTest, GetGammaLutHdrClampsToMinFloorAtZeroDisplayBrightness) {
+  Lut1DCache<drm_color_lut> cache;
+  ScopedTestProperty min_prop("vendor.hwc.drm.min_display_brightness", "0.01");
+
+  const size_t kLutSize = 512;
+  const auto &lut = ColorUtil::GetGammaLut(TransferFunction::kHlg, kLutSize,
+                                           cache,
+                                           ColorUtil::ScaleBrightnessIfNeeded(
+                                               0.0F),
+                                           1.0F);
+
+  ASSERT_EQ(lut.size(), kLutSize);
+  EXPECT_GT(lut[kLutSize - 1].red, 0U);
+  EXPECT_GT(lut[kLutSize - 1].green, 0U);
+  EXPECT_GT(lut[kLutSize - 1].blue, 0U);
+}
+
+// Tests for ScaleBrightnessIfNeeded
+TEST(ColorUtilTest, ScaleBrightnessIfNeededDefaultZero) {
+  EXPECT_FLOAT_EQ(ColorUtil::ScaleBrightnessIfNeeded(-1.0F), -1.0F);
+  EXPECT_FLOAT_EQ(ColorUtil::ScaleBrightnessIfNeeded(0.0F), 0.0F);
+  EXPECT_FLOAT_EQ(ColorUtil::ScaleBrightnessIfNeeded(0.5F), 0.5F);
+  EXPECT_FLOAT_EQ(ColorUtil::ScaleBrightnessIfNeeded(1.0F), 1.0F);
+}
+
+TEST(ColorUtilTest, ScaleBrightnessIfNeededClampsToMinFloor) {
+  ScopedTestProperty prop("vendor.hwc.drm.min_display_brightness", "0.01");
+
+  EXPECT_FLOAT_EQ(ColorUtil::ScaleBrightnessIfNeeded(-1.0F), -1.0F);
+  EXPECT_FLOAT_EQ(ColorUtil::ScaleBrightnessIfNeeded(0.0F), 0.01F);
+  EXPECT_FLOAT_EQ(ColorUtil::ScaleBrightnessIfNeeded(0.005F), 0.01F);
+  EXPECT_FLOAT_EQ(ColorUtil::ScaleBrightnessIfNeeded(0.5F), 0.5F);
+  EXPECT_FLOAT_EQ(ColorUtil::ScaleBrightnessIfNeeded(1.0F), 1.0F);
+}
+
+TEST(ColorUtilTest, ScaleBrightnessIfNeededInvalidStringDefaultsToZero) {
+  ScopedTestProperty prop("vendor.hwc.drm.min_display_brightness", "invalid");
+
+  EXPECT_FLOAT_EQ(ColorUtil::ScaleBrightnessIfNeeded(0.0F), 0.0F);
+  EXPECT_FLOAT_EQ(ColorUtil::ScaleBrightnessIfNeeded(0.5F), 0.5F);
+}
+
+TEST(ColorUtilTest, ScaleBrightnessIfNeededOutOfRangeDefaultsToZero) {
+  ScopedTestProperty prop("vendor.hwc.drm.min_display_brightness", "1.5");
+
+  EXPECT_FLOAT_EQ(ColorUtil::ScaleBrightnessIfNeeded(0.0F), 0.0F);
+  EXPECT_FLOAT_EQ(ColorUtil::ScaleBrightnessIfNeeded(0.5F), 0.5F);
 }
 
 }  // namespace android::drm_hwcomposer

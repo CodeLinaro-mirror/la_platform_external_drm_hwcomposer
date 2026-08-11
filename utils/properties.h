@@ -48,6 +48,12 @@ class Properties {
   static auto ShortCircuitIgnoreCtm() -> bool;
   static auto ExternalHdrEnabled() -> bool;
   static auto SkipPlaneDamageClips() -> bool;
+
+  /**
+   * Minimum display brightness floor in the range [0.0, 1.0].
+   * Default: 0.0.
+   */
+  static auto MinDisplayBrightness() -> float;
 };
 
 }  // namespace android::drm_hwcomposer
