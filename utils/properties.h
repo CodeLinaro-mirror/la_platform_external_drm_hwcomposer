@@ -54,6 +54,12 @@ class Properties {
    * Default: 0.0.
    */
   static auto MinDisplayBrightness() -> float;
+
+  /**
+   * When enabled and min_display_brightness > 0.0, linearly scales the
+   * brightness range into [min_display_brightness, 1.0] instead of clamping.
+   */
+  static auto ScaleBrightnessRangeToMinBrightness() -> bool;
 };
 
 }  // namespace android::drm_hwcomposer

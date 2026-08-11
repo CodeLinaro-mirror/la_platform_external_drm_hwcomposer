@@ -272,4 +272,10 @@ auto Properties::MinDisplayBrightness() -> float {
   return val;
 }
 
+auto Properties::ScaleBrightnessRangeToMinBrightness() -> bool {
+  return (property_get_bool("vendor.hwc.drm.scale_brightness_range_to_min_"
+                            "brightness",
+                            0) != 0);
+}
+
 }  // namespace android::drm_hwcomposer

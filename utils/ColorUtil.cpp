@@ -428,6 +428,12 @@ auto ColorUtil::ScaleBrightnessIfNeeded(float display_brightness) -> float {
   }
 
   const float min_brightness = Properties::MinDisplayBrightness();
+  if (min_brightness > kMinBrightness &&
+      Properties::ScaleBrightnessRangeToMinBrightness()) {
+    return min_brightness +
+           (display_brightness * (kMaxBrightness - min_brightness));
+  }
+
   return std::max(display_brightness, min_brightness);
 }
 
