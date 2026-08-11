@@ -17,10 +17,24 @@
 #include <cutils/native_handle.h>
 
 #include <memory>
+#include <vector>
 
 #include "bufferinfo/GrallocBufferHandle.h"
+#include "hwc/HwcDisplayConfigs.h"
 
 namespace android::drm_hwcomposer {
+
+class HwcDisplay {
+ public:
+  enum class ConfigError {
+    kNone,
+    kBadConfig,
+  };
+
+  const HwcDisplayConfig* GetCurrentConfig() const;
+  std::vector<HwcDisplayConfig> GetDisplayConfigs() const;
+  ConfigError SetConfig(ConfigId config);
+};
 
 // Stub for GrallocBufferHandle::Create
 std::shared_ptr<GrallocBufferHandle> GrallocBufferHandle::Create(
@@ -33,5 +47,19 @@ std::shared_ptr<GrallocBufferHandle> GrallocBufferHandle::Create(
 // Stub for GrallocBufferHandle::~GrallocBufferHandle
 // Do not release the handle, since it wasn't imported.
 GrallocBufferHandle::~GrallocBufferHandle() = default;
+
+// NOLINTBEGIN(readability-convert-member-functions-to-static)
+const HwcDisplayConfig* HwcDisplay::GetCurrentConfig() const {
+  return nullptr;
+}
+
+std::vector<HwcDisplayConfig> HwcDisplay::GetDisplayConfigs() const {
+  return {};
+}
+
+HwcDisplay::ConfigError HwcDisplay::SetConfig(ConfigId /*config*/) {
+  return ConfigError::kNone;
+}
+// NOLINTEND(readability-convert-member-functions-to-static)
 
 }  // namespace android::drm_hwcomposer

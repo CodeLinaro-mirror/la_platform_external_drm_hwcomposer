@@ -16,6 +16,7 @@
 
 #include "early_animation/EarlyBootAnimation.h"
 
+#include <chrono>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -29,12 +30,17 @@
 #include <drm_fourcc.h>
 #include <fcntl.h>  // IWYU pragma: keep
 #include <unistd.h>
+#include <xf86drmMode.h>
+
+#include "drm/DrmMode.h"
+#include "hwc/HwcDisplayConfigs.h"
 
 namespace android::drm_hwcomposer {
 
 class EarlyBootAnimationTest : public ::testing::Test {
  protected:
   using AnimationHeader = EarlyBootAnimation::AnimationHeader;
+  using AnimationState = EarlyBootAnimation::AnimationState;
 
   void SetUp() override {
     anim_ = std::make_unique<EarlyBootAnimation>(nullptr);
@@ -56,6 +62,22 @@ class EarlyBootAnimationTest : public ::testing::Test {
       lseek(fd.get(), 0, SEEK_SET);
     }
     return fd;
+  }
+
+  static HwcDisplayConfig MakeConfig(ConfigId id, uint16_t w, uint16_t h,
+                                     uint32_t vrefresh, OutputType output_type,
+                                     uint32_t group_id = 0) {
+    drmModeModeInfo mode_info{};
+    mode_info.hdisplay = w;
+    mode_info.vdisplay = h;
+    mode_info.vrefresh = vrefresh;
+    mode_info.clock = 0;
+    return HwcDisplayConfig{
+        .id = id,
+        .group_id = group_id,
+        .mode = DrmMode(&mode_info),
+        .output_type = output_type,
+    };
   }
 
   bool ReadHeader(int fd) {
@@ -80,6 +102,21 @@ class EarlyBootAnimationTest : public ::testing::Test {
 
   const std::vector<uint64_t>& GetFrameOffsets() const {
     return anim_->frame_offsets_;
+  }
+
+  static uint32_t CalculateMultiplier(float vrefresh, uint32_t anim_fps) {
+    return EarlyBootAnimation::CalculateMultiplier(vrefresh, anim_fps);
+  }
+
+  static std::chrono::nanoseconds CalculateFrameDuration(float vrefresh,
+                                                         uint32_t anim_fps) {
+    return EarlyBootAnimation::CalculateFrameDuration(vrefresh, anim_fps);
+  }
+
+  static ConfigId SelectBestConfig(const HwcDisplayConfig* current,
+                                   const std::vector<HwcDisplayConfig>& configs,
+                                   float anim_fps) {
+    return EarlyBootAnimation::SelectBestConfig(current, configs, anim_fps);
   }
 
  private:
@@ -249,6 +286,66 @@ TEST_F(EarlyBootAnimationTest, ReadIndexTableCorruptFrameSize) {
 
   EXPECT_TRUE(ReadHeader(fd.get()));
   EXPECT_FALSE(ReadIndexTable(fd.get()));
+}
+
+TEST_F(EarlyBootAnimationTest, FrameDurationAndMultiplierCalculation) {
+  // 60 FPS animation on 60 Hz display -> multiplier 1, ~16.666 ms
+  EXPECT_EQ(CalculateMultiplier(60.0F, 60), 1U);
+  EXPECT_NEAR(CalculateFrameDuration(60.0F, 60).count(), 16666667, 100);
+
+  // 60 FPS animation on 120 Hz display -> multiplier 2, ~16.666 ms
+  EXPECT_EQ(CalculateMultiplier(120.0F, 60), 2U);
+  EXPECT_NEAR(CalculateFrameDuration(120.0F, 60).count(), 16666667, 100);
+
+  // 60 FPS animation on 240 Hz display -> multiplier 4, ~16.666 ms
+  EXPECT_EQ(CalculateMultiplier(240.0F, 60), 4U);
+  EXPECT_NEAR(CalculateFrameDuration(240.0F, 60).count(), 16666667, 100);
+
+  // 60 FPS animation on 59.94 Hz display (NTSC drift prevention)
+  EXPECT_EQ(CalculateMultiplier(59.94F, 60), 1U);
+  EXPECT_NEAR(CalculateFrameDuration(59.94F, 60).count(), 16683350, 100);
+}
+
+TEST_F(EarlyBootAnimationTest, FindBestConfigSelectionLogic) {
+  auto current_60hz = MakeConfig(1, 1920, 1080, 60, OutputType::kSdr);
+  auto config_120hz = MakeConfig(2, 1920, 1080, 120, OutputType::kSdr);
+  auto config_240hz = MakeConfig(3, 1920, 1080, 240, OutputType::kSdr);
+  auto config_diff_res = MakeConfig(4, 3840, 2160, 120, OutputType::kSdr);
+  auto config_hdr = MakeConfig(5, 1920, 1080, 120, OutputType::kHdr10);
+
+  std::vector<HwcDisplayConfig> all_configs = {current_60hz, config_120hz,
+                                               config_240hz, config_diff_res,
+                                               config_hdr};
+
+  // 1. Current config is 60 Hz -> selects highest refresh rate in group (240
+  // Hz, id = 3)
+  EXPECT_EQ(SelectBestConfig(&current_60hz, all_configs, 60.0F), 3);
+
+  // 2. Current config is 75 Hz -> selects highest refresh rate in group (240
+  // Hz, id = 3)
+  auto current_75hz = MakeConfig(99, 1920, 1080, 75, OutputType::kSdr);
+  EXPECT_EQ(SelectBestConfig(&current_75hz, all_configs, 60.0F), 3);
+
+  // 3. Different resolution candidate (4K 120Hz) must NOT be selected for 1080p
+  // panel
+  std::vector<HwcDisplayConfig> diff_res_only = {current_75hz, config_diff_res};
+  EXPECT_EQ(SelectBestConfig(&current_75hz, diff_res_only, 60.0F), 99);
+
+  // 4. Different output type (HDR vs SDR) candidate must NOT be selected
+  std::vector<HwcDisplayConfig> hdr_only = {current_75hz, config_hdr};
+  EXPECT_EQ(SelectBestConfig(&current_75hz, hdr_only, 60.0F), 99);
+
+  // 5. Pass 1: Prefer highest refresh rate within the SAME group (group 1)
+  // even if another group (group 2) has a higher refresh rate
+  auto cur_grp1_60hz = MakeConfig(10, 1920, 1080, 60, OutputType::kSdr,
+                                  /*group_id=*/1);
+  auto grp1_120hz = MakeConfig(11, 1920, 1080, 120, OutputType::kSdr,
+                               /*group_id=*/1);
+  auto grp2_240hz = MakeConfig(12, 1920, 1080, 240, OutputType::kSdr,
+                               /*group_id=*/2);
+  std::vector<HwcDisplayConfig> multi_group_configs = {cur_grp1_60hz,
+                                                       grp1_120hz, grp2_240hz};
+  EXPECT_EQ(SelectBestConfig(&cur_grp1_60hz, multi_group_configs, 60.0F), 11);
 }
 // NOLINTEND(readability-magic-numbers)
 

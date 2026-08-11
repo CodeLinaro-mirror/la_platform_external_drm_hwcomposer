@@ -19,6 +19,7 @@
 #include "HwcDisplay.h"
 
 #include <cutils/trace.h>
+#include <drm/drm_fourcc.h>
 #include <drm/drm_mode.h>
 #include <linux/time.h>
 #include <ui/ColorSpace.h>
@@ -1757,8 +1758,8 @@ std::optional<LayerData> HwcDisplay::GetModesetLayerData(
 
   ALOGV("Allocate modeset buffer.");
   std::optional<BufferInfo>
-      modeset_buffer = GetPipe().device->CreateBufferForModeset(new_width,
-                                                                new_height);
+      modeset_buffer = GetPipe().device->CreateDumbBuffer(new_width, new_height,
+                                                          DRM_FORMAT_XRGB8888);
   if (!modeset_buffer)
     return std::nullopt;
 
