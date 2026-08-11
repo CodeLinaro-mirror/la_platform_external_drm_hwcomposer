@@ -315,4 +315,10 @@ void Properties::SetBootAnimationCompleted(bool completed) {
   property_set("vendor.hwc.bootanim.completed", completed ? "1" : "0");
 }
 
+auto Properties::EarlyBootHoldMs() -> int {
+  constexpr int kDefaultEarlyBootHoldMs = 1000;
+  return property_get_int32("debug.hwc.early_boot_hold_ms",
+                            kDefaultEarlyBootHoldMs);
+}
+
 }  // namespace android::drm_hwcomposer

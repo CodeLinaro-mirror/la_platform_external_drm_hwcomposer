@@ -89,6 +89,15 @@ if dep_libdisplay_info.found()
   deps += dep_libdisplay_info
 endif
 
+dep_liblz4 = dependency('liblz4', required : false)
+if not dep_liblz4.found()
+  dep_liblz4 = dependency('lz4', required : false)
+endif
+if dep_liblz4.found()
+  common_cpp_flags += '-DHAS_LZ4'
+  deps += dep_liblz4
+endif
+
 hwc2_cpp_flags = [
     '-DHWC2_INCLUDE_STRINGIFICATION',
     '-DHWC2_USE_CPP11',

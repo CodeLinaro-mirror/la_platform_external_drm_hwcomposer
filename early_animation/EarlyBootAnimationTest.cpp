@@ -21,6 +21,7 @@
 #include <cstdio>
 #include <cstring>
 #include <memory>
+#include <thread>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -29,6 +30,10 @@
 #include <android-base/unique_fd.h>
 #include <drm_fourcc.h>
 #include <fcntl.h>  // IWYU pragma: keep
+#if HAS_LZ4
+#include <lz4.h>
+#endif
+#include <sys/types.h>
 #include <unistd.h>
 #include <xf86drmMode.h>
 
@@ -88,8 +93,55 @@ class EarlyBootAnimationTest : public ::testing::Test {
     return anim_->ReadIndexTable(fd);
   }
 
+  static bool ReadFrame(int fd, size_t frame_size,
+                        std::vector<uint8_t>& out_frame_buf) {
+    return EarlyBootAnimation::ReadFrame(fd, frame_size, out_frame_buf);
+  }
+
+  bool ReadCompressedFrame(int fd, uint32_t frame_idx,
+                           std::vector<uint8_t>& out_compressed_buf) {
+    return anim_->ReadCompressedFrame(fd, frame_idx, out_compressed_buf);
+  }
+
+  bool DecompressAndWriteFrame(const std::vector<uint8_t>& compressed_buf,
+                               uint32_t compressed_size, int back_idx,
+                               uint32_t bytes_per_pixel,
+                               std::vector<uint8_t>& decompressed_buf) {
+    return anim_->DecompressAndWriteFrame(compressed_buf, compressed_size,
+                                          back_idx, bytes_per_pixel,
+                                          decompressed_buf);
+  }
+
+  void SetMockBuffer(int idx, void* addr, size_t size, uint32_t pitch,
+                     int prime_fd) {
+    anim_->buffers_[idx].mmap_addr = addr;
+    anim_->buffers_[idx].mmap_size = size;
+    anim_->buffers_[idx].pitch = pitch;
+    anim_->buffers_[idx].prime_fd = prime_fd;
+  }
+
+  void SetStateRunning() {
+    anim_->state_ = EarlyBootAnimation::AnimationState::kRunning;
+  }
+
+  void HandleFrameHold() {
+    anim_->HandleFrameHold();
+  }
+
+  void TriggerStop() {
+    anim_->Stop();
+  }
+
+  void WaitForCompletion() {
+    anim_->WaitForCompletion();
+  }
+
   const AnimationHeader& GetHeader() const {
     return anim_->header_;
+  }
+
+  void SetHeader(const AnimationHeader& h) {
+    anim_->header_ = h;
   }
 
   bool IsCompressed() const {
@@ -160,6 +212,7 @@ TEST_F(EarlyBootAnimationTest, ReadHeaderValidRawf) {
   EXPECT_EQ(GetHeader().hold_duration_ms, 1000U);
 }
 
+#if HAS_LZ4
 TEST_F(EarlyBootAnimationTest, ReadHeaderValidLz4f) {
   AnimationHeader h{};
   std::memcpy(h.magic.data(), "LZ4F", 4);
@@ -176,6 +229,22 @@ TEST_F(EarlyBootAnimationTest, ReadHeaderValidLz4f) {
   EXPECT_TRUE(IsCompressed());
   EXPECT_EQ(GetHeader().width, 2880U);
 }
+#else
+TEST_F(EarlyBootAnimationTest, ReadHeaderLz4fWithoutLz4SupportFails) {
+  AnimationHeader h{};
+  std::memcpy(h.magic.data(), "LZ4F", 4);
+  h.width = 2880;
+  h.height = 1800;
+  h.fps = 60;
+  h.num_frames = 121;
+  h.format = DRM_FORMAT_ARGB8888;
+
+  android::base::unique_fd fd = CreateSeekableFdWithData(&h, sizeof(h));
+  ASSERT_TRUE(fd.ok());
+
+  EXPECT_FALSE(ReadHeader(fd.get()));
+}
+#endif
 
 TEST_F(EarlyBootAnimationTest, ReadHeaderCorruptMagic) {
   AnimationHeader h{};
@@ -346,6 +415,126 @@ TEST_F(EarlyBootAnimationTest, FindBestConfigSelectionLogic) {
   std::vector<HwcDisplayConfig> multi_group_configs = {cur_grp1_60hz,
                                                        grp1_120hz, grp2_240hz};
   EXPECT_EQ(SelectBestConfig(&cur_grp1_60hz, multi_group_configs, 60.0F), 11);
+}
+
+TEST_F(EarlyBootAnimationTest, ReadRawFrameValid) {
+  AnimationHeader h{};
+  std::memcpy(h.magic.data(), "RAWF", 4);
+  h.width = 4;
+  h.height = 4;
+  h.fps = 60;
+  h.num_frames = 1;
+  h.format = DRM_FORMAT_ARGB8888;
+
+  std::vector<uint8_t> frame_pixels(static_cast<size_t>(4) * 4 * 4, 0x5A);
+  std::vector<uint8_t> file_buf;
+  file_buf.resize(sizeof(h) + frame_pixels.size());
+  std::memcpy(file_buf.data(), &h, sizeof(h));
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+  std::memcpy(file_buf.data() + sizeof(h), frame_pixels.data(),
+              frame_pixels.size());
+
+  android::base::unique_fd fd = CreateSeekableFdWithData(file_buf.data(),
+                                                         file_buf.size());
+  ASSERT_TRUE(fd.ok());
+
+  EXPECT_TRUE(ReadHeader(fd.get()));
+  std::vector<uint8_t> out_buf(frame_pixels.size());
+  EXPECT_TRUE(ReadFrame(fd.get(), frame_pixels.size(), out_buf));
+  EXPECT_EQ(out_buf, frame_pixels);
+}
+
+#if HAS_LZ4
+TEST_F(EarlyBootAnimationTest, DecompressAndWriteFrameLz4) {
+  AnimationHeader h{};
+  std::memcpy(h.magic.data(), "LZ4F", 4);
+  h.width = 8;
+  h.height = 8;
+  h.fps = 60;
+  h.num_frames = 1;
+  h.format = DRM_FORMAT_ARGB8888;
+  SetHeader(h);
+
+  uint32_t bpp = 4;
+  size_t raw_size = static_cast<size_t>(8) * 8 * bpp;
+  std::vector<uint8_t> original_pixels(raw_size);
+  for (size_t i = 0; i < raw_size; ++i) {
+    original_pixels[i] = static_cast<uint8_t>(i & 0xFF);
+  }
+
+  std::vector<uint8_t> compressed_buf(
+      LZ4_compressBound(static_cast<int>(raw_size)));
+  // NOLINTBEGIN(cppcoreguidelines-pro-type-reinterpret-cast)
+  int comp_size = LZ4_compress_default(reinterpret_cast<const char*>(
+                                           original_pixels.data()),
+                                       reinterpret_cast<char*>(
+                                           compressed_buf.data()),
+                                       static_cast<int>(raw_size),
+                                       static_cast<int>(compressed_buf.size()));
+  // NOLINTEND(cppcoreguidelines-pro-type-reinterpret-cast)
+  ASSERT_GT(comp_size, 0);
+  compressed_buf.resize(comp_size);
+
+  std::vector<uint8_t> mock_framebuffer(static_cast<size_t>(8) * (8 * bpp),
+                                        0x00);
+  android::base::unique_fd dummy_prime_fd(
+      // NOLINTNEXTLINE(misc-include-cleaner)
+      open("/dev/null", O_RDWR | O_CLOEXEC));
+  ASSERT_TRUE(dummy_prime_fd.ok());
+  SetMockBuffer(0, mock_framebuffer.data(), mock_framebuffer.size(), 8 * bpp,
+                dummy_prime_fd.get());
+
+  std::vector<uint8_t> decomp_scratch(raw_size);
+  EXPECT_TRUE(DecompressAndWriteFrame(compressed_buf, comp_size, 0, bpp,
+                                      decomp_scratch));
+  EXPECT_EQ(mock_framebuffer, original_pixels);
+}
+#endif
+
+TEST_F(EarlyBootAnimationTest, HandleFrameHoldImmediateCancellationOnStop) {
+  AnimationHeader h{};
+  std::memcpy(h.magic.data(), "RAWF", 4);
+  h.width = 100;
+  h.height = 100;
+  h.fps = 60;
+  h.num_frames = 10;
+  h.format = DRM_FORMAT_ARGB8888;
+  h.hold_frame = 0;
+  h.hold_duration_ms = 5000;  // 5 seconds hold
+  SetHeader(h);
+
+  SetStateRunning();
+
+  auto start_time = std::chrono::steady_clock::now();
+  std::thread stopper([this]() {
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    TriggerStop();
+  });
+
+  HandleFrameHold();
+  stopper.join();
+  auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+                     std::chrono::steady_clock::now() - start_time)
+                     .count();
+
+  // Must cancel promptly within < 500ms rather than blocking for 5000ms
+  EXPECT_LT(elapsed, 500);
+}
+
+TEST_F(EarlyBootAnimationTest, WaitForCompletionUnblocksOnStopOrCompleted) {
+  SetStateRunning();
+  auto start_time = std::chrono::steady_clock::now();
+  std::thread stopper([this]() {
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    TriggerStop();
+  });
+
+  WaitForCompletion();
+  stopper.join();
+  auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+                     std::chrono::steady_clock::now() - start_time)
+                     .count();
+  EXPECT_LT(elapsed, 500);
 }
 // NOLINTEND(readability-magic-numbers)
 

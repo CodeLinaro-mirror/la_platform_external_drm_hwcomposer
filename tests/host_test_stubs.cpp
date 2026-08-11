@@ -17,9 +17,13 @@
 #include <cutils/native_handle.h>
 
 #include <memory>
+#include <optional>
 #include <vector>
 
 #include "bufferinfo/GrallocBufferHandle.h"
+#include "compositor/LayerData.h"
+#include "drm/AtomicStateManager.h"
+#include "drm/CommitStatus.h"
 #include "hwc/HwcDisplayConfigs.h"
 
 namespace android::drm_hwcomposer {
@@ -34,6 +38,11 @@ class HwcDisplay {
   const HwcDisplayConfig* GetCurrentConfig() const;
   std::vector<HwcDisplayConfig> GetDisplayConfigs() const;
   ConfigError SetConfig(ConfigId config);
+  CommitStatusOr<AtomicCommitResult> ExecuteAtomicCommit(
+      AtomicCommitArgs& a_args) const;
+  AtomicCommitArgs CreateModesetCommit(
+      const HwcDisplayConfig* config,
+      const std::optional<LayerData>& modeset_layer);
 };
 
 // Stub for GrallocBufferHandle::Create
@@ -59,6 +68,17 @@ std::vector<HwcDisplayConfig> HwcDisplay::GetDisplayConfigs() const {
 
 HwcDisplay::ConfigError HwcDisplay::SetConfig(ConfigId /*config*/) {
   return ConfigError::kNone;
+}
+
+CommitStatusOr<AtomicCommitResult> HwcDisplay::ExecuteAtomicCommit(
+    AtomicCommitArgs& /*a_args*/) const {
+  return CommitStatusOr<AtomicCommitResult>(CommitStatus{.error_code = 0});
+}
+
+AtomicCommitArgs HwcDisplay::CreateModesetCommit(
+    const HwcDisplayConfig* /*config*/,
+    const std::optional<LayerData>& /*modeset_layer*/) {
+  return AtomicCommitArgs{};
 }
 // NOLINTEND(readability-convert-member-functions-to-static)
 

@@ -79,6 +79,13 @@ class Properties {
    * hold by setting the vendor.hwc.bootanim.completed system property.
    */
   static void SetBootAnimationCompleted(bool completed);
+
+  /**
+   * Retrieves the physical hardware hold time in milliseconds for the first
+   * frame of the early boot animation via debug.hwc.early_boot_hold_ms.
+   */
+  static auto EarlyBootHoldMs() -> int;
+
 };
 
 }  // namespace android::drm_hwcomposer

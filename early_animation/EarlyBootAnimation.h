@@ -52,6 +52,7 @@ class EarlyBootAnimation {
 
   [[nodiscard]] bool Start();
   void Stop();
+  void WaitForCompletion();
 
  private:
   enum class AnimationState {
@@ -133,6 +134,21 @@ class EarlyBootAnimation {
   // seek positions in frame_offsets_ for O(1) frame lookup, and advances
   // frame_data_offset_. Returns true on success
   [[nodiscard]] bool ReadIndexTable(int fd);
+  void HandleFrameHold();
+  [[nodiscard]] static bool ReadFrame(int fd, size_t frame_size,
+                                      std::vector<uint8_t>& out_frame_buf);
+  [[nodiscard]] bool ReadCompressedFrame(
+      int fd, uint32_t frame_idx,
+      std::vector<uint8_t>& out_compressed_buf) const;
+
+  bool WriteFrameToDmaBuf(const std::vector<uint8_t>& frame_buf, int back_idx,
+                          uint32_t bytes_per_pixel);
+  [[nodiscard]] bool DecompressAndWriteFrame(
+      const std::vector<uint8_t>& compressed_buf, uint32_t compressed_size,
+      int back_idx, uint32_t bytes_per_pixel,
+      std::vector<uint8_t>& out_decompressed_buf);
+  [[nodiscard]] bool PresentFrame(int back_idx, uint32_t frame_count) const;
+  void SetAnimationState(AnimationState state);
 
   // Non-owning pointer to the primary internal display. Owned by DrmHwc;
   // guaranteed valid for the animation lifetime because the animation is
@@ -143,6 +159,7 @@ class EarlyBootAnimation {
   std::atomic<AnimationState> state_{AnimationState::kStopped};
   std::mutex mutex_;
   std::condition_variable cv_;
+  std::once_flag stop_flag_;
 
   struct BootAnimBuffer {
     BufferInfo bi;

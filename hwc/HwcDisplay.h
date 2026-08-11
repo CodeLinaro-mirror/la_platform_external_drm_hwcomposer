@@ -211,6 +211,13 @@ class HwcDisplay : public ICompositorDisplay {
   // Physical displays are either internal or external.
   auto GetDisplayType() const -> DisplayType;
 
+  CommitStatusOr<AtomicCommitResult> ExecuteAtomicCommit(
+      AtomicCommitArgs &a_args) const;
+
+  AtomicCommitArgs CreateModesetCommit(
+      const HwcDisplayConfig *config,
+      const std::optional<LayerData> &modeset_layer);
+
   // Enable or disable vsync callbacks.
   void SetVsyncCallbacksEnabled(bool enabled);
 
@@ -368,13 +375,6 @@ class HwcDisplay : public ICompositorDisplay {
   // This should be called after a successful commit.
   void ApplyCommitChanges(const AtomicCommitArgs &a_args,
                           const AtomicCommitResult &result);
-
-  AtomicCommitArgs CreateModesetCommit(
-      const HwcDisplayConfig *config,
-      const std::optional<LayerData> &modeset_layer);
-
-  CommitStatusOr<AtomicCommitResult> ExecuteAtomicCommit(
-      AtomicCommitArgs &a_args) const;
 
   // Sleep the current thread until |present_time| is closest to the next
   // expected vsync time.
