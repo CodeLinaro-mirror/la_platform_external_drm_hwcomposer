@@ -48,6 +48,7 @@ src_common = files(
     'utils/LibdisplayEdidWrapper.cpp',
     'utils/SysfsBacklightController.cpp',
     'utils/properties.cpp',
+    'early_animation/EarlyBootAnimation.cpp',
 )
 
 deps = [

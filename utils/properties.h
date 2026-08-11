@@ -65,6 +65,20 @@ class Properties {
    * brightness range into [min_display_brightness, 1.0] instead of clamping.
    */
   static auto ScaleBrightnessRangeToMinBrightness() -> bool;
+
+  /**
+   * Retrieves the filesystem path to the early boot animation package file
+   * from the ro.vendor.hwc.bootanim.path system property.
+   *
+   * Default: "/vendor/etc/bootanim.raw"
+   */
+  static auto BootAnimationPath() -> std::string;
+
+  /**
+   * Signals whether the early boot animation has completed playback and
+   * hold by setting the vendor.hwc.bootanim.completed system property.
+   */
+  static void SetBootAnimationCompleted(bool completed);
 };
 
 }  // namespace android::drm_hwcomposer
