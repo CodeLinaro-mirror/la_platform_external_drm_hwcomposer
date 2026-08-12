@@ -958,6 +958,7 @@ bool HwcDisplay::Init() {
         .external_hdr_enabled = Properties::ExternalHdrEnabled(),
         .capabilities = pipeline_->capabilities.get(),
         .min_refresh_rate = Properties::MinRefreshRate(),
+        .max_refresh_rate = Properties::MaxRefreshRate(),
         .force_disable_mrr = Properties::ForceDisableMrr(),
     };
     auto configs = configs_generator_.GenerateDisplayConfigs(*connector,

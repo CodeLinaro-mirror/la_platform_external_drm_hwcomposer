@@ -243,6 +243,11 @@ auto Properties::MinRefreshRate() -> std::optional<int> {
   return val >= 0 ? std::make_optional(val) : std::nullopt;
 }
 
+auto Properties::MaxRefreshRate() -> std::optional<int> {
+  int val = property_get_int32("ro.vendor.hwc.drm.max_refresh_rate", -1);
+  return val >= 0 ? std::make_optional(val) : std::nullopt;
+}
+
 auto Properties::ExternalHdrEnabled() -> bool {
   constexpr int kDefault = 1;
   return (property_get_bool("vendor.hwc.drm.external_hdr_enabled", kDefault) !=

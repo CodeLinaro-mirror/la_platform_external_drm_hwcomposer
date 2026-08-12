@@ -65,6 +65,7 @@ struct HwcConfigParameters {
   bool external_hdr_enabled = false;
   const BackendDisplayCapabilities *capabilities = nullptr;
   std::optional<float> min_refresh_rate = std::nullopt;
+  std::optional<float> max_refresh_rate = std::nullopt;
   bool force_disable_mrr = false;
 };
 
