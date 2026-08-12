@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <optional>
 #include <string>
 
 namespace android::drm_hwcomposer {
@@ -40,6 +41,8 @@ class Properties {
   static auto GetDevicePath() -> std::string;
   static auto UseColorPipeline() -> bool;
   static auto ForcedHolePunchingEnabled() -> bool;
+  static auto ForceDisableMrr() -> bool;
+  static auto MinRefreshRate() -> std::optional<int>;
   static auto SkipInternalDisplayReset() -> bool;
   static auto ForceColorMode() -> int;
   static auto PersistentHdrEnabled() -> bool;
