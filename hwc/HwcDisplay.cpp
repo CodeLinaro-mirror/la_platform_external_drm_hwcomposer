@@ -76,6 +76,7 @@
 #include "utils/SysfsBacklightController.h"
 #include "utils/fd.h"
 #include "utils/log.h"
+#include "utils/math.h"
 #include "utils/properties.h"
 
 namespace android::drm_hwcomposer {
@@ -88,11 +89,6 @@ namespace {
 constexpr auto kFlatteningTimeout = 1s;
 constexpr auto kHdcpRetryTimeout = 30s;
 // NOLINTEND(misc-include-cleaner)
-
-bool float_equals(float a, float b) {
-  const float epsilon = 0.001F;
-  return std::abs(a - b) < epsilon;
-}
 
 // Client target buffer may be updated since the composition was validated,
 // so get the latest LayerData.
@@ -146,7 +142,7 @@ void HwcDisplay::SetColorTransformMatrix(
       color_transform_is_identity = std::equal(color_transform_matrix.begin(),
                                                color_transform_matrix.end(),
                                                kIdentityMatrix.begin(),
-                                               float_equals);
+                                               FloatEquals);
   if (color_transform_is_identity) {
     client_color_matrix_ = GetIdentityCtmPtr();
     client_ctm_has_offset_ = false;
