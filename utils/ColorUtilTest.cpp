@@ -530,6 +530,44 @@ TEST(ColorUtilTest, ToLinearCtmDiagonalScaling) {
   EXPECT_FLOAT_EQ(linear_ctm[13], 0.0F);
   EXPECT_FLOAT_EQ(linear_ctm[14], 0.0F);
 }
+TEST(ColorUtilTest, ToLinearCtmBypassesNonDiagonalAndPerspective) {
+  // 1. Matrix with off-diagonal color cross-talk
+  HalColorTransformMatrix cross_talk = {
+      0.9F, 0.1F, 0.0F, 0.0F,  //
+      0.1F, 0.8F, 0.0F, 0.0F,  //
+      0.0F, 0.0F, 0.7F, 0.0F,  //
+      0.0F, 0.0F, 0.0F, 1.0F,  //
+  };
+  EXPECT_EQ(ColorUtil::ToLinearCtm(cross_talk, ColorMode::kSrgb), cross_talk);
+
+  // 2. Matrix with translation offsets (e.g. Invert Colors Y = 1 - X)
+  HalColorTransformMatrix invert = {
+      -1.0F, 0.0F,  0.0F,  0.0F,  //
+      0.0F,  -1.0F, 0.0F,  0.0F,  //
+      0.0F,  0.0F,  -1.0F, 0.0F,  //
+      1.0F,  1.0F,  1.0F,  1.0F,  //
+  };
+  EXPECT_EQ(ColorUtil::ToLinearCtm(invert, ColorMode::kSrgb), invert);
+
+  // 3. Matrix with non-zero perspective row entries (indices 3, 7, 11)
+  HalColorTransformMatrix perspective = {
+      1.0F, 0.0F, 0.0F, 0.1F,  // m[3] is non-zero
+      0.0F, 1.0F, 0.0F, 0.0F,  //
+      0.0F, 0.0F, 1.0F, 0.0F,  //
+      0.0F, 0.0F, 0.0F, 1.0F,  //
+  };
+  EXPECT_EQ(ColorUtil::ToLinearCtm(perspective, ColorMode::kSrgb), perspective);
+
+  // 4. Matrix with positive translation offsets (indices 12, 13, 14) without
+  // negative values
+  HalColorTransformMatrix translation = {
+      1.0F, 0.0F, 0.0F, 0.0F,  //
+      0.0F, 1.0F, 0.0F, 0.0F,  //
+      0.0F, 0.0F, 1.0F, 0.0F,  //
+      0.5F, 0.2F, 0.1F, 1.0F,  //
+  };
+  EXPECT_EQ(ColorUtil::ToLinearCtm(translation, ColorMode::kSrgb), translation);
+}
 // Tests for GetDegammaLut
 TEST(ColorUtilTest, GetDegammaLutInvalidLutSize) {
   Lut1DCache<drm_color_lut32> cache;

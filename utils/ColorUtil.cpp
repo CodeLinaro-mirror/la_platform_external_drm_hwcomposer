@@ -406,10 +406,13 @@ HalColorTransformMatrix ColorUtil::ToLinearCtm(
   // Color Inversion), return the matrix untouched.
   const bool is_diagonal = FloatEquals(ctm_in[1], 0.F) &&
                            FloatEquals(ctm_in[2], 0.F) &&
+                           FloatEquals(ctm_in[3], 0.F) &&
                            FloatEquals(ctm_in[4], 0.F) &&
                            FloatEquals(ctm_in[6], 0.F) &&
+                           FloatEquals(ctm_in[7], 0.F) &&
                            FloatEquals(ctm_in[8], 0.F) &&
                            FloatEquals(ctm_in[9], 0.F) &&
+                           FloatEquals(ctm_in[11], 0.F) &&
                            FloatEquals(ctm_in[12], 0.F) &&
                            FloatEquals(ctm_in[13], 0.F) &&
                            FloatEquals(ctm_in[14], 0.F);
