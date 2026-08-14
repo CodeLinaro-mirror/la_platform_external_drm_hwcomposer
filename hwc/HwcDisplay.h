@@ -280,6 +280,8 @@ class HwcDisplay : public ICompositorDisplay {
     return use_color_pipeline_;
   };
 
+  bool HasHardwareColorTransform() const;
+
   const std::map<CompositionAttributes, CompositionStats> &comp_stats() const {
     return comp_stats_;
   }

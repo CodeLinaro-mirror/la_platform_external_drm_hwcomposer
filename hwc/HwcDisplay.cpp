@@ -1372,14 +1372,14 @@ std::optional<AtomicCommitArgs> HwcDisplay::CreateFrameUpdateCommit(
                                  a_args.composition->plan.size() == 1;
   // When client CTM will be applied by the GPU, only apply render intent CTM
   // via DRM.
-  if (all_client_layers &&
+  if (all_client_layers && CtmByGpu() &&
       hwc_->GetResMan().GetCtmHandling() == CtmHandling::kDrmOrGpu) {
     a_args.color_matrix = render_intent_matrix_;
   }
 
   // Client CTM with offset cannot be processed by CTM prop. Only apply render
   // intent CTM which will never have offset.
-  if (client_ctm_has_offset_ && !UseColorPipeline()) {
+  if (client_ctm_has_offset_ && !HasHardwareColorTransform()) {
     a_args.color_matrix = render_intent_matrix_;
   }
 
@@ -1563,11 +1563,20 @@ std::shared_ptr<BindingOwner<DrmPlane>> HwcDisplay::GetCursorPlane() const {
   return pipeline_->GetUsablePlanes().second;
 }
 
+bool HwcDisplay::HasHardwareColorTransform() const {
+  if (IsInHeadlessMode()) {
+    return false;
+  }
+  return UseColorPipeline() && GetPipe().crtc && GetPipe().crtc->Get() &&
+         GetPipe().crtc->Get()->GetCtmProperty() &&
+         GetPipe().crtc->Get()->GetCtmOffsetProperty();
+}
+
 bool HwcDisplay::CtmByGpu() const {
   if (client_color_matrix_ == GetIdentityCtmPtr())
     return false;
 
-  if (UseColorPipeline())
+  if (HasHardwareColorTransform())
     return false;
 
   if (GetPipe().crtc->Get()->GetCtmProperty() && !client_ctm_has_offset_)
