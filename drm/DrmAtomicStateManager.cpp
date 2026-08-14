@@ -49,6 +49,7 @@
 #include "utils/ColorUtil.h"
 #include "utils/fd.h"
 #include "utils/log.h"
+#include "utils/math.h"
 #include "utils/properties.h"
 
 namespace android::drm_hwcomposer {
@@ -458,19 +459,36 @@ bool DrmAtomicStateManager::SetCompositionIfNeeded(const AtomicCommitArgs &args,
                                                      sizeof(drm_color_ctm_3x4));
       }
 
-      constexpr float kDefaultSignal = 1.F;
-      const auto
-          &degamma_lut = ColorUtil::GetDegammaLut(layer.transfer_func,
-                                                  plane->GetDegamma1DLutSize(),
-                                                  degamma_lut_1d_map_,
-                                                  layer.brightness.value_or(
-                                                      kDefaultSignal));
+      // Affine transforms with translation offsets (such as Color Inversion: Y
+      // = 1.0 - X) are designed to operate on perceptually encoded (gamma)
+      // values. Inverting linearized signals (1.0 - X^gamma) severely distorts
+      // the contrast curve, compressing midtones and darks into near-100% white
+      // luminance. Bypass Plane Degamma so the 3x4 matrix inverts gamma values
+      // directly.
+      const bool
+          has_translation_offset = args.color_matrix &&
+                                   (!FloatEquals((*args.color_matrix)[12],
+                                                 0.F) ||
+                                    !FloatEquals((*args.color_matrix)[13],
+                                                 0.F) ||
+                                    !FloatEquals((*args.color_matrix)[14],
+                                                 0.F));
+
       DrmModeUserPropertyBlobUnique degamma_lut_blob;
       DrmModeUserPropertyBlobUnique gamma_lut_blob;
-      if (!degamma_lut.empty()) {
-        degamma_lut_blob = drm->RegisterUserPropertyBlob(
-            degamma_lut.data(),
-            sizeof(drm_color_lut32) * plane->GetDegamma1DLutSize());
+      if (!has_translation_offset) {
+        constexpr float kDefaultSignal = 1.F;
+        const auto &
+            degamma_lut = ColorUtil::GetDegammaLut(layer.transfer_func,
+                                                   plane->GetDegamma1DLutSize(),
+                                                   degamma_lut_1d_map_,
+                                                   layer.brightness.value_or(
+                                                       kDefaultSignal));
+        if (!degamma_lut.empty()) {
+          degamma_lut_blob = drm->RegisterUserPropertyBlob(
+              degamma_lut.data(),
+              sizeof(drm_color_lut32) * plane->GetDegamma1DLutSize());
+        }
       }
       if (plane->AtomicSetColorPipeline(*request.property_set, ctm_3x4_blob,
                                         degamma_lut_blob,

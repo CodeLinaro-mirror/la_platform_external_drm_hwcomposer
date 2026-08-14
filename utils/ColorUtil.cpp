@@ -34,6 +34,7 @@
 #include "compositor/DisplayInfo.h"
 #include "compositor/LayerData.h"
 #include "utils/log.h"
+#include "utils/math.h"
 #include "utils/properties.h"
 
 namespace android::drm_hwcomposer {
@@ -386,6 +387,26 @@ const ColorGamut::transfer_function &ColorUtil::GetEotf(ColorMode mode) {
 
 HalColorTransformMatrix ColorUtil::ToLinearCtm(
     const HalColorTransformMatrix ctm_in, ColorMode mode) {
+  // EOTF element-wise conversion is only valid for non-negative diagonal
+  // scaling matrices (such as Night Light). For affine transforms with
+  // translation offsets, negative values, or off-diagonal cross-talk (e.g.
+  // Color Inversion), return the matrix untouched.
+  const bool is_diagonal = FloatEquals(ctm_in[1], 0.F) &&
+                           FloatEquals(ctm_in[2], 0.F) &&
+                           FloatEquals(ctm_in[4], 0.F) &&
+                           FloatEquals(ctm_in[6], 0.F) &&
+                           FloatEquals(ctm_in[8], 0.F) &&
+                           FloatEquals(ctm_in[9], 0.F) &&
+                           FloatEquals(ctm_in[12], 0.F) &&
+                           FloatEquals(ctm_in[13], 0.F) &&
+                           FloatEquals(ctm_in[14], 0.F);
+  const bool has_negative = std::any_of(ctm_in.begin(), ctm_in.end(),
+                                        [](float val) { return val < 0.F; });
+
+  if (!is_diagonal || has_negative) {
+    return ctm_in;
+  }
+
   HalColorTransformMatrix ctm_out = kIdentityMatrix;
   const ColorGamut::transfer_function &tf = GetEotf(mode);
   std::transform(ctm_in.begin(), ctm_in.end(), ctm_out.begin(),
