@@ -129,6 +129,10 @@ class ColorUtil {
       const std::shared_ptr<const HalColorTransformMatrix>
           &color_transform_matrix);
 
+  static std::shared_ptr<std::array<uint64_t, 3>> ToColorOffset(
+      const std::shared_ptr<const HalColorTransformMatrix>
+          &color_transform_matrix);
+
   static std::shared_ptr<const HalColorTransformMatrix> Multiply(
       const std::shared_ptr<const HalColorTransformMatrix> &a,
       const std::shared_ptr<const HalColorTransformMatrix> &b);

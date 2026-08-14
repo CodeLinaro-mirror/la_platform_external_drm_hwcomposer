@@ -224,10 +224,22 @@ bool DrmAtomicStateManager::SetCtmIfNeeded(const AtomicCommitArgs &args,
 
   auto *drm = pipe_->device;
   if (use_color_pipeline_) {
+    if (crtc->GetCtmOffsetProperty() &&
+        !crtc->GetCtmOffsetProperty().AtomicSet(*request.property_set, 0)) {
+      // Clear the CTM even if clearing CTM offset fails
+      std::ignore = crtc->GetCtmProperty().AtomicSet(*request.property_set, 0);
+      return false;
+    }
     return crtc->GetCtmProperty().AtomicSet(*request.property_set, 0);
   }
 
   if (!args.color_matrix || !args.colorspace) {
+    if (crtc->GetCtmOffsetProperty() &&
+        !crtc->GetCtmOffsetProperty().AtomicSet(*request.property_set, 0)) {
+      // Clear the CTM even if clearing CTM offset fails
+      crtc->GetCtmProperty().AtomicSet(*request.property_set, 0);
+      return false;
+    }
     return true;
   }
 
@@ -263,6 +275,28 @@ bool DrmAtomicStateManager::SetCtmIfNeeded(const AtomicCommitArgs &args,
   }
 
   request.used_kms_objects.blobs.emplace_back(std::move(ctm_blob));
+
+  if (crtc->GetCtmOffsetProperty()) {
+    auto drm_offsets = ColorUtil::ToColorOffset(args.color_matrix);
+    DrmModeUserPropertyBlobUnique ctm_offset_blob;
+    if (drm_offsets) {
+      ctm_offset_blob = drm->RegisterUserPropertyBlob(drm_offsets->data(),
+                                                      sizeof(uint64_t) *
+                                                          drm_offsets->size());
+    }
+    if (ctm_offset_blob) {
+      if (!crtc->GetCtmOffsetProperty().AtomicSet(*request.property_set,
+                                                  *ctm_offset_blob)) {
+        return false;
+      }
+      request.used_kms_objects.blobs.emplace_back(std::move(ctm_offset_blob));
+    } else {
+      if (!crtc->GetCtmOffsetProperty().AtomicSet(*request.property_set, 0)) {
+        return false;
+      }
+    }
+  }
+
   return true;
 }
 

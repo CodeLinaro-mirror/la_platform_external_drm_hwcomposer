@@ -324,6 +324,19 @@ std::shared_ptr<drm_color_ctm_3x4> ColorUtil::ToColorTransform3x4(
   return color_matrix;
 }
 
+std::shared_ptr<std::array<uint64_t, 3>> ColorUtil::ToColorOffset(
+    const std::shared_ptr<const HalColorTransformMatrix>
+        &color_transform_matrix) {
+  if (!color_transform_matrix)
+    return nullptr;
+
+  auto offsets = std::make_shared<std::array<uint64_t, 3>>();
+  (*offsets)[0] = To3132FixPt((*color_transform_matrix)[12]);
+  (*offsets)[1] = To3132FixPt((*color_transform_matrix)[13]);
+  (*offsets)[2] = To3132FixPt((*color_transform_matrix)[14]);
+  return offsets;
+}
+
 std::shared_ptr<const HalColorTransformMatrix> ColorUtil::Multiply(
     const std::shared_ptr<const HalColorTransformMatrix> &a,
     const std::shared_ptr<const HalColorTransformMatrix> &b) {
