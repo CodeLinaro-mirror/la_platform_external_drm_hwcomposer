@@ -328,7 +328,16 @@ CompositionType GenericLayerMapperCompositionPlanner::GetCursorCompositionType(
     return CompositionType::kClient;
   }
 
-  if (DisplayCanUseCursorPlane(display, GetCursorLayer(layers))) {
+  // We ideally set the fallback type to kDevice, but if SF has already reserved
+  // it as kClient, we must respect that.
+  const auto* cursor_layer = GetCursorLayer(layers);
+  auto fallback_type = CompositionType::kClient;
+  if (cursor_layer != nullptr &&
+      cursor_layer->GetSfType() != CompositionType::kClient) {
+    fallback_type = CompositionType::kDevice;
+  }
+
+  if (DisplayCanUseCursorPlane(display, cursor_layer)) {
     // Create and test a composition using only cursor plane and all other
     // layers client-composited to infer whether the cursor plane can be used.
     auto test_mappings = force_client_composition_mapper_
@@ -339,10 +348,10 @@ CompositionType GenericLayerMapperCompositionPlanner::GetCursorCompositionType(
         .composition_types = ToCompositionTypes(test_mappings)};
     return display->TestComposition(cursor_composition).success
                ? CompositionType::kCursor
-               : CompositionType::kDevice;
+               : fallback_type;
   }
 
-  return CompositionType::kDevice;
+  return fallback_type;
 }
 
 std::vector<LayerMapping>
