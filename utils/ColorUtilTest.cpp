@@ -34,6 +34,13 @@
 
 namespace android::drm_hwcomposer {
 
+inline double From3132FixPt(uint64_t val) {
+  constexpr uint64_t kSignMask = 1ULL << 63;
+  double res = static_cast<double>(val & ~kSignMask) /
+               static_cast<double>(1ULL << 32);
+  return (val & kSignMask) ? -res : res;
+}
+
 // Tests for EvaluateHlgOetf
 TEST(ColorUtilTest, EvaluateHlgOetfNegativeAndZero) {
   EXPECT_DOUBLE_EQ(ColorUtil::EvaluateHlgOetf(-0.5), 0.0);
@@ -56,7 +63,10 @@ TEST(ColorUtilTest, EvaluateHlgOetfLogarithmicRegion) {
   EXPECT_NEAR(ColorUtil::EvaluateHlgOetf(1.0), 1.0, 1e-5);
 }
 
-// Tests for ToColorTransform
+// =============================================================================
+// 2. Matrix Transformations & Operations
+// =============================================================================
+
 TEST(ColorUtilTest, ToColorTransform3x3Nullptr) {
   std::shared_ptr<const HalColorTransformMatrix> null_matrix = nullptr;
   EXPECT_EQ(ColorUtil::ToColorTransform3x3(null_matrix), nullptr);
@@ -70,10 +80,6 @@ TEST(ColorUtilTest, ToColorTransform3x3Identity) {
 
   constexpr uint64_t kOneFixPt = 1ULL << 32;
 
-  // Row-major 3x3 s31.32 fixed point matrix
-  // [1.0, 0.0, 0.0]
-  // [0.0, 1.0, 0.0]
-  // [0.0, 0.0, 1.0]
   EXPECT_EQ(ctm->matrix[0], kOneFixPt);
   EXPECT_EQ(ctm->matrix[1], 0ULL);
   EXPECT_EQ(ctm->matrix[2], 0ULL);
@@ -87,42 +93,55 @@ TEST(ColorUtilTest, ToColorTransform3x3Identity) {
   EXPECT_EQ(ctm->matrix[8], kOneFixPt);
 }
 
-TEST(ColorUtilTest, ToColorTransform3x3ValuesAndSigns) {
-  // Transposed 4x4 matrix from HAL:
-  // [ 0.5   0.0   0.0   0.0 ]
-  // [ 0.25  0.75  0.0   0.0 ]
-  // [ 0.0   0.0  -0.5   0.0 ]
-  // [ 0.0   0.0   0.0   1.0 ]
-  // HAL is transposed, so R_out = 0.5*R + 0.25*G, G_out = 0.75*G, B_out =
-  // -0.5*B
+TEST(ColorUtilTest, ToColorTransform3x3NightLightMatrix) {
+  // Typical Night Light warmth matrix (Red=1.0, Green=0.85, Blue=0.5)
   HalColorTransformMatrix matrix = {
-      0.5F,  0.0F,  0.0F,  0.0F,  //
-      0.25F, 0.75F, 0.0F,  0.0F,  //
-      0.0F,  0.0F,  -0.5F, 0.0F,  //
-      0.0F,  0.0F,  0.0F,  1.0F,  //
+      1.0F, 0.0F,  0.0F, 0.0F,  //
+      0.0F, 0.85F, 0.0F, 0.0F,  //
+      0.0F, 0.0F,  0.5F, 0.0F,  //
+      0.0F, 0.0F,  0.0F, 1.0F,  //
+  };
+  auto hal_matrix = std::make_shared<const HalColorTransformMatrix>(matrix);
+  auto ctm = ColorUtil::ToColorTransform3x3(hal_matrix);
+  ASSERT_NE(ctm, nullptr);
+
+  EXPECT_EQ(ctm->matrix[0], ColorUtil::To3132FixPt(1.0F));
+  EXPECT_EQ(ctm->matrix[1], 0ULL);
+  EXPECT_EQ(ctm->matrix[2], 0ULL);
+
+  EXPECT_EQ(ctm->matrix[3], 0ULL);
+  EXPECT_EQ(ctm->matrix[4], ColorUtil::To3132FixPt(0.85F));
+  EXPECT_EQ(ctm->matrix[5], 0ULL);
+
+  EXPECT_EQ(ctm->matrix[6], 0ULL);
+  EXPECT_EQ(ctm->matrix[7], 0ULL);
+  EXPECT_EQ(ctm->matrix[8], ColorUtil::To3132FixPt(0.5F));
+}
+
+TEST(ColorUtilTest, ToColorTransform3x3DaltonizationWithNegativeCoefficients) {
+  // Protanomaly Daltonization matrix with cross-channel and negative mixing
+  HalColorTransformMatrix matrix = {
+      0.625F, 0.375F, 0.0F, 0.0F,  //
+      0.7F,   0.3F,   0.0F, 0.0F,  //
+      -0.3F,  0.3F,   1.0F, 0.0F,  //
+      0.0F,   0.0F,   0.0F, 1.0F,  //
   };
   auto hal_matrix = std::make_shared<const HalColorTransformMatrix>(matrix);
   auto ctm = ColorUtil::ToColorTransform3x3(hal_matrix);
   ASSERT_NE(ctm, nullptr);
 
   constexpr uint64_t kSignMask = 1ULL << 63;
-  // NOLINTBEGIN(readability-identifier-naming)
-  constexpr auto kVal0_5 = static_cast<uint64_t>(0.5 * (1ULL << 32));
-  constexpr auto kVal0_25 = static_cast<uint64_t>(0.25 * (1ULL << 32));
-  constexpr auto kVal0_75 = static_cast<uint64_t>(0.75 * (1ULL << 32));
-  // NOLINTEND(readability-identifier-naming)
+  EXPECT_EQ(ctm->matrix[0], ColorUtil::To3132FixPt(0.625F));
+  EXPECT_EQ(ctm->matrix[1], ColorUtil::To3132FixPt(0.7F));
+  EXPECT_EQ(ctm->matrix[2], ColorUtil::To3132FixPt(0.3F) | kSignMask);
 
-  EXPECT_EQ(ctm->matrix[0], kVal0_5);
-  EXPECT_EQ(ctm->matrix[1], kVal0_25);
-  EXPECT_EQ(ctm->matrix[2], 0ULL);
-
-  EXPECT_EQ(ctm->matrix[3], 0ULL);
-  EXPECT_EQ(ctm->matrix[4], kVal0_75);
-  EXPECT_EQ(ctm->matrix[5], 0ULL);
+  EXPECT_EQ(ctm->matrix[3], ColorUtil::To3132FixPt(0.375F));
+  EXPECT_EQ(ctm->matrix[4], ColorUtil::To3132FixPt(0.3F));
+  EXPECT_EQ(ctm->matrix[5], ColorUtil::To3132FixPt(0.3F));
 
   EXPECT_EQ(ctm->matrix[6], 0ULL);
   EXPECT_EQ(ctm->matrix[7], 0ULL);
-  EXPECT_EQ(ctm->matrix[8], kVal0_5 | kSignMask);
+  EXPECT_EQ(ctm->matrix[8], ColorUtil::To3132FixPt(1.0F));
 }
 
 TEST(ColorUtilTest, ToColorTransform3x4Nullptr) {
@@ -138,10 +157,6 @@ TEST(ColorUtilTest, ToColorTransform3x4Identity) {
 
   constexpr uint64_t kOneFixPt = 1ULL << 32;
 
-  // 3x4 s31.32 fixed point matrix
-  // [1.0, 0.0, 0.0, 0.0]
-  // [0.0, 1.0, 0.0, 0.0]
-  // [0.0, 0.0, 1.0, 0.0]
   EXPECT_EQ(ctm->matrix[0], kOneFixPt);
   EXPECT_EQ(ctm->matrix[1], 0ULL);
   EXPECT_EQ(ctm->matrix[2], 0ULL);
@@ -158,42 +173,198 @@ TEST(ColorUtilTest, ToColorTransform3x4Identity) {
   EXPECT_EQ(ctm->matrix[11], 0ULL);
 }
 
-TEST(ColorUtilTest, ToColorTransform3x4ValuesAndSigns) {
+TEST(ColorUtilTest, ToColorTransform3x4OffsetTranslationVectors) {
+  // HAL column-major matrix with translation offsets in Red (12), Green (13),
+  // Blue (14)
   HalColorTransformMatrix matrix = {
-      0.5F,   0.0F,  0.0F,  0.0F,  //
-      0.25F,  0.75F, 0.0F,  0.0F,  //
-      0.0F,   0.0F,  -0.5F, 0.0F,  //
-      0.125F, 0.0F,  0.0F,  1.0F,  //
+      1.0F, 0.0F, 0.0F, 0.0F,  //
+      0.0F, 1.0F, 0.0F, 0.0F,  //
+      0.0F, 0.0F, 1.0F, 0.0F,  //
+      0.1F, 0.2F, 0.3F, 1.0F,  //
   };
   auto hal_matrix = std::make_shared<const HalColorTransformMatrix>(matrix);
   auto ctm = ColorUtil::ToColorTransform3x4(hal_matrix);
   ASSERT_NE(ctm, nullptr);
 
-  constexpr uint64_t kSignMask = 1ULL << 63;
-  // NOLINTBEGIN(readability-identifier-naming)
-  constexpr auto kVal0_5 = static_cast<uint64_t>(0.5 * (1ULL << 32));
-  constexpr auto kVal0_25 = static_cast<uint64_t>(0.25 * (1ULL << 32));
-  constexpr auto kVal0_75 = static_cast<uint64_t>(0.75 * (1ULL << 32));
-  constexpr auto kVal0_125 = static_cast<uint64_t>(0.125 * (1ULL << 32));
-  // NOLINTEND(readability-identifier-naming)
+  constexpr uint64_t kOneFixPt = 1ULL << 32;
 
-  EXPECT_EQ(ctm->matrix[0], kVal0_5);
-  EXPECT_EQ(ctm->matrix[1], kVal0_25);
+  // Row 0: R_out = 1.0*R + 0.0*G + 0.0*B + 0.1
+  EXPECT_EQ(ctm->matrix[0], kOneFixPt);
+  EXPECT_EQ(ctm->matrix[1], 0ULL);
   EXPECT_EQ(ctm->matrix[2], 0ULL);
-  EXPECT_EQ(ctm->matrix[3], kVal0_125);
+  EXPECT_EQ(ctm->matrix[3], ColorUtil::To3132FixPt(0.1F));
 
+  // Row 1: G_out = 0.0*R + 1.0*G + 0.0*B + 0.2
   EXPECT_EQ(ctm->matrix[4], 0ULL);
-  EXPECT_EQ(ctm->matrix[5], kVal0_75);
+  EXPECT_EQ(ctm->matrix[5], kOneFixPt);
   EXPECT_EQ(ctm->matrix[6], 0ULL);
-  EXPECT_EQ(ctm->matrix[7], 0ULL);
+  EXPECT_EQ(ctm->matrix[7], ColorUtil::To3132FixPt(0.2F));
 
+  // Row 2: B_out = 0.0*R + 0.0*G + 1.0*B + 0.3
   EXPECT_EQ(ctm->matrix[8], 0ULL);
   EXPECT_EQ(ctm->matrix[9], 0ULL);
-  EXPECT_EQ(ctm->matrix[10], kVal0_5 | kSignMask);
-  EXPECT_EQ(ctm->matrix[11], 0ULL);
+  EXPECT_EQ(ctm->matrix[10], kOneFixPt);
+  EXPECT_EQ(ctm->matrix[11], ColorUtil::To3132FixPt(0.3F));
 }
 
-// Tests for GamutAdjustIfNeeded
+TEST(ColorUtilTest, ToColorTransform3x4CombinedScaleAndOffset) {
+  // HAL matrix with both scaling (gains) and translation offsets
+  HalColorTransformMatrix matrix = {
+      0.8F,  0.0F, 0.0F,  0.0F,  // Red gain 0.8
+      0.0F,  0.9F, 0.0F,  0.0F,  // Green gain 0.9
+      0.0F,  0.0F, 0.7F,  0.0F,  // Blue gain 0.7
+      0.05F, 0.1F, 0.15F, 1.0F,  // Offsets: R=0.05, G=0.1, B=0.15
+  };
+  auto hal_matrix = std::make_shared<const HalColorTransformMatrix>(matrix);
+  auto ctm = ColorUtil::ToColorTransform3x4(hal_matrix);
+  ASSERT_NE(ctm, nullptr);
+
+  // Row 0: R_out = 0.8*R + 0.0*G + 0.0*B + 0.05
+  EXPECT_EQ(ctm->matrix[0], ColorUtil::To3132FixPt(0.8F));
+  EXPECT_EQ(ctm->matrix[1], 0ULL);
+  EXPECT_EQ(ctm->matrix[2], 0ULL);
+  EXPECT_EQ(ctm->matrix[3], ColorUtil::To3132FixPt(0.05F));
+
+  // Row 1: G_out = 0.0*R + 0.9*G + 0.0*B + 0.10
+  EXPECT_EQ(ctm->matrix[4], 0ULL);
+  EXPECT_EQ(ctm->matrix[5], ColorUtil::To3132FixPt(0.9F));
+  EXPECT_EQ(ctm->matrix[6], 0ULL);
+  EXPECT_EQ(ctm->matrix[7], ColorUtil::To3132FixPt(0.1F));
+
+  // Row 2: B_out = 0.0*R + 0.0*G + 0.7*B + 0.15
+  EXPECT_EQ(ctm->matrix[8], 0ULL);
+  EXPECT_EQ(ctm->matrix[9], 0ULL);
+  EXPECT_EQ(ctm->matrix[10], ColorUtil::To3132FixPt(0.7F));
+  EXPECT_EQ(ctm->matrix[11], ColorUtil::To3132FixPt(0.15F));
+}
+
+TEST(ColorUtilTest, MultiplyIdentityPreservation) {
+  auto a = std::make_shared<HalColorTransformMatrix>(HalColorTransformMatrix{
+      0.5F,
+      0.1F,
+      0.0F,
+      0.0F,  //
+      0.2F,
+      0.8F,
+      0.0F,
+      0.0F,  //
+      0.1F,
+      0.1F,
+      0.9F,
+      0.0F,  //
+      0.0F,
+      0.0F,
+      0.0F,
+      1.0F,  //
+  });
+
+  EXPECT_EQ(ColorUtil::Multiply(a, GetIdentityCtmPtr()), a);
+  EXPECT_EQ(ColorUtil::Multiply(GetIdentityCtmPtr(), a), a);
+  EXPECT_EQ(ColorUtil::Multiply(a, nullptr), a);
+  EXPECT_EQ(ColorUtil::Multiply(nullptr, a), a);
+  EXPECT_EQ(ColorUtil::Multiply(nullptr, nullptr), nullptr);
+}
+
+TEST(ColorUtilTest, MultiplyGeneralMatrices) {
+  HalColorTransformMatrix a_val = {
+      1.1F,  0.2F,  0.0F,  0.0F,  //
+      0.1F,  0.9F,  0.1F,  0.0F,  //
+      0.0F,  0.1F,  0.8F,  0.0F,  //
+      0.05F, 0.02F, 0.01F, 1.0F,  //
+  };
+  HalColorTransformMatrix b_val = {
+      0.9F,  0.05F, 0.0F,  0.0F,  //
+      0.05F, 0.95F, 0.0F,  0.0F,  //
+      0.0F,  0.0F,  1.0F,  0.0F,  //
+      0.01F, 0.03F, 0.02F, 1.0F,  //
+  };
+  auto a = std::make_shared<HalColorTransformMatrix>(a_val);
+  auto b = std::make_shared<HalColorTransformMatrix>(b_val);
+  auto res = ColorUtil::Multiply(a, b);
+  ASSERT_NE(res, nullptr);
+
+  for (int col = 0; col < 4; ++col) {
+    for (int row = 0; row < 4; ++row) {
+      float expected = 0.0F;
+      for (int k = 0; k < 4; ++k) {
+        expected += a_val[(k * 4) + row] * b_val[(col * 4) + k];
+      }
+      EXPECT_NEAR((*res)[(col * 4) + row], expected, 1e-5F);
+    }
+  }
+}
+
+TEST(ColorUtilTest, MultiplyMatrixAssociativity) {
+  auto a = std::make_shared<HalColorTransformMatrix>(HalColorTransformMatrix{
+      0.9F,
+      0.1F,
+      0.0F,
+      0.0F,  //
+      0.0F,
+      0.8F,
+      0.2F,
+      0.0F,  //
+      0.1F,
+      0.0F,
+      0.7F,
+      0.0F,  //
+      0.0F,
+      0.0F,
+      0.0F,
+      1.0F,  //
+  });
+  auto b = std::make_shared<HalColorTransformMatrix>(HalColorTransformMatrix{
+      0.7F,
+      0.2F,
+      0.1F,
+      0.0F,  //
+      0.1F,
+      0.6F,
+      0.3F,
+      0.0F,  //
+      0.2F,
+      0.1F,
+      0.8F,
+      0.0F,  //
+      0.0F,
+      0.0F,
+      0.0F,
+      1.0F,  //
+  });
+  auto c = std::make_shared<HalColorTransformMatrix>(HalColorTransformMatrix{
+      0.8F,
+      0.1F,
+      0.1F,
+      0.0F,  //
+      0.2F,
+      0.7F,
+      0.1F,
+      0.0F,  //
+      0.1F,
+      0.2F,
+      0.6F,
+      0.0F,  //
+      0.0F,
+      0.0F,
+      0.0F,
+      1.0F,  //
+  });
+
+  auto ab_c = ColorUtil::Multiply(ColorUtil::Multiply(a, b), c);
+  auto a_bc = ColorUtil::Multiply(a, ColorUtil::Multiply(b, c));
+
+  ASSERT_NE(ab_c, nullptr);
+  ASSERT_NE(a_bc, nullptr);
+
+  for (size_t i = 0; i < kColorMatrixSize; ++i) {
+    EXPECT_NEAR((*ab_c)[i], (*a_bc)[i], 1e-5F);
+  }
+}
+
+// =============================================================================
+// 3. Gamut Adjustments & D65 White Point Preservation
+// =============================================================================
+
 TEST(ColorUtilTest, GamutAdjustIfNeededSameColorspace) {
   auto hal_matrix = std::make_shared<const HalColorTransformMatrix>(
       kIdentityMatrix);
@@ -238,6 +409,127 @@ TEST(ColorUtilTest, GamutAdjustIfNeededDifferentColorspaceAndCaching) {
   EXPECT_EQ(cache.size(), 2U);
 }
 
+TEST(ColorUtilTest, GamutAdjustD65WhitePointPreservation) {
+  const std::vector<std::pair<HwcColorspace, HwcColorspace>> gamut_pairs = {
+      {HwcColorspace::kBt709, HwcColorspace::kDciP3},
+      {HwcColorspace::kDciP3, HwcColorspace::kBt709},
+      {HwcColorspace::kBt709, HwcColorspace::kBt2020},
+      {HwcColorspace::kBt2020, HwcColorspace::kBt709},
+      {HwcColorspace::kDciP3, HwcColorspace::kBt2020},
+      {HwcColorspace::kBt2020, HwcColorspace::kDciP3},
+  };
+
+  auto hal_identity = std::make_shared<const HalColorTransformMatrix>(
+      kIdentityMatrix);
+  CscCache cache;
+
+  for (const auto &[src, dest] : gamut_pairs) {
+    auto ctm = ColorUtil::GamutAdjustIfNeeded<drm_color_ctm>(src, dest,
+                                                             hal_identity,
+                                                             cache);
+    ASSERT_NE(ctm, nullptr);
+
+    double r_out = From3132FixPt(ctm->matrix[0]) +
+                   From3132FixPt(ctm->matrix[1]) +
+                   From3132FixPt(ctm->matrix[2]);
+    double g_out = From3132FixPt(ctm->matrix[3]) +
+                   From3132FixPt(ctm->matrix[4]) +
+                   From3132FixPt(ctm->matrix[5]);
+    double b_out = From3132FixPt(ctm->matrix[6]) +
+                   From3132FixPt(ctm->matrix[7]) +
+                   From3132FixPt(ctm->matrix[8]);
+
+    EXPECT_NEAR(r_out, 1.0, 1e-4);
+    EXPECT_NEAR(g_out, 1.0, 1e-4);
+    EXPECT_NEAR(b_out, 1.0, 1e-4);
+  }
+}
+
+TEST(ColorUtilTest, GamutAdjust3x4OffsetVectorRotation) {
+  HalColorTransformMatrix matrix = {
+      1.0F, 0.0F, 0.0F, 0.0F,  //
+      0.0F, 1.0F, 0.0F, 0.0F,  //
+      0.0F, 0.0F, 1.0F, 0.0F,  //
+      0.1F, 0.2F, 0.3F, 1.0F,  // Offsets O_src = [0.1, 0.2, 0.3]^T
+  };
+  auto hal_matrix = std::make_shared<const HalColorTransformMatrix>(matrix);
+  CscCache cache;
+
+  auto ctm3x4 = ColorUtil::GamutAdjustIfNeeded<
+      drm_color_ctm_3x4>(HwcColorspace::kBt709, HwcColorspace::kBt2020,
+                         hal_matrix, cache);
+  ASSERT_NE(ctm3x4, nullptr);
+
+  auto key = std::make_tuple(HwcColorspace::kBt709, HwcColorspace::kBt2020);
+  ASSERT_EQ(cache.count(key), 1U);
+  const mat3d &G = cache.at(key);
+
+  double3 expected_o = G * double3(0.1, 0.2, 0.3);
+
+  double actual_o_r = From3132FixPt(ctm3x4->matrix[3]);
+  double actual_o_g = From3132FixPt(ctm3x4->matrix[7]);
+  double actual_o_b = From3132FixPt(ctm3x4->matrix[11]);
+
+  EXPECT_NEAR(actual_o_r, expected_o[0], 1e-4);
+  EXPECT_NEAR(actual_o_g, expected_o[1], 1e-4);
+  EXPECT_NEAR(actual_o_b, expected_o[2], 1e-4);
+}
+
+TEST(ColorUtilTest, GamutAdjust3x4FullMatrixAndOffset) {
+  HalColorTransformMatrix matrix = {
+      1.0F,  0.0F,  0.0F,  0.0F,  //
+      0.0F,  0.85F, 0.0F,  0.0F,  //
+      0.0F,  0.0F,  0.5F,  0.0F,  //
+      0.05F, 0.1F,  0.15F, 1.0F,  // Offsets
+  };
+  auto hal_matrix = std::make_shared<const HalColorTransformMatrix>(matrix);
+  CscCache cache;
+
+  auto ctm3x4 = ColorUtil::GamutAdjustIfNeeded<
+      drm_color_ctm_3x4>(HwcColorspace::kBt709, HwcColorspace::kDciP3,
+                         hal_matrix, cache);
+  ASSERT_NE(ctm3x4, nullptr);
+
+  auto key = std::make_tuple(HwcColorspace::kBt709, HwcColorspace::kDciP3);
+  ASSERT_EQ(cache.count(key), 1U);
+  const mat3d &G = cache.at(key);
+
+  double3 expected_o = G * double3(0.05, 0.1, 0.15);
+
+  EXPECT_NEAR(From3132FixPt(ctm3x4->matrix[3]), expected_o[0], 1e-4);
+  EXPECT_NEAR(From3132FixPt(ctm3x4->matrix[7]), expected_o[1], 1e-4);
+  EXPECT_NEAR(From3132FixPt(ctm3x4->matrix[11]), expected_o[2], 1e-4);
+}
+
+TEST(ColorUtilTest, ToLinearCtmDiagonalScaling) {
+  HalColorTransformMatrix night_light = {
+      0.9F, 0.0F, 0.0F, 0.0F,  //
+      0.0F, 0.7F, 0.0F, 0.0F,  //
+      0.0F, 0.0F, 0.4F, 0.0F,  //
+      0.0F, 0.0F, 0.0F, 1.0F,  //
+  };
+
+  auto linear_ctm = ColorUtil::ToLinearCtm(night_light, ColorMode::kSrgb);
+  // Linearized diagonal values should differ from original (EOTF applied)
+  EXPECT_NE(linear_ctm[0], night_light[0]);
+  EXPECT_NE(linear_ctm[5], night_light[5]);
+  EXPECT_NE(linear_ctm[10], night_light[10]);
+  EXPECT_FLOAT_EQ(linear_ctm[15], 1.0F);
+
+  // All off-diagonals should remain 0
+  EXPECT_FLOAT_EQ(linear_ctm[1], 0.0F);
+  EXPECT_FLOAT_EQ(linear_ctm[2], 0.0F);
+  EXPECT_FLOAT_EQ(linear_ctm[3], 0.0F);
+  EXPECT_FLOAT_EQ(linear_ctm[4], 0.0F);
+  EXPECT_FLOAT_EQ(linear_ctm[6], 0.0F);
+  EXPECT_FLOAT_EQ(linear_ctm[7], 0.0F);
+  EXPECT_FLOAT_EQ(linear_ctm[8], 0.0F);
+  EXPECT_FLOAT_EQ(linear_ctm[9], 0.0F);
+  EXPECT_FLOAT_EQ(linear_ctm[11], 0.0F);
+  EXPECT_FLOAT_EQ(linear_ctm[12], 0.0F);
+  EXPECT_FLOAT_EQ(linear_ctm[13], 0.0F);
+  EXPECT_FLOAT_EQ(linear_ctm[14], 0.0F);
+}
 // Tests for GetDegammaLut
 TEST(ColorUtilTest, GetDegammaLutInvalidLutSize) {
   Lut1DCache<drm_color_lut32> cache;

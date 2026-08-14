@@ -434,17 +434,13 @@ std::shared_ptr<T> ColorUtil::GamutAdjustIfNeeded(
   if constexpr (std::is_same_v<T, drm_color_ctm>) {
     return android::drm_hwcomposer::ToColorTransform3x3(ctm3);
   } else if constexpr (std::is_same_v<T, drm_color_ctm_3x4>) {
-    // Insert the new 3x3 matrix back into the 4x4 CTM
-    // NOLINTBEGIN(readability-magic-numbers)
-    // clang-format off
-    mat4d ctm4 = mat4d(
-      ctm3[0][0], ctm3[0][1], ctm3[0][2], ctm_in[3],
-      ctm3[1][0], ctm3[1][1], ctm3[1][2], ctm_in[7],
-      ctm3[2][0], ctm3[2][1], ctm3[2][2], ctm_in[11],
-      ctm_in[12], ctm_in[13], ctm_in[14], ctm_in[15]
-    );
-    // clang-format on
-    // NOLINTEND(readability-magic-numbers)
+    // Rotate 3x4 offset translation vector into destination gamut (O_dest = G *
+    // O_src)
+    double3 offset(ctm_in[12], ctm_in[13], ctm_in[14]);
+    offset = color_transform_cache.at(cache_key) * offset;
+
+    // Insert the new 3x3 matrix and rotated offset back into the 4x4 CTM
+    mat4d ctm4(ctm3, offset);
 
     return ToColorTransform3x4(ctm4);
   }
