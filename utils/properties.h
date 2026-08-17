@@ -86,6 +86,13 @@ class Properties {
    */
   static auto EarlyBootHoldMs() -> int;
 
+  /**
+   * Determines whether the early boot animation is enabled via the
+   * vendor.hwc.drm.bootanim.enable system property.
+   *
+   * Default: false.
+   */
+  static auto BootAnimationEnabled() -> bool;
 };
 
 }  // namespace android::drm_hwcomposer

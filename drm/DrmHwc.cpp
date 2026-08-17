@@ -405,6 +405,9 @@ DrmHwc::HotplugEventQueue::Events DrmHwc::HotplugEventQueue::RetrieveAndFlush() 
 }
 
 void DrmHwc::StartBootAnimation() {
+  if (!Properties::BootAnimationEnabled()) {
+    return;
+  }
   auto &primary_display = displays_[kPrimaryDisplay];
   if (primary_display && !primary_display->IsInHeadlessMode()) {
     if (!boot_animation_) {
