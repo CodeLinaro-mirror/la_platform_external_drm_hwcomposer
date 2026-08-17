@@ -600,6 +600,31 @@ TEST(ColorUtilTest, To3132FixPtSaturationAndSpecialValues) {
   EXPECT_EQ(ColorUtil::To3132FixPt(-0.0), kSignBit);
 }
 
+TEST(ColorUtilTest, TransformHasOffsetValueDetection) {
+  // Red offset at index 12
+  HalColorTransformMatrix matrix_r = kIdentityMatrix;
+  matrix_r[12] = 0.05F;
+  EXPECT_TRUE(ColorUtil::TransformHasOffsetValue(matrix_r));
+
+  // Green offset at index 13
+  HalColorTransformMatrix matrix_g = kIdentityMatrix;
+  matrix_g[13] = -0.05F;
+  EXPECT_TRUE(ColorUtil::TransformHasOffsetValue(matrix_g));
+
+  // Blue offset at index 14
+  HalColorTransformMatrix matrix_b = kIdentityMatrix;
+  matrix_b[14] = 0.1F;
+  EXPECT_TRUE(ColorUtil::TransformHasOffsetValue(matrix_b));
+
+  // Identity matrix has no offsets
+  EXPECT_FALSE(ColorUtil::TransformHasOffsetValue(kIdentityMatrix));
+
+  // Sub-epsilon offset (< 0.001F) is ignored as noise
+  HalColorTransformMatrix matrix_sub_eps = kIdentityMatrix;
+  matrix_sub_eps[12] = 0.0001F;
+  EXPECT_FALSE(ColorUtil::TransformHasOffsetValue(matrix_sub_eps));
+}
+
 }  // namespace android::drm_hwcomposer
 
 // NOLINTEND(readability-magic-numbers)

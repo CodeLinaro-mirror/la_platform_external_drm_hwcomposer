@@ -284,6 +284,17 @@ uint64_t ColorUtil::To3132FixPt(double in) {
   return is_negative ? (kSignBit | val) : val;
 }
 
+bool ColorUtil::TransformHasOffsetValue(const HalColorTransformMatrix &matrix) {
+  constexpr float kEpsilon = 0.001F;
+  constexpr size_t kRedOffsetIndex = 12;
+  constexpr size_t kGreenOffsetIndex = 13;
+  constexpr size_t kBlueOffsetIndex = 14;
+
+  return std::abs(matrix[kRedOffsetIndex]) >= kEpsilon ||
+         std::abs(matrix[kGreenOffsetIndex]) >= kEpsilon ||
+         std::abs(matrix[kBlueOffsetIndex]) >= kEpsilon;
+}
+
 std::shared_ptr<drm_color_ctm> ColorUtil::ToColorTransform3x3(
     const std::shared_ptr<const HalColorTransformMatrix>
         &color_transform_matrix) {

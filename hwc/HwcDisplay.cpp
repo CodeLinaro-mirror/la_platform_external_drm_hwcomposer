@@ -94,15 +94,6 @@ bool float_equals(float a, float b) {
   return std::abs(a - b) < epsilon;
 }
 
-bool TransformHasOffsetValue(const float *matrix) {
-  for (int i = 12; i < 14; i++) {
-    if (!float_equals(matrix[i], 0.F)) {
-      return true;
-    }
-  }
-  return false;
-}
-
 // Client target buffer may be updated since the composition was validated,
 // so get the latest LayerData.
 void UpdateClientTargetIfNeeded(const HwcLayer &client_layer,
@@ -160,8 +151,8 @@ void HwcDisplay::SetColorTransformMatrix(
     client_color_matrix_ = GetIdentityCtmPtr();
     client_ctm_has_offset_ = false;
   } else {
-    client_ctm_has_offset_ = TransformHasOffsetValue(
-        color_transform_matrix.data());
+    client_ctm_has_offset_ = ColorUtil::TransformHasOffsetValue(
+        color_transform_matrix);
     client_color_matrix_ = std::make_shared<HalColorTransformMatrix>(
         ColorUtil::ToLinearCtm(color_transform_matrix, color_mode_));
   }

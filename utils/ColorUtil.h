@@ -74,6 +74,12 @@ class ColorUtil {
    */
   static double EvaluateHlgOetf(double l);
 
+  /**
+   * Detects non-zero translation offset components in Red (index 12), Green
+   * (index 13), and Blue (index 14) of a HAL 4x4 column-major matrix.
+   */
+  static bool TransformHasOffsetValue(const HalColorTransformMatrix &matrix);
+
   /* HAL provides a transposed 4x4 float type matrix:
    * | 0  1  2  3|
    * | 4  5  6  7|
