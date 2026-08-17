@@ -21,6 +21,7 @@
 #include <cutils/trace.h>
 #include <drm/drm_mode.h>
 #include <linux/time.h>
+#include <ui/ColorSpace.h>
 #include <ui/GraphicTypes.h>
 #include <utils/Trace.h>
 #include <xf86drmMode.h>
@@ -225,7 +226,7 @@ void HwcDisplay::SetOutputType(OutputType hdr_output_type) {
   switch (hdr_output_type) {
     case OutputType::kHdr10: {
       SetHdrHeadroom();
-      SetHdrOutputMetadata(ColorGamut::BT2020(), TransferFunction::kPq);
+      SetHdrOutputMetadata(kBt2020Gamut, TransferFunction::kPq);
       min_bpc_ = 8;
       break;
     }
@@ -233,7 +234,7 @@ void HwcDisplay::SetOutputType(OutputType hdr_output_type) {
       std::vector<ui::Hdr> hdr_types;
       GetEdid()->GetSupportedHdrTypes(hdr_types);
       if (hdr_types.empty() && !forced_color_mode_) {
-        SetHdrOutputMetadata(ColorGamut::BT2020(), TransferFunction::kSrgb);
+        SetHdrOutputMetadata(kBt2020Gamut, TransferFunction::kSrgb);
         min_bpc_ = 6;
         break;
       }
@@ -245,15 +246,15 @@ void HwcDisplay::SetOutputType(OutputType hdr_output_type) {
                                                             : hdr_types.front();
       switch (type) {
         case ui::Hdr::HDR10:
-          SetHdrOutputMetadata(ColorGamut::BT2020(), TransferFunction::kPq);
+          SetHdrOutputMetadata(kBt2020Gamut, TransferFunction::kPq);
           break;
         case ui::Hdr::HLG:
-          SetHdrOutputMetadata(ColorGamut::BT2020(), TransferFunction::kHlg);
+          SetHdrOutputMetadata(kBt2020Gamut, TransferFunction::kHlg);
           break;
         default:
           ALOGW("HDR type %d is not supported, using Display BT2020 instead.",
                 static_cast<int>(type));
-          SetHdrOutputMetadata(ColorGamut::BT2020(),
+          SetHdrOutputMetadata(kBt2020Gamut,
                                TransferFunction::kSmpte170M);
           break;
       }
@@ -1668,7 +1669,7 @@ static uint64_t ToU16ColorValue(float in) {
   return static_cast<uint64_t>(kPrimariesFixedPoint * in);
 }
 
-void HwcDisplay::SetHdrOutputMetadata(const ColorGamut &color_gamut,
+void HwcDisplay::SetHdrOutputMetadata(const android::ColorSpace &color_gamut,
                                       TransferFunction transfer_function) {
   hdr_metadata_ = std::make_shared<hdr_output_metadata>();
   hdr_metadata_->metadata_type = 0;

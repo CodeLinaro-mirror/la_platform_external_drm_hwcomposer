@@ -443,6 +443,19 @@ TEST(ColorUtilTest, GetGammaLutHdrScaleRangeCalculatesExpectedScale) {
   EXPECT_EQ(&lut_scaled, &lut_expected);
 }
 
+TEST(ColorUtilTest, ToColorGamutMappings) {
+  EXPECT_EQ(ColorUtil::ToColorGamut(HwcColorspace::kDefault).getName(),
+            android::ColorSpace::BT709().getName());
+  EXPECT_EQ(ColorUtil::ToColorGamut(HwcColorspace::kBt709).getName(),
+            android::ColorSpace::BT709().getName());
+  EXPECT_EQ(ColorUtil::ToColorGamut(HwcColorspace::kBt2020).getName(),
+            android::ColorSpace::BT2020().getName());
+  EXPECT_EQ(ColorUtil::ToColorGamut(HwcColorspace::kDciP3).getName(),
+            android::ColorSpace::DCIP3().getName());
+  EXPECT_EQ(ColorUtil::ToColorGamut(HwcColorspace::kBt601).getName(),
+            android::ColorSpace::sRGB().getName());
+}
+
 }  // namespace android::drm_hwcomposer
 
 // NOLINTEND(readability-magic-numbers)

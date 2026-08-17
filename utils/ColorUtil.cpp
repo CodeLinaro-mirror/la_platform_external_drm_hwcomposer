@@ -36,8 +36,6 @@
 #include "utils/log.h"
 #include "utils/properties.h"
 
-using ColorGamut = android::ColorSpace;
-
 namespace android::drm_hwcomposer {
 
 namespace {
@@ -89,22 +87,6 @@ std::shared_ptr<drm_color_ctm> ToColorTransform3x3(
   return color_matrix;
 }
 
-ColorGamut ToColorGamut(HwcColorspace colorspace) {
-  switch (colorspace) {
-    case HwcColorspace::kBt709:
-    case HwcColorspace::kDefault:
-      return ColorGamut::BT709();
-    case HwcColorspace::kBt2020:
-      return ColorGamut::BT2020();
-    case HwcColorspace::kDciP3:
-      return ColorGamut::DCIP3();
-    case HwcColorspace::kBt601:
-      return ColorGamut::sRGB();
-    default:
-      ALOGW("Unknown colorspace %d, falling back to sRGB", colorspace);
-      return ColorGamut::sRGB();
-  }
-}
 
 bool NeedsTonemapping(TransferFunction tf) {
   switch (tf) {
@@ -229,13 +211,13 @@ Lut1D<T> CreateLut(TransferFunction tf, uint32_t lut_size,
         ALOGV("Unknown transfer function, falling back to sRGB");
         [[fallthrough]];
       case TransferFunction::kSrgb:
-        signal = is_degamma ? ColorGamut::sRGB().toLinear(signal)[0]
-                            : ColorGamut::sRGB().fromLinear(signal)[0];
+        signal = is_degamma ? kSrgbGamut.toLinear(signal)[0]
+                            : kSrgbGamut.fromLinear(signal)[0];
         break;
       case TransferFunction::kSmpte170M:
-        // ColorGamut::BT709 uses SMPTE 170M transfer parameters
-        signal = is_degamma ? ColorGamut::BT709().toLinear(signal)[0]
-                            : ColorGamut::BT709().fromLinear(signal)[0];
+        // BT.709 uses SMPTE 170M transfer parameters
+        signal = is_degamma ? kBt709Gamut.toLinear(signal)[0]
+                            : kBt709Gamut.fromLinear(signal)[0];
         break;
       default:
         break;
@@ -332,6 +314,23 @@ std::shared_ptr<const HalColorTransformMatrix> ColorUtil::Multiply(
   // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
   std::copy(res.asArray(), res.asArray() + kColorMatrixSize, out->begin());
   return out;
+}
+
+const ColorGamut &ColorUtil::ToColorGamut(HwcColorspace colorspace) {
+  switch (colorspace) {
+    case HwcColorspace::kBt709:
+    case HwcColorspace::kDefault:
+      return kBt709Gamut;
+    case HwcColorspace::kBt2020:
+      return kBt2020Gamut;
+    case HwcColorspace::kDciP3:
+      return kDciP3Gamut;
+    case HwcColorspace::kBt601:
+      return kSrgbGamut;
+    default:
+      ALOGW("Unknown colorspace %d, falling back to sRGB", colorspace);
+      return kSrgbGamut;
+  }
 }
 
 HalColorTransformMatrix ColorUtil::ToLinearCtm(

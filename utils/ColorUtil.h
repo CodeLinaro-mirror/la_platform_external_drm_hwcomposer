@@ -19,6 +19,7 @@
 #include <drm/drm_mode.h>
 #include <math/mat3.h>
 #include <math/mat4.h>
+#include <ui/ColorSpace.h>
 
 #include <cstddef>
 #include <cstdint>
@@ -34,6 +35,8 @@
 
 namespace android::drm_hwcomposer {
 
+using ColorGamut = ::android::ColorSpace;
+
 template <typename T>
 using Lut1D = std::vector<T>;
 template <typename T>
@@ -41,6 +44,14 @@ using Lut1DCache = std::map<std::tuple<TransferFunction, size_t, float>,
                             Lut1D<T>>;
 using CscCache = std::map<std::tuple<HwcColorspace, HwcColorspace>,
                           const mat3d>;
+
+// Static ColorGamut instances avoid recomputing color space matrix inverses
+// and std::function binders on every invocation, and ensure transfer function
+// references never dangle.
+inline const ColorGamut kSrgbGamut = ColorGamut::sRGB();
+inline const ColorGamut kBt709Gamut = ColorGamut::BT709();
+inline const ColorGamut kDciP3Gamut = ColorGamut::DCIP3();
+inline const ColorGamut kBt2020Gamut = ColorGamut::BT2020();
 
 template <typename T>
 inline const Lut1D<T> kEmptyLut = {};
@@ -156,6 +167,8 @@ class ColorUtil {
         return DrmColorspace::kBt2020Rgb;
     }
   }
+
+  static const ColorGamut &ToColorGamut(HwcColorspace colorspace);
 
   /* Framework sends CTM assuming non-linear input. Transform must be converted
    * to a linear matrix to be applied correctly in the color pipeline.
