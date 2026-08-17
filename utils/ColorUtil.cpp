@@ -333,11 +333,32 @@ const ColorGamut &ColorUtil::ToColorGamut(HwcColorspace colorspace) {
   }
 }
 
+// Maps framework ColorMode to its corresponding EOTF transfer function curve.
+const ColorGamut::transfer_function &ColorUtil::GetEotf(ColorMode mode) {
+  switch (mode) {
+    case ColorMode::kSrgb:
+    case ColorMode::kBt601_625:
+    case ColorMode::kBt601_625Unadjusted:
+    case ColorMode::kBt601_525:
+    case ColorMode::kBt601_525Unadjusted:
+      return kSrgbGamut.getEOTF();
+    case ColorMode::kBt709:
+      return kBt709Gamut.getEOTF();
+    case ColorMode::kDciP3:
+    case ColorMode::kDisplayP3:
+      return kDciP3Gamut.getEOTF();
+    case ColorMode::kBt2020:
+    case ColorMode::kDisplayBt2020:
+      return kBt2020Gamut.getEOTF();
+    default:
+      return kSrgbGamut.getEOTF();
+  }
+}
+
 HalColorTransformMatrix ColorUtil::ToLinearCtm(
     const HalColorTransformMatrix ctm_in, ColorMode mode) {
   HalColorTransformMatrix ctm_out = kIdentityMatrix;
-  const ColorGamut::transfer_function
-      &tf = ToColorGamut(ColorUtil::ToHwcColorspace(mode)).getEOTF();
+  const ColorGamut::transfer_function &tf = GetEotf(mode);
   std::transform(ctm_in.begin(), ctm_in.end(), ctm_out.begin(),
                  [&tf](float val) { return tf(val); });
   return ctm_out;

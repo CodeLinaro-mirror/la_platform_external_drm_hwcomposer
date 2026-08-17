@@ -131,12 +131,12 @@ class ColorUtil {
     switch (mode) {
       case ColorMode::kNative:
         return HwcColorspace::kDefault;
-      case ColorMode::kSrgb:
       case ColorMode::kBt601_625:
       case ColorMode::kBt601_625Unadjusted:
       case ColorMode::kBt601_525:
       case ColorMode::kBt601_525Unadjusted:
         return HwcColorspace::kBt601;
+      case ColorMode::kSrgb:
       case ColorMode::kBt709:
         return HwcColorspace::kBt709;
       case ColorMode::kDciP3:
@@ -169,6 +169,8 @@ class ColorUtil {
   }
 
   static const ColorGamut &ToColorGamut(HwcColorspace colorspace);
+
+  static const ColorGamut::transfer_function &GetEotf(ColorMode mode);
 
   /* Framework sends CTM assuming non-linear input. Transform must be converted
    * to a linear matrix to be applied correctly in the color pipeline.

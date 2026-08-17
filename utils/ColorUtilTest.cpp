@@ -456,6 +456,92 @@ TEST(ColorUtilTest, ToColorGamutMappings) {
             android::ColorSpace::sRGB().getName());
 }
 
+TEST(ColorUtilTest, ToHwcColorspaceManyToOneMappings) {
+  EXPECT_EQ(ColorUtil::ToHwcColorspace(ColorMode::kNative),
+            HwcColorspace::kDefault);
+
+  EXPECT_EQ(ColorUtil::ToHwcColorspace(ColorMode::kBt601_625),
+            HwcColorspace::kBt601);
+  EXPECT_EQ(ColorUtil::ToHwcColorspace(ColorMode::kBt601_625Unadjusted),
+            HwcColorspace::kBt601);
+  EXPECT_EQ(ColorUtil::ToHwcColorspace(ColorMode::kBt601_525),
+            HwcColorspace::kBt601);
+  EXPECT_EQ(ColorUtil::ToHwcColorspace(ColorMode::kBt601_525Unadjusted),
+            HwcColorspace::kBt601);
+
+  EXPECT_EQ(ColorUtil::ToHwcColorspace(ColorMode::kSrgb),
+            HwcColorspace::kBt709);
+  EXPECT_EQ(ColorUtil::ToHwcColorspace(ColorMode::kBt709),
+            HwcColorspace::kBt709);
+
+  EXPECT_EQ(ColorUtil::ToHwcColorspace(ColorMode::kDciP3),
+            HwcColorspace::kDciP3);
+  EXPECT_EQ(ColorUtil::ToHwcColorspace(ColorMode::kDisplayP3),
+            HwcColorspace::kDciP3);
+
+  EXPECT_EQ(ColorUtil::ToHwcColorspace(ColorMode::kBt2020),
+            HwcColorspace::kBt2020);
+  EXPECT_EQ(ColorUtil::ToHwcColorspace(ColorMode::kDisplayBt2020),
+            HwcColorspace::kBt2020);
+
+  EXPECT_EQ(ColorUtil::ToHwcColorspace(ColorMode::kAdobeRgb),
+            HwcColorspace::kDefault);
+  EXPECT_EQ(ColorUtil::ToHwcColorspace(ColorMode::kBt2100Pq),
+            HwcColorspace::kDefault);
+  EXPECT_EQ(ColorUtil::ToHwcColorspace(ColorMode::kBt2100Hlg),
+            HwcColorspace::kDefault);
+}
+
+TEST(ColorUtilTest, GetEotfManyToOneMappings) {
+  EXPECT_FLOAT_EQ(ColorUtil::GetEotf(ColorMode::kSrgb)(0.5F),
+                  android::ColorSpace::sRGB().getEOTF()(0.5F));
+  EXPECT_FLOAT_EQ(ColorUtil::GetEotf(ColorMode::kBt601_625)(0.5F),
+                  android::ColorSpace::sRGB().getEOTF()(0.5F));
+  EXPECT_FLOAT_EQ(ColorUtil::GetEotf(ColorMode::kBt601_625Unadjusted)(0.5F),
+                  android::ColorSpace::sRGB().getEOTF()(0.5F));
+  EXPECT_FLOAT_EQ(ColorUtil::GetEotf(ColorMode::kBt601_525)(0.5F),
+                  android::ColorSpace::sRGB().getEOTF()(0.5F));
+  EXPECT_FLOAT_EQ(ColorUtil::GetEotf(ColorMode::kBt601_525Unadjusted)(0.5F),
+                  android::ColorSpace::sRGB().getEOTF()(0.5F));
+
+  EXPECT_FLOAT_EQ(ColorUtil::GetEotf(ColorMode::kBt709)(0.5F),
+                  android::ColorSpace::BT709().getEOTF()(0.5F));
+
+  EXPECT_FLOAT_EQ(ColorUtil::GetEotf(ColorMode::kDciP3)(0.5F),
+                  android::ColorSpace::DCIP3().getEOTF()(0.5F));
+  EXPECT_FLOAT_EQ(ColorUtil::GetEotf(ColorMode::kDisplayP3)(0.5F),
+                  android::ColorSpace::DCIP3().getEOTF()(0.5F));
+
+  EXPECT_FLOAT_EQ(ColorUtil::GetEotf(ColorMode::kBt2020)(0.5F),
+                  android::ColorSpace::BT2020().getEOTF()(0.5F));
+  EXPECT_FLOAT_EQ(ColorUtil::GetEotf(ColorMode::kDisplayBt2020)(0.5F),
+                  android::ColorSpace::BT2020().getEOTF()(0.5F));
+}
+
+TEST(ColorUtilTest, ToLinearCtmManyToOneMappings) {
+  constexpr HalColorTransformMatrix kCtm = {
+      0.5F, 0.0F, 0.0F, 0.0F, 0.0F, 0.5F, 0.0F, 0.0F,
+      0.0F, 0.0F, 0.5F, 0.0F, 0.0F, 0.0F, 0.0F, 1.0F,
+  };
+
+  EXPECT_FLOAT_EQ(ColorUtil::ToLinearCtm(kCtm, ColorMode::kBt601_625)[0],
+                  ColorUtil::ToLinearCtm(kCtm, ColorMode::kSrgb)[0]);
+  EXPECT_FLOAT_EQ(ColorUtil::ToLinearCtm(kCtm,
+                                         ColorMode::kBt601_625Unadjusted)[0],
+                  ColorUtil::ToLinearCtm(kCtm, ColorMode::kSrgb)[0]);
+  EXPECT_FLOAT_EQ(ColorUtil::ToLinearCtm(kCtm, ColorMode::kBt601_525)[0],
+                  ColorUtil::ToLinearCtm(kCtm, ColorMode::kSrgb)[0]);
+  EXPECT_FLOAT_EQ(ColorUtil::ToLinearCtm(kCtm,
+                                         ColorMode::kBt601_525Unadjusted)[0],
+                  ColorUtil::ToLinearCtm(kCtm, ColorMode::kSrgb)[0]);
+
+  EXPECT_FLOAT_EQ(ColorUtil::ToLinearCtm(kCtm, ColorMode::kDciP3)[0],
+                  ColorUtil::ToLinearCtm(kCtm, ColorMode::kDisplayP3)[0]);
+
+  EXPECT_FLOAT_EQ(ColorUtil::ToLinearCtm(kCtm, ColorMode::kBt2020)[0],
+                  ColorUtil::ToLinearCtm(kCtm, ColorMode::kDisplayBt2020)[0]);
+}
+
 }  // namespace android::drm_hwcomposer
 
 // NOLINTEND(readability-magic-numbers)
