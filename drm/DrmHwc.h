@@ -33,11 +33,12 @@
 namespace android::drm_hwcomposer {
 
 struct DrmDisplayPipeline;
+class EarlyBootAnimation;
 
 class DrmHwc : public PipelineToFrontendBindingInterface, public StatsProvider {
  public:
   DrmHwc();
-  ~DrmHwc() override = default;
+  ~DrmHwc() override;
 
   // Enum for Display status: Connected, Disconnected, Link Training Failed
   enum DisplayStatus {
@@ -108,6 +109,10 @@ class DrmHwc : public PipelineToFrontendBindingInterface, public StatsProvider {
   // Should be done for all successful modesets (full and seamless).
   void LogRefreshRateChanges();
 
+  void StartBootAnimation();
+  void WaitForCompletionAndStopBootAnimation();
+  void StopBootAnimation();
+
  protected:
   auto &Displays() {
     return displays_;
@@ -144,6 +149,7 @@ class DrmHwc : public PipelineToFrontendBindingInterface, public StatsProvider {
       refresh_rates_reporter_;
 
   bool hdcp_on_hotplug_enabled_{};
+  std::unique_ptr<EarlyBootAnimation> boot_animation_;
 };
 
 }  // namespace android::drm_hwcomposer

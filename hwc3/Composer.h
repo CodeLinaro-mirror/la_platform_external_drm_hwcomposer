@@ -25,6 +25,7 @@
 #include <cstdint>
 #include <memory>
 #include <mutex>
+#include <thread>
 #include <vector>
 
 namespace aidl::android::hardware::graphics::composer3::impl {
@@ -34,6 +35,7 @@ class DrmHwcThree;
 class Composer : public BnComposer {
  public:
   Composer();
+  ~Composer() override;
 
   binder_status_t dump(int fd, const char** args, uint32_t num_args) override;
 
@@ -59,6 +61,7 @@ class Composer : public BnComposer {
   // Allows background boot_thread_ and ~Composer() to interact with the early
   // DrmHwcThree instance without prolonging its lifetime past client teardown.
   std::weak_ptr<DrmHwcThree> weak_hwc_;
+  std::thread boot_thread_;
 };
 
 }  // namespace aidl::android::hardware::graphics::composer3::impl

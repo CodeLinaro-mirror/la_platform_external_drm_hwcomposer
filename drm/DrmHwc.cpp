@@ -33,6 +33,7 @@
 #include "drm/DrmConnector.h"
 #include "drm/DrmDevice.h"
 #include "drm/DrmDisplayPipeline.h"
+#include "early_animation/EarlyBootAnimation.h"
 #include "hwc/HwcDisplay.h"
 #include "hwc/HwcDisplayConfigs.h"
 #include "stats/DisplayRefreshRatesChangedAtomReporter.h"
@@ -91,6 +92,8 @@ DrmHwc::DrmHwc()
       refresh_rates_reporter_(DisplayRefreshRatesChangedAtomReporter::Create()),
       hdcp_on_hotplug_enabled_(Properties::EnableHdcpOnHotplug()) {
 }
+
+DrmHwc::~DrmHwc() = default;
 
 /* Must be called after every display attach/detach cycle */
 void DrmHwc::FinalizeDisplayBinding() {
@@ -399,6 +402,32 @@ DrmHwc::HotplugEventQueue::Events DrmHwc::HotplugEventQueue::RetrieveAndFlush() 
     std::swap(events, events_);
   }
   return events;
+}
+
+void DrmHwc::StartBootAnimation() {
+  auto &primary_display = displays_[kPrimaryDisplay];
+  if (primary_display && !primary_display->IsInHeadlessMode()) {
+    if (!boot_animation_) {
+      boot_animation_ = std::make_unique<EarlyBootAnimation>(
+          primary_display.get());
+      if (!boot_animation_->Start()) {
+        boot_animation_.reset();
+      }
+    }
+  }
+}
+
+void DrmHwc::WaitForCompletionAndStopBootAnimation() {
+  if (boot_animation_) {
+    boot_animation_->WaitForCompletion();
+    boot_animation_->Stop();
+  }
+}
+
+void DrmHwc::StopBootAnimation() {
+  if (boot_animation_) {
+    boot_animation_->Stop();
+  }
 }
 
 }  // namespace android::drm_hwcomposer

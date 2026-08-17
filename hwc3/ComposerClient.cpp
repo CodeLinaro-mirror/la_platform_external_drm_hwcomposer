@@ -267,6 +267,13 @@ ndk::ScopedAStatus ComposerClient::executeCommands(
     const std::vector<DisplayCommand>& commands,
     std::vector<CommandResultPayload>* results) {
   DEBUG_FUNC();
+
+  if (commands.empty()) {
+    return ndk::ScopedAStatus::ok();
+  }
+
+  hwc_->WaitForCompletionAndStopBootAnimation();
+
   std::scoped_lock lock(hwc_->GetResMan().GetMainLock());
   CommandResultWriter cmd_result_writer(results);
   for (const auto& cmd : commands) {
@@ -741,6 +748,8 @@ ndk::ScopedAStatus ComposerClient::setActiveConfigWithConstraints(
     return ToBinderStatus(hwc3::Error::kSeamlessNotAllowed);
   }
 
+  hwc_->WaitForCompletionAndStopBootAnimation();
+
   std::scoped_lock lock(hwc_->GetResMan().GetMainLock());
   HwcDisplay* display = GetDisplay(display_handle);
   if (display == nullptr) {
@@ -936,6 +945,24 @@ ndk::ScopedAStatus ComposerClient::setPowerMode(int64_t display_handle,
       break;
     default:
       return ToBinderStatus(hwc3::Error::kBadParameter);
+  }
+
+  // HwcDisplay::SetPowerMode short-circuits when any non-OFF power mode is
+  // requested for an already-enabled display. Avoid blocking if no atomic
+  // commit is required.
+  bool commit_required = false;
+  if (hwc_mode == HwcDisplay::PowerMode::kOff) {
+    commit_required = true;
+  } else {
+    std::scoped_lock lock(hwc_->GetResMan().GetMainLock());
+    HwcDisplay* display = GetDisplay(display_handle);
+    if (display != nullptr && !display->GetDisplayEnabled()) {
+      commit_required = true;
+    }
+  }
+
+  if (commit_required) {
+    hwc_->WaitForCompletionAndStopBootAnimation();
   }
 
   {
