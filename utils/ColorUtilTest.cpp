@@ -23,6 +23,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <memory>
 
 #include "compositor/DisplayInfo.h"
@@ -540,6 +541,63 @@ TEST(ColorUtilTest, ToLinearCtmManyToOneMappings) {
 
   EXPECT_FLOAT_EQ(ColorUtil::ToLinearCtm(kCtm, ColorMode::kBt2020)[0],
                   ColorUtil::ToLinearCtm(kCtm, ColorMode::kDisplayBt2020)[0]);
+}
+
+TEST(ColorUtilTest, To3132FixPtBasics) {
+  EXPECT_EQ(ColorUtil::To3132FixPt(0.0), 0ULL);
+  EXPECT_EQ(ColorUtil::To3132FixPt(1.0), 1ULL << 32);
+  EXPECT_EQ(ColorUtil::To3132FixPt(2.0), 2ULL << 32);
+  EXPECT_EQ(ColorUtil::To3132FixPt(0.5), 1ULL << 31);
+  EXPECT_EQ(ColorUtil::To3132FixPt(0.25), 1ULL << 30);
+  EXPECT_EQ(ColorUtil::To3132FixPt(0.125), 1ULL << 29);
+
+  constexpr uint64_t kSignBit = 1ULL << 63;
+  EXPECT_EQ(ColorUtil::To3132FixPt(-1.0), kSignBit | (1ULL << 32));
+  EXPECT_EQ(ColorUtil::To3132FixPt(-2.0), kSignBit | (2ULL << 32));
+  EXPECT_EQ(ColorUtil::To3132FixPt(-0.5), kSignBit | (1ULL << 31));
+
+  // Smallest representable non-zero step: 2^-32
+  constexpr double kQuantum = 1.0 / 4294967296.0;
+  EXPECT_EQ(ColorUtil::To3132FixPt(kQuantum), 1ULL);
+  EXPECT_EQ(ColorUtil::To3132FixPt(-kQuantum), kSignBit | 1ULL);
+}
+
+TEST(ColorUtilTest, To3132FixPtRounding) {
+  constexpr double kQuantum = 1.0 / 4294967296.0;
+
+  // 0.4 * quantum should round down to 0
+  EXPECT_EQ(ColorUtil::To3132FixPt(0.4 * kQuantum), 0ULL);
+
+  // 0.6 * quantum should round up to 1
+  EXPECT_EQ(ColorUtil::To3132FixPt(0.6 * kQuantum), 1ULL);
+
+  // 1.4 * quantum should round to 1
+  EXPECT_EQ(ColorUtil::To3132FixPt(1.4 * kQuantum), 1ULL);
+
+  // 1.6 * quantum should round to 2
+  EXPECT_EQ(ColorUtil::To3132FixPt(1.6 * kQuantum), 2ULL);
+}
+
+TEST(ColorUtilTest, To3132FixPtSaturationAndSpecialValues) {
+  constexpr uint64_t kSignBit = 1ULL << 63;
+  constexpr uint64_t kValueMask = (1ULL << 63) - 1;
+
+  // Values exceeding (2^31 - 1) saturate at maximum magnitude
+  EXPECT_EQ(ColorUtil::To3132FixPt(3e9), kValueMask);
+  EXPECT_EQ(ColorUtil::To3132FixPt(-3e9), kSignBit | kValueMask);
+
+  // Large infinity saturates
+  EXPECT_EQ(ColorUtil::To3132FixPt(std::numeric_limits<double>::infinity()),
+            kValueMask);
+  EXPECT_EQ(ColorUtil::To3132FixPt(-std::numeric_limits<double>::infinity()),
+            kSignBit | kValueMask);
+
+  // NaN returns 0
+  EXPECT_EQ(ColorUtil::To3132FixPt(std::numeric_limits<double>::quiet_NaN()),
+            0ULL);
+
+  // Negative zero
+  EXPECT_EQ(ColorUtil::To3132FixPt(-0.0), kSignBit);
 }
 
 }  // namespace android::drm_hwcomposer

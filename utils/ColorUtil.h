@@ -172,6 +172,8 @@ class ColorUtil {
 
   static const ColorGamut::transfer_function &GetEotf(ColorMode mode);
 
+  static uint64_t To3132FixPt(double in);
+
   /* Framework sends CTM assuming non-linear input. Transform must be converted
    * to a linear matrix to be applied correctly in the color pipeline.
    */

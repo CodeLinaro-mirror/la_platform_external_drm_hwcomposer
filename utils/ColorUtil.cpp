@@ -43,16 +43,6 @@ namespace {
 // Normalize to the range [0, 12] rather than [0, 1]
 const double kHlgScale = 12.0;
 
-uint64_t To3132FixPt(double in) {
-  constexpr uint64_t kSignMask = (1ULL << 63);
-  constexpr uint64_t kValueMask = ~(1ULL << 63);
-  constexpr auto kValueScale = static_cast<double>(1ULL << 32);
-  const double in_scaled = in * kValueScale;
-  if (in < 0)
-    return (static_cast<uint64_t>(-in_scaled) & kValueMask) | kSignMask;
-  return static_cast<uint64_t>(in_scaled) & kValueMask;
-}
-
 template <typename T>
 std::shared_ptr<T> ToColorTransform(
     const std::shared_ptr<const HalColorTransformMatrix>
@@ -67,7 +57,7 @@ std::shared_ptr<T> ToColorTransform(
   constexpr int kHalRows = 4;
   for (int i = 0; i < kCols; i++) {
     for (int j = 0; j < rows; j++) {
-      color_matrix->matrix[(i * rows) + j] = To3132FixPt(
+      color_matrix->matrix[(i * rows) + j] = ColorUtil::To3132FixPt(
           (*color_transform_matrix)[(j * kHalRows) + i]);
     }
   }
@@ -80,7 +70,7 @@ std::shared_ptr<drm_color_ctm> ToColorTransform3x3(
   constexpr int kDim = 3;
   for (int i = 0; i < kDim; i++) {
     for (int j = 0; j < kDim; j++) {
-      color_matrix->matrix[(i * kDim) + j] = To3132FixPt(
+      color_matrix->matrix[(i * kDim) + j] = ColorUtil::To3132FixPt(
           color_transform_matrix[j][i]);
     }
   }
@@ -266,6 +256,34 @@ double ColorUtil::EvaluateHlgOetf(double l) {
   return (kHlg.a * log(l - kHlg.b)) + kHlg.c;
 }
 
+// Converts a double into DRM fixed point format (S31.32 sign-magnitude):
+// Bit 63: Sign bit (0 for positive, 1 for negative)
+// Bits 62-32: 31-bit integer magnitude
+// Bits 31-0: 32-bit fractional magnitude (1.0 == (1ULL << 32))
+uint64_t ColorUtil::To3132FixPt(double in) {
+  if (std::isnan(in)) {
+    return 0;
+  }
+
+  constexpr uint64_t kSignBit = 1ULL << 63;
+  constexpr uint64_t kValueMask = (1ULL << 63) - 1;
+  constexpr auto kFractionalScale = static_cast<double>(1ULL << 32);
+
+  const bool is_negative = std::signbit(in);
+  const double abs_in = std::abs(in);
+
+  const double scaled = std::round(abs_in * kFractionalScale);
+
+  uint64_t val = 0;
+  if (scaled >= static_cast<double>(kValueMask)) {
+    val = kValueMask;
+  } else {
+    val = static_cast<uint64_t>(scaled);
+  }
+
+  return is_negative ? (kSignBit | val) : val;
+}
+
 std::shared_ptr<drm_color_ctm> ColorUtil::ToColorTransform3x3(
     const std::shared_ptr<const HalColorTransformMatrix>
         &color_transform_matrix) {
@@ -287,7 +305,7 @@ std::shared_ptr<drm_color_ctm_3x4> ColorUtil::ToColorTransform3x4(
   constexpr int kCols = 3;
   for (int i = 0; i < kCols; i++) {
     for (int j = 0; j < kRows; j++) {
-      color_matrix->matrix[(i * kRows) + j] = To3132FixPt(
+      color_matrix->matrix[(i * kRows) + j] = ColorUtil::To3132FixPt(
           color_transform_matrix[j][i]);
     }
   }
