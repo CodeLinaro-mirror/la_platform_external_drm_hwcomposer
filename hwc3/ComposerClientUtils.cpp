@@ -181,6 +181,9 @@ std::optional<BufferSampleRange> AidlToSampleRange(
   int32_t sample_range = static_cast<int32_t>(dataspace) &
                          static_cast<int32_t>(common::Dataspace::RANGE_MASK);
   switch (sample_range) {
+    case static_cast<int32_t>(common::Dataspace::RANGE_EXTENDED):
+      // Extended implies full + headroom
+      [[fallthrough]];
     case static_cast<int32_t>(common::Dataspace::RANGE_FULL):
       return BufferSampleRange::kFullRange;
     case static_cast<int32_t>(common::Dataspace::RANGE_LIMITED):
@@ -783,6 +786,42 @@ void ExecuteDisplayCommand(DrmHwcThree& hwc, const DisplayCommand& command,
       hal_release_fences[layer_id] = unique_fd(DupFd(release_fence));
     }
     cmd_result_writer.AddReleaseFence(display_handle, hal_release_fences);
+  }
+}
+
+auto ToPixelFormat(::android::drm_hwcomposer::BufferFormat format)
+    -> common::PixelFormat {
+  switch (format) {
+    case ::android::drm_hwcomposer::BufferFormat::kRgba8888:
+      return common::PixelFormat::RGBA_8888;
+    case ::android::drm_hwcomposer::BufferFormat::kXrgb8888:
+      return common::PixelFormat::RGBX_8888;
+    case ::android::drm_hwcomposer::BufferFormat::kRgbaFp16:
+      return common::PixelFormat::RGBA_FP16;
+    case ::android::drm_hwcomposer::BufferFormat::kRgba1010102:
+      return common::PixelFormat::RGBA_1010102;
+    case ::android::drm_hwcomposer::BufferFormat::kUndefined:
+    default:
+      ALOGW("Unsupported buffer format: %u, using RGBA_8888 instead.",
+            static_cast<uint32_t>(format));
+      return common::PixelFormat::RGBA_8888;
+  }
+}
+
+auto ToDataspace(::android::drm_hwcomposer::BufferFormat format)
+    -> common::Dataspace {
+  switch (format) {
+    case ::android::drm_hwcomposer::BufferFormat::kRgba8888:
+    case ::android::drm_hwcomposer::BufferFormat::kXrgb8888:
+      return common::Dataspace::SRGB;
+    case ::android::drm_hwcomposer::BufferFormat::kRgbaFp16:
+    case ::android::drm_hwcomposer::BufferFormat::kRgba1010102:
+      return common::Dataspace::DISPLAY_BT2020;
+    case ::android::drm_hwcomposer::BufferFormat::kUndefined:
+    default:
+      ALOGW("Unsupported buffer format: %u, using SRGB instead.",
+            static_cast<uint32_t>(format));
+      return common::Dataspace::SRGB;
   }
 }
 
