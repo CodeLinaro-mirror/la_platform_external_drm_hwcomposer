@@ -28,6 +28,7 @@
 
 #include "compositor/DisplayInfo.h"
 #include "compositor/LayerData.h"
+#include "drm/DrmColorspace.h"
 #include "utils/ColorUtil.h"
 #include "utils/TestUtils.h"
 
@@ -623,6 +624,21 @@ TEST(ColorUtilTest, TransformHasOffsetValueDetection) {
   HalColorTransformMatrix matrix_sub_eps = kIdentityMatrix;
   matrix_sub_eps[12] = 0.0001F;
   EXPECT_FALSE(ColorUtil::TransformHasOffsetValue(matrix_sub_eps));
+}
+
+TEST(ColorUtilTest, ToDrmColorspaceMappings) {
+  EXPECT_EQ(ColorUtil::ToDrmColorspace(HwcColorspace::kDefault),
+            DrmColorspace::kDefault);
+  EXPECT_EQ(ColorUtil::ToDrmColorspace(HwcColorspace::kBt601),
+            DrmColorspace::kBt601Ycc);
+  EXPECT_EQ(ColorUtil::ToDrmColorspace(HwcColorspace::kBt709),
+            DrmColorspace::kBt709Ycc);
+  EXPECT_EQ(ColorUtil::ToDrmColorspace(HwcColorspace::kDciP3),
+            DrmColorspace::kDciP3RgbD65);
+  EXPECT_EQ(ColorUtil::ToDrmColorspace(HwcColorspace::kBt2020),
+            DrmColorspace::kBt2020Rgb);
+  EXPECT_EQ(ColorUtil::ToDrmColorspace(static_cast<HwcColorspace>(999)),
+            DrmColorspace::kDefault);
 }
 
 }  // namespace android::drm_hwcomposer

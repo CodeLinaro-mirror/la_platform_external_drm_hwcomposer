@@ -171,6 +171,10 @@ class ColorUtil {
         return DrmColorspace::kDciP3RgbD65;
       case HwcColorspace::kBt2020:
         return DrmColorspace::kBt2020Rgb;
+      default:
+        ALOGW("Unknown HwcColorspace %d, falling back to kDefault",
+              static_cast<int>(colorspace));
+        return DrmColorspace::kDefault;
     }
   }
 
