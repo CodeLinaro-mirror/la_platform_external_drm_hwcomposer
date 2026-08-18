@@ -162,11 +162,9 @@ class ColorUtil {
   static DrmColorspace ToDrmColorspace(HwcColorspace colorspace) {
     switch (colorspace) {
       case HwcColorspace::kDefault:
-        return DrmColorspace::kDefault;
       case HwcColorspace::kBt601:
-        return DrmColorspace::kBt601Ycc;
       case HwcColorspace::kBt709:
-        return DrmColorspace::kBt709Ycc;
+        return DrmColorspace::kDefault;
       case HwcColorspace::kDciP3:
         return DrmColorspace::kDciP3RgbD65;
       case HwcColorspace::kBt2020:

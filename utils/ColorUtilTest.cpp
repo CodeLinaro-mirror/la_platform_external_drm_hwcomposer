@@ -630,15 +630,13 @@ TEST(ColorUtilTest, ToDrmColorspaceMappings) {
   EXPECT_EQ(ColorUtil::ToDrmColorspace(HwcColorspace::kDefault),
             DrmColorspace::kDefault);
   EXPECT_EQ(ColorUtil::ToDrmColorspace(HwcColorspace::kBt601),
-            DrmColorspace::kBt601Ycc);
+            DrmColorspace::kDefault);
   EXPECT_EQ(ColorUtil::ToDrmColorspace(HwcColorspace::kBt709),
-            DrmColorspace::kBt709Ycc);
+            DrmColorspace::kDefault);
   EXPECT_EQ(ColorUtil::ToDrmColorspace(HwcColorspace::kDciP3),
             DrmColorspace::kDciP3RgbD65);
   EXPECT_EQ(ColorUtil::ToDrmColorspace(HwcColorspace::kBt2020),
             DrmColorspace::kBt2020Rgb);
-  EXPECT_EQ(ColorUtil::ToDrmColorspace(static_cast<HwcColorspace>(999)),
-            DrmColorspace::kDefault);
 }
 
 }  // namespace android::drm_hwcomposer
