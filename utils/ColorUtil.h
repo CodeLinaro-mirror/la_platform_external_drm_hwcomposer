@@ -17,15 +17,14 @@
 #pragma once
 
 #include <drm/drm_mode.h>
-#include <math/mat3.h>
 #include <math/mat4.h>
 #include <ui/ColorSpace.h>
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
-#include <map>
 #include <memory>
-#include <tuple>
+#include <optional>
 #include <vector>
 
 #include "compositor/DisplayInfo.h"
@@ -39,11 +38,6 @@ using ColorGamut = ::android::ColorSpace;
 
 template <typename T>
 using Lut1D = std::vector<T>;
-template <typename T>
-using Lut1DCache = std::map<std::tuple<TransferFunction, size_t, float>,
-                            Lut1D<T>>;
-using CscCache = std::map<std::tuple<HwcColorspace, HwcColorspace>,
-                          const mat3d>;
 
 // Static ColorGamut instances avoid recomputing color space matrix inverses
 // and std::function binders on every invocation, and ensure transfer function
@@ -52,9 +46,6 @@ inline const ColorGamut kSrgbGamut = ColorGamut::sRGB();
 inline const ColorGamut kBt709Gamut = ColorGamut::BT709();
 inline const ColorGamut kDciP3Gamut = ColorGamut::DCIP3();
 inline const ColorGamut kBt2020Gamut = ColorGamut::BT2020();
-
-template <typename T>
-inline const Lut1D<T> kEmptyLut = {};
 
 inline constexpr float kHdrReferenceLuminance = 10000.F;
 inline constexpr float kDefaultMaxLuminance = 500.F;
@@ -129,7 +120,14 @@ class ColorUtil {
       const std::shared_ptr<const HalColorTransformMatrix>
           &color_transform_matrix);
 
+  static bool HasOffset(const HalColorTransformMatrix &matrix);
+
   static std::shared_ptr<std::array<uint64_t, 3>> ToColorOffset(
+      const std::shared_ptr<const HalColorTransformMatrix>
+          &color_transform_matrix);
+
+  static std::shared_ptr<std::array<uint64_t, 3>> ToColorOffset(
+      HwcColorspace src_colorspace, HwcColorspace dest_colorspace,
       const std::shared_ptr<const HalColorTransformMatrix>
           &color_transform_matrix);
 
@@ -197,22 +195,45 @@ class ColorUtil {
   static std::shared_ptr<T> GamutAdjustIfNeeded(
       HwcColorspace src_colorspace, HwcColorspace dest_colorspace,
       const std::shared_ptr<const HalColorTransformMatrix>
-          &color_transform_matrix,
-      CscCache &color_transform_cache);
+          &color_transform_matrix);
+
+  static float CalculateDegammaScale(
+      std::optional<float> layer_brightness = std::nullopt) {
+    constexpr float kDefaultSignal = 1.F;
+    float brightness = layer_brightness.value_or(kDefaultSignal);
+    if (brightness > kSignalMin && brightness < kSignalMax) {
+      return brightness;
+    }
+    return static_cast<float>(kSignalMax);
+  }
+
+  static float CalculateGammaScale(
+      std::optional<float> display_brightness = std::nullopt,
+      std::optional<float> hdr_headroom = std::nullopt) {
+    constexpr float kDefaultSignal = 1.F;
+    float brightness = display_brightness.value_or(kDefaultSignal);
+    float headroom = hdr_headroom.value_or(kDefaultSignal);
+    auto lut_scale = static_cast<float>(kSignalMax);
+    if (brightness >= kSignalMin && brightness < kSignalMax) {
+      lut_scale = brightness;
+    }
+    if (headroom > kSignalMin && headroom < kSignalMax) {
+      lut_scale *= headroom;
+    }
+    return lut_scale;
+  }
 
   /* Creates 1D Gamma/Degamma LUTs using the appropriate OETF/EOTF for the given
-   * transfer function, adds it to the lut_1d_map and returns the map element
-   * reference. If a LUT has already been generated for this set of inputs, it
-   * returns that LUT from the mapping. If no LUT is generated, returns an empty
-   * array reference.
+   * transfer function. If an invalid LUT size (< 2) is requested, returns an
+   * empty array.
    */
-  static const Lut1D<drm_color_lut32> &GetDegammaLut(
+  static Lut1D<drm_color_lut32> CreateDegammaLut(
       TransferFunction tf, size_t lut_size,
-      Lut1DCache<drm_color_lut32> &lut_1d_map, float layer_brightness);
-  static const Lut1D<drm_color_lut> &GetGammaLut(
+      std::optional<float> layer_brightness = std::nullopt);
+  static Lut1D<drm_color_lut> CreateGammaLut(
       TransferFunction tf, size_t lut_size,
-      Lut1DCache<drm_color_lut> &lut_1d_map, float display_brightness,
-      float hdr_headroom);
+      std::optional<float> display_brightness = std::nullopt,
+      std::optional<float> hdr_headroom = std::nullopt);
 
   /**
    * Applies the minimum display brightness floor.
