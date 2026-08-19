@@ -107,6 +107,7 @@ class DrmAtomicStateManager : public AtomicStateManager {
       const AtomicCommitArgs &args, std::unique_ptr<AtomicRequest> request);
   bool IsActive() const override;
   void WaitLastFrame() override;
+  std::string DumpState() const override;
 
   auto GetDevice() const {
     return pipe_->device;

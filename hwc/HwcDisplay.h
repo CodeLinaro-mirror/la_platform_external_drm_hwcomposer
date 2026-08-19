@@ -130,7 +130,7 @@ class HwcDisplay : public ICompositorDisplay {
 
   std::vector<const HwcLayer *> GetOrderLayersByZPos() const override;
 
-  std::string Dump();
+  std::string Dump() const;
 
   auto GetDisplayName() const -> std::string;
 

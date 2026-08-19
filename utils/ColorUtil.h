@@ -178,6 +178,40 @@ class ColorUtil {
 
   static uint64_t To3132FixPt(double in);
 
+  static const char *ToString(TransferFunction tf) {
+    switch (tf) {
+      case TransferFunction::kSmpte170M:
+        return "SMPTE 170M";
+      case TransferFunction::kSrgb:
+        return "sRGB";
+      case TransferFunction::kPq:
+        return "PQ";
+      case TransferFunction::kHlg:
+        return "HLG";
+      case TransferFunction::kUnknown:
+        [[fallthrough]];
+      default:
+        return "Unknown";
+    }
+  }
+
+  static const char *ToString(HwcColorspace cs) {
+    switch (cs) {
+      case HwcColorspace::kBt601:
+        return "BT.601";
+      case HwcColorspace::kBt709:
+        return "BT.709";
+      case HwcColorspace::kDciP3:
+        return "DCI-P3";
+      case HwcColorspace::kBt2020:
+        return "BT.2020";
+      case HwcColorspace::kDefault:
+        [[fallthrough]];
+      default:
+        return "Default";
+    }
+  }
+
   /* Framework sends CTM assuming non-linear input. Transform must be converted
    * to a linear matrix to be applied correctly in the color pipeline.
    */

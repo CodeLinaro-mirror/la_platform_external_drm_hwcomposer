@@ -240,6 +240,31 @@ TEST(SlruCacheTest, HitInProbationaryWhenBothSegmentsFull) {
   EXPECT_NE(cache.Find(2), nullptr);
   EXPECT_NE(cache.Find(4), nullptr);
 }
+
+TEST(SlruCacheTest, DumpFormatting) {
+  SlruCache<int, std::shared_ptr<int>, 2, 2> cache;
+  cache.Insert(1, std::make_shared<int>(10));
+  cache.Find(1);                               // protected
+  cache.Insert(2, std::make_shared<int>(20));  // probationary
+
+  auto dump = cache.Dump(
+      [](const int &k, const std::shared_ptr<int> &v) {
+        return "key=" + std::to_string(k) + " val=" + std::to_string(*v);
+      },
+      "Test Cache");
+
+  EXPECT_NE(dump.find("Test Cache: 2/4 (Probationary: 1/2, Protected: 1/2)"),
+            std::string::npos);
+  EXPECT_NE(dump.find("[Protected]    key=1 val=10"), std::string::npos);
+  EXPECT_NE(dump.find("[Probationary] key=2 val=20"), std::string::npos);
+}
+
+TEST(SlruCacheTest, DumpFormattingEmptyCache) {
+  SlruCache<int, std::shared_ptr<int>, 2, 2> cache;
+  auto dump = cache.Dump(
+      [](const int &, const std::shared_ptr<int> &) { return ""; });
+  EXPECT_EQ(dump, "SLRU Cache: 0/4 (Probationary: 0/2, Protected: 0/2)\n");
+}
 }  // namespace android::drm_hwcomposer
 
 // NOLINTEND(readability-magic-numbers)

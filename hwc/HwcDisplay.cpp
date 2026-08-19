@@ -1961,4 +1961,11 @@ bool HwcDisplay::CursorPlaneNeedsColorPipeline(
                  sizeof(identity_3x4->matrix)) != 0);
 }
 
+std::string HwcDisplay::Dump() const {
+  if (pipeline_ && pipeline_->atomic_state_manager) {
+    return pipeline_->atomic_state_manager->DumpState();
+  }
+  return {};
+}
+
 }  // namespace android::drm_hwcomposer

@@ -17,10 +17,14 @@
 #pragma once
 
 #include <cstddef>
+#include <functional>
 #include <iterator>
 #include <list>
 #include <map>
 #include <mutex>
+#include <sstream>
+#include <string>
+#include <string_view>
 #include <utility>
 
 namespace android::drm_hwcomposer {
@@ -105,6 +109,30 @@ class SlruCache {
     map_.clear();
     probationary_.clear();
     protected_.clear();
+  }
+
+  template <typename Formatter>
+  auto Dump(const Formatter &format_entry,
+            std::string_view cache_name = "SLRU Cache") const -> std::string {
+    const std::lock_guard<std::mutex> lock(mutex_);
+    std::stringstream ss;
+    ss << cache_name << ": " << map_.size() << "/"
+       << (MaxProbationary + MaxProtected)
+       << " (Probationary: " << probationary_.size() << "/" << MaxProbationary
+       << ", Protected: " << protected_.size() << "/" << MaxProtected << ")\n";
+    for (const auto &key : protected_) {
+      auto it = map_.find(key);
+      if (it != map_.end()) {
+        ss << "  [Protected]    " << format_entry(key, it->second.val) << "\n";
+      }
+    }
+    for (const auto &key : probationary_) {
+      auto it = map_.find(key);
+      if (it != map_.end()) {
+        ss << "  [Probationary] " << format_entry(key, it->second.val) << "\n";
+      }
+    }
+    return ss.str();
   }
 
  private:

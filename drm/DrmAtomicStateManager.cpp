@@ -33,6 +33,7 @@
 #include <cstdint>
 #include <memory>
 #include <mutex>
+#include <sstream>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -814,6 +815,45 @@ void DrmAtomicStateManager::CleanupPriorFrameResources() {
 
 bool DrmAtomicStateManager::IsActive() const {
   return committed_frame_state_.crtc_active_state;
+}
+
+std::string DrmAtomicStateManager::DumpState() const {
+  auto format_key =
+      [](const BlobKey &key,
+         const std::shared_ptr<DrmModeUserPropertyBlobUnique> &blob) {
+        std::stringstream ss;
+        uint32_t blob_id = GetBlobId(blob);
+        std::visit(
+            [&ss, blob_id](const auto &k) {
+              using T = std::decay_t<decltype(k)>;
+              if constexpr (std::is_same_v<T, DegammaBlobKey>) {
+                ss << "Degamma: tf=" << ColorUtil::ToString(k.tf)
+                   << " size=" << k.size << " scale=" << k.scale
+                   << " (blob_id=" << blob_id << ")";
+              } else if constexpr (std::is_same_v<T, GammaBlobKey>) {
+                ss << "Gamma: tf=" << ColorUtil::ToString(k.tf)
+                   << " size=" << k.size << " scale=" << k.scale
+                   << " (blob_id=" << blob_id << ")";
+              } else if constexpr (std::is_same_v<T, CtmBlobKey>) {
+                const char *kind_str = "3x3";
+                if (k.kind == CtmBlobKey::Kind::kCtm3x4) {
+                  kind_str = "3x4";
+                } else if (k.kind == CtmBlobKey::Kind::kOffset) {
+                  kind_str = "Offset";
+                }
+                ss << "Ctm: kind=" << kind_str
+                   << " src=" << ColorUtil::ToString(k.src)
+                   << " dest=" << ColorUtil::ToString(k.dest)
+                   << " (blob_id=" << blob_id << ")";
+              } else if constexpr (std::is_same_v<T, HdrMetadataBlobKey>) {
+                ss << "HdrMetadata: (blob_id=" << blob_id << ")";
+              }
+            },
+            key);
+        return ss.str();
+      };
+
+  return blob_cache_.Dump(format_key, "DRM Property Blob Cache");
 }
 
 }  // namespace android::drm_hwcomposer
