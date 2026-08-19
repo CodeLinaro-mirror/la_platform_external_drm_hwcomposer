@@ -95,31 +95,8 @@ DrmConnector::DrmConnector(DrmModeConnectorUnique connector, DrmDevice *drm,
     : connector_(std::move(connector)), drm_(drm), index_in_res_array_(index) {
 }
 
-auto DrmConnector::Init()-> bool {
-  if (!GetConnectorProperty("DPMS", &dpms_property_) ||
-      !GetConnectorProperty("CRTC_ID", &crtc_id_property_)) {
-    return false;
-  }
-
-  if (IsWriteback()) {
-    if (!GetConnectorProperty("WRITEBACK_PIXEL_FORMATS",
-                              &writeback_pixel_formats_property_)) {
-      ALOGE("Could not get WRITEBACK_PIXEL_FORMATS property");
-      return false;
-    }
-
-    if (!GetConnectorProperty("WRITEBACK_FB_ID", &writeback_fb_id_property_)) {
-      ALOGE("Could not get WRITEBACK_FB_ID property");
-      return false;
-    }
-
-    if (!GetConnectorProperty("WRITEBACK_OUT_FENCE_PTR",
-                              &writeback_out_fence_property_)) {
-      ALOGE("Could not get WRITEBACK_OUT_FENCE_PTR property");
-      return false;
-    }
-  }
-
+auto DrmConnector::UpdateColorspaceProperty() -> void {
+  colorspace_enum_map_.clear();
   if (GetOptionalConnectorProperty("Colorspace", &colorspace_property_)) {
     colorspace_property_.AddEnumToMap("Default", DrmColorspace::kDefault,
                                       colorspace_enum_map_);
@@ -159,6 +136,34 @@ auto DrmConnector::Init()-> bool {
     colorspace_property_.AddEnumToMap("BT601_YCC", DrmColorspace::kBt601Ycc,
                                       colorspace_enum_map_);
   }
+}
+
+auto DrmConnector::Init() -> bool {
+  if (!GetConnectorProperty("DPMS", &dpms_property_) ||
+      !GetConnectorProperty("CRTC_ID", &crtc_id_property_)) {
+    return false;
+  }
+
+  if (IsWriteback()) {
+    if (!GetConnectorProperty("WRITEBACK_PIXEL_FORMATS",
+                              &writeback_pixel_formats_property_)) {
+      ALOGE("Could not get WRITEBACK_PIXEL_FORMATS property");
+      return false;
+    }
+
+    if (!GetConnectorProperty("WRITEBACK_FB_ID", &writeback_fb_id_property_)) {
+      ALOGE("Could not get WRITEBACK_FB_ID property");
+      return false;
+    }
+
+    if (!GetConnectorProperty("WRITEBACK_OUT_FENCE_PTR",
+                              &writeback_out_fence_property_)) {
+      ALOGE("Could not get WRITEBACK_OUT_FENCE_PTR property");
+      return false;
+    }
+  }
+
+  UpdateColorspaceProperty();
 
   GetOptionalConnectorProperty("content type", &content_type_property_);
 
@@ -280,7 +285,7 @@ std::string DrmConnector::GetName() const {
   return "None";
 }
 
-int DrmConnector::UpdateModes() {
+int DrmConnector::UpdateModesAndProperties() {
   auto conn = MakeDrmModeConnectorUnique(*drm_->GetFd(), GetId());
   if (!conn) {
     ALOGE("Failed to get connector %d", GetId());
@@ -301,6 +306,16 @@ int DrmConnector::UpdateModes() {
     if (!exists) {
       modes_.emplace_back(&connector_->modes[i]);
     }
+  }
+
+  if (IsMst()) {
+    /* MST virtual connectors aggressively destroy and recreate these DRM
+     * properties during link resets. Re probing these here ensures userspace
+     * atomic commits aren't accessing stale property values
+     */
+    UpdateColorspaceProperty();
+    GetOptionalConnectorProperty("HDR_OUTPUT_METADATA",
+                                 &hdr_output_metadata_property_);
   }
 
   return 0;

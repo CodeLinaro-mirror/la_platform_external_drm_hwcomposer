@@ -949,7 +949,7 @@ bool HwcDisplay::Init() {
     active_config_id_ = configs_.preferred_config_id;
 
     auto *connector = pipeline_->connector->Get();
-    auto ret = connector->UpdateModes();
+    auto ret = connector->UpdateModesAndProperties();
     if (ret != 0) {
       ALOGE("Failed to update display modes with error: %d", ret);
       return false;
