@@ -26,7 +26,6 @@
 #include <vector>
 
 #include <ui/ColorSpace.h>
-#include <ui/GraphicTypes.h>
 
 #include "compositor/CompositionPlanner.h"
 #include "compositor/DisplayInfo.h"
@@ -41,12 +40,17 @@
 #include "utils/EdidWrapper.h"
 #include "utils/fd.h"
 
+namespace android::hardware::graphics::common::V1_1 {
+enum class RenderIntent;
+}  // namespace android::hardware::graphics::common::V1_1
+
 namespace aidl::android::hardware::graphics::common {
 enum class Hdr;
 }  // namespace aidl::android::hardware::graphics::common
 
 namespace android::ui {
 using aidl::android::hardware::graphics::common::Hdr;
+using android::hardware::graphics::common::V1_1::RenderIntent;
 }  // namespace android::ui
 
 namespace android::drm_hwcomposer {
