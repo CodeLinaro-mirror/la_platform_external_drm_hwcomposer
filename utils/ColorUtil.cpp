@@ -85,12 +85,10 @@ std::shared_ptr<drm_color_ctm> ToColorTransform3x3(
   return color_matrix;
 }
 
-
 mat3d GetGamutTransform(HwcColorspace src, HwcColorspace dest) {
-  return mat3d(
-      ColorSpaceConnector(ColorUtil::ToColorGamut(src),
-                          ColorUtil::ToColorGamut(dest))
-          .getTransform());
+  return mat3d(ColorSpaceConnector(ColorUtil::ToColorGamut(src),
+                                   ColorUtil::ToColorGamut(dest))
+                   .getTransform());
 }
 
 bool NeedsTonemapping(TransferFunction tf) {
@@ -285,17 +283,6 @@ uint64_t ColorUtil::To3132FixPt(double in) {
   }
 
   return is_negative ? (kSignBit | val) : val;
-}
-
-bool ColorUtil::TransformHasOffsetValue(const HalColorTransformMatrix &matrix) {
-  constexpr float kEpsilon = 0.001F;
-  constexpr size_t kRedOffsetIndex = 12;
-  constexpr size_t kGreenOffsetIndex = 13;
-  constexpr size_t kBlueOffsetIndex = 14;
-
-  return std::abs(matrix[kRedOffsetIndex]) >= kEpsilon ||
-         std::abs(matrix[kGreenOffsetIndex]) >= kEpsilon ||
-         std::abs(matrix[kBlueOffsetIndex]) >= kEpsilon;
 }
 
 std::shared_ptr<drm_color_ctm> ColorUtil::ToColorTransform3x3(

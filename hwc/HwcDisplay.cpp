@@ -147,8 +147,7 @@ void HwcDisplay::SetColorTransformMatrix(
     client_color_matrix_ = GetIdentityCtmPtr();
     client_ctm_has_offset_ = false;
   } else {
-    client_ctm_has_offset_ = ColorUtil::TransformHasOffsetValue(
-        color_transform_matrix);
+    client_ctm_has_offset_ = ColorUtil::HasOffset(color_transform_matrix);
     client_color_matrix_ = std::make_shared<HalColorTransformMatrix>(
         ColorUtil::ToLinearCtm(color_transform_matrix, color_mode_));
   }

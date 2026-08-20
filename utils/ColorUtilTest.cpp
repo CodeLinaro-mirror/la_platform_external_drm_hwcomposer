@@ -271,16 +271,22 @@ TEST(ColorUtilTest, HasOffsetDetection) {
   EXPECT_FALSE(ColorUtil::HasOffset(kIdentityMatrix));
 
   HalColorTransformMatrix offset_r = kIdentityMatrix;
-  offset_r[12] = 0.1F;
+  offset_r[12] = 0.05F;
   EXPECT_TRUE(ColorUtil::HasOffset(offset_r));
 
   HalColorTransformMatrix offset_g = kIdentityMatrix;
-  offset_g[13] = 0.1F;
+  offset_g[13] = -0.05F;
   EXPECT_TRUE(ColorUtil::HasOffset(offset_g));
 
   HalColorTransformMatrix offset_b = kIdentityMatrix;
   offset_b[14] = 0.1F;
   EXPECT_TRUE(ColorUtil::HasOffset(offset_b));
+
+  // Sub-epsilon offset (< std::numeric_limits<float>::epsilon()) is ignored as
+  // noise
+  HalColorTransformMatrix matrix_sub_eps = kIdentityMatrix;
+  matrix_sub_eps[12] = 1e-8F;
+  EXPECT_FALSE(ColorUtil::HasOffset(matrix_sub_eps));
 }
 
 TEST(ColorUtilTest, ToColorOffsetNullptrAndBasic) {
@@ -746,31 +752,6 @@ TEST(ColorUtilTest, To3132FixPtSaturationAndSpecialValues) {
 
   // Negative zero
   EXPECT_EQ(ColorUtil::To3132FixPt(-0.0), kSignBit);
-}
-
-TEST(ColorUtilTest, TransformHasOffsetValueDetection) {
-  // Red offset at index 12
-  HalColorTransformMatrix matrix_r = kIdentityMatrix;
-  matrix_r[12] = 0.05F;
-  EXPECT_TRUE(ColorUtil::TransformHasOffsetValue(matrix_r));
-
-  // Green offset at index 13
-  HalColorTransformMatrix matrix_g = kIdentityMatrix;
-  matrix_g[13] = -0.05F;
-  EXPECT_TRUE(ColorUtil::TransformHasOffsetValue(matrix_g));
-
-  // Blue offset at index 14
-  HalColorTransformMatrix matrix_b = kIdentityMatrix;
-  matrix_b[14] = 0.1F;
-  EXPECT_TRUE(ColorUtil::TransformHasOffsetValue(matrix_b));
-
-  // Identity matrix has no offsets
-  EXPECT_FALSE(ColorUtil::TransformHasOffsetValue(kIdentityMatrix));
-
-  // Sub-epsilon offset (< 0.001F) is ignored as noise
-  HalColorTransformMatrix matrix_sub_eps = kIdentityMatrix;
-  matrix_sub_eps[12] = 0.0001F;
-  EXPECT_FALSE(ColorUtil::TransformHasOffsetValue(matrix_sub_eps));
 }
 
 TEST(ColorUtilTest, ToDrmColorspaceMappings) {
