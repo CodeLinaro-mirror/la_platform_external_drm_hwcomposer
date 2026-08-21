@@ -206,6 +206,9 @@ void HwcDisplay::SetOutputType(OutputType hdr_output_type) {
     hdr_metadata_ = std::make_shared<hdr_output_metadata>();
     min_bpc_ = 6;
     transfer_func_ = TransferFunction::kSrgb;
+    colorspace_ = forced_color_mode_
+                      ? ColorUtil::ToHwcColorspace(forced_color_mode_.value())
+                      : ColorUtil::ToHwcColorspace(color_mode_);
     return;
   }
 
@@ -214,6 +217,7 @@ void HwcDisplay::SetOutputType(OutputType hdr_output_type) {
       SetHdrHeadroom();
       SetHdrOutputMetadata(kBt2020Gamut, TransferFunction::kPq);
       min_bpc_ = 8;
+      colorspace_ = HwcColorspace::kBt2020;
       break;
     }
     case OutputType::kSystem: {
@@ -222,12 +226,14 @@ void HwcDisplay::SetOutputType(OutputType hdr_output_type) {
       if (hdr_types.empty() && !forced_color_mode_) {
         SetHdrOutputMetadata(kBt2020Gamut, TransferFunction::kSrgb);
         min_bpc_ = 6;
+        colorspace_ = HwcColorspace::kBt2020;
         break;
       }
 
       // TODO: pick appropriate HDR type
       SetHdrHeadroom();
       min_bpc_ = 8;
+      colorspace_ = HwcColorspace::kBt2020;
       auto type = (hdr_types.empty() && forced_color_mode_) ? ui::Hdr::HDR10
                                                             : hdr_types.front();
       switch (type) {
@@ -251,6 +257,7 @@ void HwcDisplay::SetOutputType(OutputType hdr_output_type) {
       hdr_metadata_ = std::make_shared<hdr_output_metadata>();
       min_bpc_ = 6;
       transfer_func_ = TransferFunction::kSrgb;
+      colorspace_ = HwcColorspace::kDefault;
       break;
     case OutputType::kInvalid:
       [[fallthrough]];
@@ -259,6 +266,11 @@ void HwcDisplay::SetOutputType(OutputType hdr_output_type) {
       hdr_metadata_ = std::make_shared<hdr_output_metadata>();
       min_bpc_ = 6;
       transfer_func_ = TransferFunction::kUnknown;
+      colorspace_ = HwcColorspace::kDefault;
+  }
+
+  if (forced_color_mode_) {
+    colorspace_ = ColorUtil::ToHwcColorspace(forced_color_mode_.value());
   }
 }
 
@@ -1056,11 +1068,6 @@ auto HwcDisplay::GetRenderIntents(ColorMode /*color_mode*/) const
 
 void HwcDisplay::SetColorMode(ColorMode mode, ui::RenderIntent render_intent) {
   color_mode_ = mode;
-
-  // If force_color_mode is set, override the color modes.
-  colorspace_ = forced_color_mode_
-                    ? ColorUtil::ToHwcColorspace(forced_color_mode_.value())
-                    : ColorUtil::ToHwcColorspace(color_mode_);
 
   switch (render_intent) {
     case ui::RenderIntent::COLORIMETRIC:
