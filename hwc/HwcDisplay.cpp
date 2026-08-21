@@ -1782,6 +1782,10 @@ void HwcDisplay::SetConfigGroupsForActiveConfig() {
   const std::optional<LayerData> modeset_layer_data = GetModesetLayerData(
       active_config);
   for (auto &[_, config] : configs_.hwc_configs) {
+    if (config.output_type != active_config->output_type) {
+      continue;
+    }
+
     AtomicCommitArgs commit_args = CreateModesetCommit(&config,
                                                        modeset_layer_data);
     commit_args.seamless = true;
