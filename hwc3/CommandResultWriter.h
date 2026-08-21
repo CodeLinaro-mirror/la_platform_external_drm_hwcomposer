@@ -22,6 +22,7 @@
 #include <aidl/android/hardware/graphics/composer3/CommandResultPayload.h>
 #include <aidl/android/hardware/graphics/composer3/Composition.h>
 #include <aidl/android/hardware/graphics/composer3/DimmingStage.h>
+#include <aidl/android/hardware/graphics/composer3/DisplayLuts.h>
 #include <aidl/android/hardware/graphics/composer3/PresentFence.h>
 #include <aidl/android/hardware/graphics/composer3/PresentOrValidate.h>
 #include <aidl/android/hardware/graphics/composer3/ReleaseFences.h>
@@ -168,6 +169,14 @@ class CommandResultWriter {
     client_target.clientTargetProperty.dataspace = dataspace;
     client_target.clientTargetProperty.pixelFormat = pixel_format;
     results_->emplace_back(client_target);
+  }
+
+  void AddDisplayLuts(int64_t display_handle,
+                      std::vector<DisplayLuts::LayerLut> layer_luts) {
+    DisplayLuts display_luts;
+    display_luts.display = display_handle;
+    display_luts.layerLuts = std::move(layer_luts);
+    results_->emplace_back(std::move(display_luts));
   }
 
  private:
