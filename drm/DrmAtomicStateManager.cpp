@@ -116,7 +116,8 @@ auto DrmAtomicStateManager::GetOrCreateBlob(const Key &key,
     return cached;
   }
 
-  BlobData blob_data = std::forward<Generator>(generate_fn)();
+  auto generated = std::forward<Generator>(generate_fn)();
+  BlobData blob_data(generated);
   if (!blob_data) {
     return nullptr;
   }
