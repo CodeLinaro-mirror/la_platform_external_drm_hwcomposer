@@ -222,6 +222,7 @@ auto DrmConnector::Init() -> bool {
   }
 
   GetOptionalConnectorProperty("PATH", &path_property_);
+  UpdateCachedMstPath();
 
   GetOptionalConnectorProperty("link-status", &link_status_property_);
 
@@ -650,18 +651,24 @@ std::optional<DrmConnector::MstPath> DrmConnector::ParseMstPath(
   return parsed;
 }
 
-std::optional<DrmConnector::MstPath> DrmConnector::GetMstPath() const {
+void DrmConnector::UpdateCachedMstPath() {
+  cached_mst_path_.reset();
   if (!IsMst() || !path_property_.IsBlob() ||
       path_property_.GetValue().value_or(0) == 0) {
-    return std::nullopt;
+    return;
   }
 
   std::vector<char> path_data;
   if (!GetPathPropertyBlobData(path_data) || path_data.empty()) {
-    return std::nullopt;
+    return;
   }
 
-  return ParseMstPath(std::string_view(path_data.data(), path_data.size()));
+  cached_mst_path_ = ParseMstPath(
+      std::string_view(path_data.data(), path_data.size()));
+}
+
+std::optional<DrmConnector::MstPath> DrmConnector::GetMstPath() const {
+  return cached_mst_path_;
 }
 
 std::optional<uint32_t> DrmConnector::GetPhysicalPortBaseId() const {

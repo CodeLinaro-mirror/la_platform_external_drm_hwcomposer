@@ -184,6 +184,7 @@ bool DrmHwc::BindDisplay(std::shared_ptr<DrmDisplayPipeline> pipeline) {
     return false;
   }
   display_handles_[pipeline] = disp_handle;
+  InvalidateMstHdcpType1CacheForPipeline(*pipeline);
 
   RequestHdcpNegotiation(disp_handle);
 
@@ -207,6 +208,7 @@ bool DrmHwc::UnbindDisplay(std::shared_ptr<DrmDisplayPipeline> pipeline) {
     return false;
   }
   displays_[handle]->SetPipeline({});
+  InvalidateMstHdcpType1CacheForPipeline(*pipeline);
 
   /* Defer destruction of the display until after the hotplug event is sent. */
   if (handle != kPrimaryDisplay) {
@@ -245,6 +247,8 @@ bool DrmHwc::ReplaceDisplay(std::shared_ptr<DrmDisplayPipeline> old_pipeline,
 
   display_handles_.erase(old_pipeline);
   display_handles_[new_pipeline] = handle;
+  InvalidateMstHdcpType1CacheForPipeline(*old_pipeline);
+  InvalidateMstHdcpType1CacheForPipeline(*new_pipeline);
 
   RequestHdcpNegotiation(handle);
 
@@ -344,6 +348,31 @@ bool DrmHwc::IsHotplugHdcpDisplay(const HwcDisplay &display) const {
          pipeline.connector->Get() != nullptr &&
          !pipeline.connector->Get()->IsInternal() &&
          !pipeline.connector->Get()->IsMst();
+}
+
+void DrmHwc::InvalidateMstHdcpType1CacheForPipeline(
+    const DrmDisplayPipeline &pipeline) {
+  auto *connector = pipeline.connector ? pipeline.connector->Get() : nullptr;
+  if (connector == nullptr || !connector->IsMst()) {
+    return;
+  }
+  const auto base_id = connector->GetPhysicalPortBaseId();
+  if (!base_id.has_value()) {
+    return;
+  }
+  for (const auto &[_, display] : displays_) {
+    if (!display || display->IsInHeadlessMode() ||
+        display->GetPipe().device != pipeline.device) {
+      continue;
+    }
+    auto *other_connector = display->GetPipe().connector
+                                ? display->GetPipe().connector->Get()
+                                : nullptr;
+    if (other_connector != nullptr && other_connector->IsMst() &&
+        other_connector->GetPhysicalPortBaseId() == base_id) {
+      display->InvalidateHdcpType1Cache();
+    }
+  }
 }
 
 void DrmHwc::DetachClient(bool had_callback) {

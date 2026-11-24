@@ -273,6 +273,8 @@ class DrmConnector : public PipelineBindable<DrmConnector> {
     return path_property_.GetBlobData(path_data);
   }
 
+  void UpdateCachedMstPath();
+
  private:
   DrmConnector(DrmModeConnectorUnique connector, DrmDevice *drm,
                uint32_t index = 0);
@@ -318,6 +320,7 @@ class DrmConnector : public PipelineBindable<DrmConnector> {
   DrmProperty hdr_output_metadata_property_;
   DrmProperty hdcp_content_type_property_;
   DrmProperty path_property_;
+  std::optional<MstPath> cached_mst_path_;
 
   DrmProperty link_status_property_;
   DrmProperty panel_orientation_;

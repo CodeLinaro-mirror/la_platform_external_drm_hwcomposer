@@ -1753,14 +1753,18 @@ std::optional<bool> HwcDisplay::ProbeHdcpType1Support() {
 
 void HwcDisplay::ResolvePendingHdcpContentType() {
   if (hdcpcon_ == nullptr || hdcp_type1_supported_.has_value() ||
-      hdcpcon_->GetHdcpState() != HdcpController::HdcpState::kDesired ||
-      hdcpcon_->GetPendingContentType() != HdcpContentType::kType1) {
+      hdcpcon_->GetHdcpState() != HdcpController::HdcpState::kDesired) {
     return;
   }
   const auto type1_supported = ProbeHdcpType1Support();
-  if (type1_supported.has_value() && !*type1_supported) {
-    hdcpcon_->Start(HdcpContentType::kType0);
+  if (type1_supported.has_value()) {
+    hdcpcon_->Start(*type1_supported ? HdcpContentType::kType1
+                                     : HdcpContentType::kType0);
   }
+}
+
+void HwcDisplay::InvalidateHdcpType1Cache() {
+  hdcp_type1_supported_.reset();
 }
 
 auto HwcDisplay::StartHdcp() -> bool {
@@ -1795,6 +1799,11 @@ auto HwcDisplay::StartHdcp() -> bool {
   auto initial_type = HdcpContentType::kType1;
   if (hdcp_state == HdcpController::HdcpState::kUndesired ||
       hdcp_state == HdcpController::HdcpState::kDesired) {
+    auto *connector = GetPipe().connector ? GetPipe().connector->Get()
+                                          : nullptr;
+    if (connector != nullptr && connector->IsMst()) {
+      hdcp_type1_supported_.reset();
+    }
     const auto type1_supported = ProbeHdcpType1Support();
     if (type1_supported.has_value() && !*type1_supported) {
       initial_type = HdcpContentType::kType0;
@@ -1824,6 +1833,7 @@ auto HwcDisplay::StopHdcp() -> bool {
   if (hdcpcon_ &&
       hdcpcon_->GetHdcpState() == HdcpController::HdcpState::kEnabled) {
     ALOGI(" Client or Kernel requested to terminate HDCP");
+    hdcp_type1_supported_.reset();
     hdcpcon_->Terminate();
   }
   return true;

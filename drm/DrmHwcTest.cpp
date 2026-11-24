@@ -4158,4 +4158,205 @@ TEST_F(DrmHwcTest, ConcurrentInitAndDeInit) {
   EXPECT_FALSE(local_hwc.GetResMan().IsInitialized());
 }
 
+TEST_F(DrmHwcTest,
+       MstSiblingHotplugInvalidatesHdcpType1CacheOnSamePhysicalPort) {
+  auto primary_pipe = CreatePipeline(/*is_external=*/false);
+  ASSERT_TRUE(hwc.BindDisplay(primary_pipe));
+  hwc.FinalizeDisplayBinding();
+
+  auto mst_b_pipe = CreatePipeline(/*is_external=*/true);
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-static-cast-downcast)
+  auto* mst_b_conn = static_cast<FakeDrmConnector*>(
+      mst_b_pipe->connector->Get());
+  mst_b_conn->SetMstPath("mst:95-1");
+  mst_b_conn->SetContentProtectionPropertySupported(true);
+  mst_b_conn->SetHdcpContentTypePropertySupported(true);
+  ASSERT_TRUE(hwc.BindDisplay(mst_b_pipe));
+  hwc.FinalizeDisplayBinding();
+
+  auto mst_c_pipe = CreatePipeline(/*is_external=*/true);
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-static-cast-downcast)
+  auto* mst_c_conn = static_cast<FakeDrmConnector*>(
+      mst_c_pipe->connector->Get());
+  mst_c_conn->SetMstPath("mst:96-1");
+  mst_c_conn->SetContentProtectionPropertySupported(true);
+  mst_c_conn->SetHdcpContentTypePropertySupported(true);
+  ASSERT_TRUE(hwc.BindDisplay(mst_c_pipe));
+  hwc.FinalizeDisplayBinding();
+
+  HwcDisplay* mst_b = hwc.GetDisplay(1);
+  HwcDisplay* mst_c = hwc.GetDisplay(2);
+  ASSERT_NE(mst_b, nullptr);
+  ASSERT_NE(mst_c, nullptr);
+  ASSERT_EQ(mst_b->SetPowerMode(HwcDisplay::PowerMode::kOn),
+            HwcDisplay::Error::kNone);
+  ASSERT_EQ(mst_c->SetPowerMode(HwcDisplay::PowerMode::kOn),
+            HwcDisplay::Error::kNone);
+  ASSERT_TRUE(mst_b->CreateLayer(1));
+  ASSERT_TRUE(mst_c->CreateLayer(1));
+
+  auto* sink = fake_device->GetFakeAtomicCommitSink();
+  sink->ClearHistory();
+  ASSERT_TRUE(mst_b->StartHdcp());
+  ASSERT_TRUE(mst_c->StartHdcp());
+  EXPECT_EQ(mst_b->GetHdcpController()->GetPendingContentType(),
+            HdcpContentType::kType1);
+  EXPECT_EQ(mst_c->GetHdcpController()->GetPendingContentType(),
+            HdcpContentType::kType1);
+
+  // Hotplugging a sibling MST display on the same physical port (mst:95) must
+  // invalidate mst_b's cached Type 1 support while leaving unrelated port
+  // mst:96 (mst_c) untouched.
+  sink->SetTestCommitHook(
+      [](const std::vector<std::pair<AtomicStateManager*, AtomicCommitArgs>>&
+             args) {
+        if (args.size() == 1U &&
+            args[0].second.hdcp_content_type == HdcpContentType::kType1 &&
+            !args[0].second.composition) {
+          return CommitStatus::Failure(-EINVAL);
+        }
+        return CommitStatus::Success();
+      });
+
+  auto mst_a_pipe = CreatePipeline(/*is_external=*/true);
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-static-cast-downcast)
+  auto* mst_a_conn = static_cast<FakeDrmConnector*>(
+      mst_a_pipe->connector->Get());
+  mst_a_conn->SetMstPath("mst:95-2");
+  mst_a_conn->SetContentProtectionPropertySupported(true);
+  mst_a_conn->SetHdcpContentTypePropertySupported(true);
+  ASSERT_TRUE(hwc.BindDisplay(mst_a_pipe));
+  hwc.FinalizeDisplayBinding();
+
+  (void)mst_b->ValidateStagedComposition();
+  (void)mst_c->ValidateStagedComposition();
+  EXPECT_EQ(mst_b->GetHdcpController()->GetPendingContentType(),
+            HdcpContentType::kType0);
+  EXPECT_EQ(mst_c->GetHdcpController()->GetPendingContentType(),
+            HdcpContentType::kType1);
+
+  // Unplugging the sibling on mst:95 (after KMS deletes the dynamic connector
+  // and frees its PATH blob) must still invalidate mst_b's cache using the
+  // cached MST path so Type 1 is re-probed and restored once accepted.
+  sink->SetTestCommitHook(nullptr);
+  mst_a_conn->MarkDeleted();
+  ASSERT_TRUE(hwc.UnbindDisplay(mst_a_pipe));
+  hwc.FinalizeDisplayBinding();
+
+  (void)mst_b->ValidateStagedComposition();
+  EXPECT_EQ(mst_b->GetHdcpController()->GetPendingContentType(),
+            HdcpContentType::kType1);
+}
+
+TEST_F(DrmHwcTest, ReplaceDisplayInvalidatesHdcpType1CacheOnOldAndNewMstPorts) {
+  auto primary_pipe = CreatePipeline(/*is_external=*/false);
+  ASSERT_TRUE(hwc.BindDisplay(primary_pipe));
+  hwc.FinalizeDisplayBinding();
+
+  auto mst_b_pipe = CreatePipeline(/*is_external=*/true);
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-static-cast-downcast)
+  auto* mst_b_conn = static_cast<FakeDrmConnector*>(
+      mst_b_pipe->connector->Get());
+  mst_b_conn->SetMstPath("mst:95-1");
+  mst_b_conn->SetContentProtectionPropertySupported(true);
+  mst_b_conn->SetHdcpContentTypePropertySupported(true);
+  ASSERT_TRUE(hwc.BindDisplay(mst_b_pipe));
+  hwc.FinalizeDisplayBinding();
+
+  auto mst_c_pipe = CreatePipeline(/*is_external=*/true);
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-static-cast-downcast)
+  auto* mst_c_conn = static_cast<FakeDrmConnector*>(
+      mst_c_pipe->connector->Get());
+  mst_c_conn->SetMstPath("mst:96-1");
+  mst_c_conn->SetContentProtectionPropertySupported(true);
+  mst_c_conn->SetHdcpContentTypePropertySupported(true);
+  ASSERT_TRUE(hwc.BindDisplay(mst_c_pipe));
+  hwc.FinalizeDisplayBinding();
+
+  auto mst_d_pipe = CreatePipeline(/*is_external=*/true);
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-static-cast-downcast)
+  auto* mst_d_conn = static_cast<FakeDrmConnector*>(
+      mst_d_pipe->connector->Get());
+  mst_d_conn->SetMstPath("mst:97-1");
+  mst_d_conn->SetContentProtectionPropertySupported(true);
+  mst_d_conn->SetHdcpContentTypePropertySupported(true);
+  ASSERT_TRUE(hwc.BindDisplay(mst_d_pipe));
+  hwc.FinalizeDisplayBinding();
+
+  auto mst_old_pipe = CreatePipeline(/*is_external=*/true);
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-static-cast-downcast)
+  auto* mst_old_conn = static_cast<FakeDrmConnector*>(
+      mst_old_pipe->connector->Get());
+  mst_old_conn->SetMstPath("mst:95-2");
+  mst_old_conn->SetContentProtectionPropertySupported(true);
+  mst_old_conn->SetHdcpContentTypePropertySupported(true);
+  ASSERT_TRUE(hwc.BindDisplay(mst_old_pipe));
+  hwc.FinalizeDisplayBinding();
+
+  HwcDisplay* mst_b = hwc.GetDisplay(1);
+  HwcDisplay* mst_c = hwc.GetDisplay(2);
+  HwcDisplay* mst_d = hwc.GetDisplay(3);
+  ASSERT_NE(mst_b, nullptr);
+  ASSERT_NE(mst_c, nullptr);
+  ASSERT_NE(mst_d, nullptr);
+  ASSERT_EQ(mst_b->SetPowerMode(HwcDisplay::PowerMode::kOn),
+            HwcDisplay::Error::kNone);
+  ASSERT_EQ(mst_c->SetPowerMode(HwcDisplay::PowerMode::kOn),
+            HwcDisplay::Error::kNone);
+  ASSERT_EQ(mst_d->SetPowerMode(HwcDisplay::PowerMode::kOn),
+            HwcDisplay::Error::kNone);
+  ASSERT_TRUE(mst_b->CreateLayer(1));
+  ASSERT_TRUE(mst_c->CreateLayer(1));
+  ASSERT_TRUE(mst_d->CreateLayer(1));
+
+  auto* sink = fake_device->GetFakeAtomicCommitSink();
+  sink->ClearHistory();
+  ASSERT_TRUE(mst_b->StartHdcp());
+  ASSERT_TRUE(mst_c->StartHdcp());
+  ASSERT_TRUE(mst_d->StartHdcp());
+  EXPECT_EQ(mst_b->GetHdcpController()->GetPendingContentType(),
+            HdcpContentType::kType1);
+  EXPECT_EQ(mst_c->GetHdcpController()->GetPendingContentType(),
+            HdcpContentType::kType1);
+  EXPECT_EQ(mst_d->GetHdcpController()->GetPendingContentType(),
+            HdcpContentType::kType1);
+
+  sink->SetTestCommitHook(
+      [](const std::vector<std::pair<AtomicStateManager*, AtomicCommitArgs>>&
+             args) {
+        if (args.size() == 1U &&
+            args[0].second.hdcp_content_type == HdcpContentType::kType1 &&
+            !args[0].second.composition) {
+          return CommitStatus::Failure(-EINVAL);
+        }
+        return CommitStatus::Success();
+      });
+
+  // Replacing a deleted MST pipeline on mst:95 with a pipeline on mst:96 must
+  // invalidate both old-port (mst_b) and new-port (mst_c) siblings while
+  // leaving unrelated port mst:97 (mst_d) cached.
+  auto mst_new_pipe = CreatePipeline(/*is_external=*/true);
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-static-cast-downcast)
+  auto* mst_new_conn = static_cast<FakeDrmConnector*>(
+      mst_new_pipe->connector->Get());
+  mst_new_conn->SetMstPath("mst:96-2");
+  mst_new_conn->SetContentProtectionPropertySupported(true);
+  mst_new_conn->SetHdcpContentTypePropertySupported(true);
+
+  mst_old_conn->MarkDeleted();
+  ASSERT_TRUE(hwc.ReplaceDisplay(mst_old_pipe, mst_new_pipe));
+  hwc.FinalizeDisplayBinding();
+
+  (void)mst_b->ValidateStagedComposition();
+  (void)mst_c->ValidateStagedComposition();
+  (void)mst_d->ValidateStagedComposition();
+  EXPECT_EQ(mst_b->GetHdcpController()->GetPendingContentType(),
+            HdcpContentType::kType0);
+  EXPECT_EQ(mst_c->GetHdcpController()->GetPendingContentType(),
+            HdcpContentType::kType0);
+  EXPECT_EQ(mst_d->GetHdcpController()->GetPendingContentType(),
+            HdcpContentType::kType1);
+  sink->SetTestCommitHook(nullptr);
+}
+
 }  // namespace android::drm_hwcomposer

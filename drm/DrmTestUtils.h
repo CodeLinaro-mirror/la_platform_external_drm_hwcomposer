@@ -566,6 +566,7 @@ class FakeDrmConnector : public DrmConnector {
     mst_path_ = std::move(path);
     InitFakeDrmProperty(path_property_, connector_id_, kFakePathPropId, "PATH",
                         DRM_MODE_PROP_BLOB, mst_path_.empty() ? 0 : 1);
+    UpdateCachedMstPath();
   }
 
   uint32_t GetMmHeight() const override {
@@ -647,6 +648,9 @@ class FakeDrmConnector : public DrmConnector {
 
  protected:
   bool GetPathPropertyBlobData(std::vector<char>& path_data) const override {
+    if (IsDeleted()) {
+      return false;
+    }
     if (!mst_path_.empty()) {
       path_data.assign(mst_path_.begin(), mst_path_.end());
       return true;

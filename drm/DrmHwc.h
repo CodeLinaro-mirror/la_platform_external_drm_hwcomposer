@@ -174,6 +174,8 @@ class DrmHwc : public PipelineToFrontendBindingInterface, public StatsProvider {
 
   void RequestHdcpNegotiation(DisplayHandle display_handle);
   bool IsHotplugHdcpDisplay(const HwcDisplay &display) const;
+  void InvalidateMstHdcpType1CacheForPipeline(
+      const DrmDisplayPipeline &pipeline);
 
   DisplayHandle last_display_handle_ = kPrimaryDisplay;
   // Outer lock acquired before GetMainLock() (dump_mutex_ -> GetMainLock()).

@@ -291,6 +291,7 @@ class HwcDisplay : public ICompositorDisplay {
   auto IsHdcpPropertyPresent() -> bool;
   auto StartHdcp() -> bool;
   auto StopHdcp() -> bool;
+  void InvalidateHdcpType1Cache();
 
   auto GetWritebackBufferAttributes() const
       -> std::optional<WritebackAttributes>;
