@@ -112,6 +112,29 @@ TEST(LeftoverLayerMapperTest, SingleInvalidButNegativeValidator) {
                                               CompositionType::kInvalid))));
 }
 
+TEST(LeftoverLayerMapperTest,
+     SingleInvalidWithoutDeviceSfTypeNotDeviceComposited) {
+  LeftoverLayerMapper mapper;
+
+  MockCompositorDisplay mock_display;
+  HwcLayer layer = CompositorTestUtils::CreateLayer(&mock_display,
+                                                    IRect{.left = 0,
+                                                          .top = 0,
+                                                          .right = 1920,
+                                                          .bottom = 1080},
+                                                    /*z_order=*/1,
+                                                    CompositionType::kClient);
+
+  std::vector<LayerMapping> mappings = {{&layer, CompositionType::kInvalid}};
+
+  std::vector<LayerMapping> result = mapper.AssignLayers(mappings,
+                                                         &TrueValidator);
+
+  EXPECT_THAT(result, ElementsAre(AllOf(Field(&LayerMapping::layer, &layer),
+                                        Field(&LayerMapping::composition_type,
+                                              CompositionType::kInvalid))));
+}
+
 TEST(LeftoverLayerMapperTest, SingleLayerAndCursor) {
   LeftoverLayerMapper mapper;
 

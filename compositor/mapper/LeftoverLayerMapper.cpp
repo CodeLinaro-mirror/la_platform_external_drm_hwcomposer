@@ -58,6 +58,13 @@ std::vector<LayerMapping> LeftoverLayerMapper::AssignLayers(
     return layers;
   }
 
+  // Only proceed for device composition eligible layers.
+  const CompositionType sf_type = layers.at(*invalid_layer_index)
+                                      .layer->GetSfType();
+  if (sf_type != CompositionType::kDevice) {
+    return layers;
+  }
+
   std::vector<LayerMapping> new_layers = layers;
   new_layers[*invalid_layer_index].composition_type = CompositionType::kDevice;
 
