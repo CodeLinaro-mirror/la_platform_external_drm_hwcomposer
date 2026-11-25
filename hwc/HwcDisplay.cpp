@@ -623,20 +623,21 @@ auto HwcDisplay::GetDisplayBoundsMm() const -> std::pair<int32_t, int32_t> {
     return {configs_.mm_width, -1};
   }
 
-  if (GetEdid()) {
-    const auto bounds = GetEdid()->GetBoundsMm();
-    if (bounds.first > 0 || bounds.second > 0) {
-      return bounds;
-    }
-    if (bounds.first == 0 && bounds.second == 0) {
-      if (configs_.mm_width == 0) {
-        return bounds;
-      }
-      return {configs_.mm_width, -1};
-    }
+  const auto bounds = GetEdid() ? GetEdid()->GetBoundsMm()
+                                : std::pair<int32_t, int32_t>{-1, -1};
+  if (bounds.first > 0 || bounds.second > 0) {
+    return bounds;
+  }
+  if (bounds.first < 0) {
+    ALOGE("Failed to get display bounds for d=%d\n", int(handle_));
   }
 
-  ALOGE("Failed to get display bounds for d=%d\n", int(handle_));
+  // The kernel derives the connector size from the EDID header, which holds an
+  // aspect ratio (e.g. 79x0 cm -> 790x0 mm) rather than a size when one axis
+  // is 0.
+  if (configs_.mm_width == 0 || configs_.mm_height == 0) {
+    return {0, 0};
+  }
   // mm_width and mm_height are unreliable. so only provide mm_width to avoid
   // wrong dpi computations or other use of the values.
   return {configs_.mm_width, -1};

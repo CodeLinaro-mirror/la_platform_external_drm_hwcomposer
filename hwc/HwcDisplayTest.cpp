@@ -3541,6 +3541,28 @@ TEST_F(HwcDisplayTest, NullEdidWrapperIsHandledGracefullyAcrossDisplayQueries) {
   hwc.GetResMan().DeInit();
 }
 
+TEST_F(HwcDisplayTest,
+       GetDisplayBoundsMmIgnoresAspectRatioConnectorSizeWithoutEdid) {
+  // No EDID parser, and the kernel turned a {79, 0} cm aspect-ratio header
+  // into a 790x0 mm connector size.
+  constexpr uint32_t kKernelWidthMm = 790;
+
+  auto* fake_conn = fake_device->AddPipelineResourcesWithModes(
+      {CreateFakeDrmMode(kFhdWidth, kFhdHeight, kRefresh60Hz,
+                         DRM_MODE_TYPE_PREFERRED, "1080p60")},
+      /*is_external=*/true);
+  ASSERT_NE(fake_conn, nullptr);
+  fake_conn->SetMmSize(kKernelWidthMm, 0);
+  fake_conn->SetEdidBlobData({});
+  std::shared_ptr<DrmDisplayPipeline>
+      pipeline = fake_device->GetBackend().CreatePipeline(*fake_conn);
+  ASSERT_NE(pipeline, nullptr);
+
+  HwcDisplay display(kPrimaryDisplay, /*is_virtual=*/false, &hwc);
+  ASSERT_TRUE(display.SetPipeline(pipeline));
+  EXPECT_EQ(display.GetDisplayBoundsMm(), std::make_pair(0, 0));
+}
+
 #if HAS_LIBDISPLAY_INFO
 TEST_F(HwcDisplayTest,
        DeinitResetsEdidWrapperWhenSwitchingToConnectorWithoutEdid) {
@@ -3700,6 +3722,30 @@ TEST_F(
   ASSERT_TRUE(display.SetPipeline(pipeline));
   EXPECT_EQ(display.GetDisplayBoundsMm(),
             std::make_pair(static_cast<int32_t>(kConnectorWidthMm), -1));
+}
+
+TEST_F(HwcDisplayTest, GetDisplayBoundsMmIgnoresAspectRatioOnlyScreenSize) {
+  // EDID 1.4 encodes 16:9 as header bytes {79, 0}; the kernel turns that into a
+  // 790x0 mm connector size.
+  constexpr uint8_t kAspect16x9Byte = 79;
+  constexpr uint32_t kKernelWidthMm = 790;
+
+  auto* fake_conn = fake_device->AddPipelineResourcesWithModes(
+      {CreateFakeDrmMode(kFhdWidth, kFhdHeight, kRefresh60Hz,
+                         DRM_MODE_TYPE_PREFERRED, "1080p60")},
+      /*is_external=*/true);
+  ASSERT_NE(fake_conn, nullptr);
+  fake_conn->SetMmSize(kKernelWidthMm, 0);
+  fake_conn->SetEdidBlobData(MakeEdidWithBounds(/*horiz_mm=*/0, /*vert_mm=*/0,
+                                                kAspect16x9Byte,
+                                                /*height_cm=*/0));
+  std::shared_ptr<DrmDisplayPipeline>
+      pipeline = fake_device->GetBackend().CreatePipeline(*fake_conn);
+  ASSERT_NE(pipeline, nullptr);
+
+  HwcDisplay display(kPrimaryDisplay, /*is_virtual=*/false, &hwc);
+  ASSERT_TRUE(display.SetPipeline(pipeline));
+  EXPECT_EQ(display.GetDisplayBoundsMm(), std::make_pair(0, 0));
 }
 #endif
 
