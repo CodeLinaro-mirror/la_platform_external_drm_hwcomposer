@@ -173,6 +173,21 @@ CommitStatus TestLayerMappings(
   return result;
 }
 
+bool ValidateAgainstSfTypes(const std::vector<LayerMapping>& layers) {
+  // NOLINTNEXTLINE(readability-use-anyofallof)
+  for (const auto& [layer, composition_type] : layers) {
+    // A layer can't be device composited if SurfaceFlinger requested client
+    // composition.
+    if (layer->GetSfType() == CompositionType::kClient &&
+        (composition_type == CompositionType::kDevice ||
+         composition_type == CompositionType::kCursor ||
+         composition_type == CompositionType::kSolidColor)) {
+      return false;
+    }
+  }
+
+  return true;
+}
 }  // namespace
 
 GenericLayerMapperCompositionPlanner::GenericLayerMapperCompositionPlanner(
@@ -229,6 +244,7 @@ GenericLayerMapperCompositionPlanner::ValidateDisplay(
   const LayerMapper::MappingValidator validator =
       [display, this](const std::vector<LayerMapping>& layers) {
         return CountRemainingPlanes(display, layers) >= 0 &&
+               ValidateAgainstSfTypes(layers) &&
                (backend_validator_ ? backend_validator_(layers) : true);
       };
 
